@@ -70,19 +70,12 @@ export default function SectionAdminPayroll() {
 
     useEffect(() => { verifyAndFetch(); }, []);
 
-    // --- LOGIC FILTER (DENGAN PROTECTION AGAR TIDAK CRASH) ---
+    // --- LOGIC FILTER ---
     const filteredPayroll = useMemo(() => {
         return payrollData.filter(item => {
             const matchStatus = item.status === activeTab;
-
-            // Safety Check: Pastikan name & pangkat tidak null sebelum toLowerCase
-            const itemName = item.name || "";
-            const itemPangkat = item.pangkat || "";
-            const search = searchQuery.toLowerCase();
-
-            const matchSearch = itemName.toLowerCase().includes(search) ||
-                itemPangkat.toLowerCase().includes(search);
-
+            const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.pangkat.toLowerCase().includes(searchQuery.toLowerCase());
             return matchStatus && matchSearch;
         });
     }, [payrollData, activeTab, searchQuery]);
@@ -103,7 +96,7 @@ export default function SectionAdminPayroll() {
         }
     };
 
-    // --- ACTION: BULK DELETE ---
+    // --- ACTION: BULK DELETE (Hanya untuk yang sudah terproses) ---
     const clearHistory = async () => {
         if (!confirm("Bersihkan semua data yang sudah terproses? (APPROVED/REJECTED/SENT)")) return;
         const { error } = await supabase
@@ -204,15 +197,12 @@ export default function SectionAdminPayroll() {
                                 {/* Header Card */}
                                 <div className="bg-slate-950 p-5 text-white flex justify-between items-start">
                                     <div>
-                                        {/* PROTECTION: Cek apakah nama mengandung '|' sebelum split */}
-                                        <h4 className="font-black uppercase italic text-lg leading-none truncate w-40">
-                                            {item.name?.includes('|') ? item.name.split('|').pop() : (item.name || "Unknown")}
-                                        </h4>
-                                        <p className="text-[9px] font-bold text-[#00E676] mt-1 uppercase italic">{item.pangkat || "NO RANK"}</p>
+                                        <h4 className="font-black uppercase italic text-lg leading-none truncate w-40">{item.name.split('|').pop()}</h4>
+                                        <p className="text-[9px] font-bold text-[#00E676] mt-1 uppercase italic">{item.pangkat}</p>
                                     </div>
                                     <div className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
                                         <p className="text-[8px] font-black opacity-50 uppercase leading-none mb-1">Total Gaji</p>
-                                        <p className="text-xs font-[1000] text-[#00E676]">Rp {(item.total_gaji || 0).toLocaleString()}</p>
+                                        <p className="text-xs font-[1000] text-[#00E676]">Rp {item.total_gaji.toLocaleString()}</p>
                                     </div>
                                 </div>
 
@@ -221,11 +211,11 @@ export default function SectionAdminPayroll() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-slate-50 p-3 border-2 border-black rounded-xl">
                                             <p className="text-[8px] font-black opacity-40 uppercase italic">Duty Time</p>
-                                            <p className="text-xs font-black">{item.total_jam_duty || 0} JAM</p>
+                                            <p className="text-xs font-black">{item.total_jam_duty} JAM</p>
                                         </div>
                                         <div className="bg-slate-50 p-3 border-2 border-black rounded-xl">
                                             <p className="text-[8px] font-black opacity-40 uppercase italic">PRP Points</p>
-                                            <p className="text-xs font-black">{item.point_prp || 0} PTS</p>
+                                            <p className="text-xs font-black">{item.point_prp} PTS</p>
                                         </div>
                                     </div>
 
@@ -282,6 +272,7 @@ export default function SectionAdminPayroll() {
                             animate={{ scale: 1, y: 0 }}
                             className="bg-white max-w-4xl w-full rounded-[50px] border-[6px] border-slate-950 shadow-[15px_15px_0px_#00E676] overflow-hidden"
                         >
+                            {/* Header Modal */}
                             <div className="bg-slate-950 p-6 flex justify-between items-center text-white">
                                 <div className="flex items-center gap-3">
                                     <div className="bg-[#00E676] p-2 rounded-lg text-black"><Banknote size={20} /></div>
@@ -292,6 +283,7 @@ export default function SectionAdminPayroll() {
                                 </button>
                             </div>
 
+                            {/* Content Modal */}
                             <div className="p-6 md:p-10">
                                 <SlipGajiTemplate
                                     data={selectedSlip}

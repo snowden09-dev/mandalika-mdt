@@ -50,7 +50,7 @@ export default function SectionAdminPayroll() {
 
             if (authError || (!auth.is_admin && !auth.is_highadmin)) {
                 toast.error("AKSES FINANSIAL DITOLAK!");
-                router.push('/portal');
+                router.push('/dashboard');
                 return;
             }
 

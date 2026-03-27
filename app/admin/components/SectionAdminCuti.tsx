@@ -43,7 +43,7 @@ export default function SectionAdminCuti() {
 
         if (userError || (!user.is_admin && !user.is_highadmin)) {
             toast.error("UNAUTHORIZED ACCESS DETECTED!");
-            router.push('/portal');
+            router.push('/dashboard');
             return;
         }
 

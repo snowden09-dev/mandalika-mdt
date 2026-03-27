@@ -63,7 +63,7 @@ export default function SectionAdminPersonnel() {
 
         if (authError || (!auth.is_admin && !auth.is_highadmin)) {
             toast.error("AKSES DITOLAK! Anda tidak memiliki otoritas personel.");
-            router.push('/portal');
+            router.push('/dashboard');
             return;
         }
 

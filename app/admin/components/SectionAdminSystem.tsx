@@ -49,7 +49,7 @@ export default function SectionAdminSystem() {
         // Security Check
         const { data: auth } = await supabase.from('users').select('pangkat, is_highadmin, is_admin').eq('discord_id', parsed.discord_id).single();
         if (!auth?.is_admin && !auth?.is_highadmin) {
-            router.push('/portal');
+            router.push('/dashboard');
             return;
         }
 

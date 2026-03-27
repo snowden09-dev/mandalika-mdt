@@ -55,7 +55,7 @@ export default function SectionAdminLaporan() {
         const { data: auth, error: authError } = await supabase.from('users').select('is_admin, is_highadmin').eq('discord_id', parsed.discord_id).single();
         if (authError || (!auth.is_admin && !auth.is_highadmin)) {
             toast.error("AKSES DITOLAK!");
-            router.push('/portal');
+            router.push('/dashboard');
             return;
         }
 

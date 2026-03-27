@@ -7,7 +7,7 @@ import {
     CalendarDays, CheckCircle2, XCircle, Clock,
     User, ShieldCheck, Filter, Search, Trash2,
     AlertTriangle, ChevronRight, Briefcase, Crown, Lock
-} from 'lucide-center';
+} from 'lucide-react';
 import { format } from "date-fns";
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';

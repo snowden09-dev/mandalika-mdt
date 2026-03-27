@@ -41,14 +41,14 @@ export default function SectionAdminPayroll() {
         try {
             const parsed = JSON.parse(sessionData);
 
-            // --- CRITICAL SECURITY CHECK ---
+            // --- SECURITY CHECK ---
             const { data: auth, error: authError } = await supabase
                 .from('users')
                 .select('is_admin, is_highadmin')
                 .eq('discord_id', parsed.discord_id)
                 .single();
 
-            if (authError || (!auth.is_admin && !auth.is_highadmin)) {
+            if (authError || (!auth?.is_admin && !auth?.is_highadmin)) {
                 toast.error("AKSES FINANSIAL DITOLAK!");
                 router.push('/dashboard');
                 return;
@@ -63,30 +63,31 @@ export default function SectionAdminPayroll() {
 
             if (data) setPayrollData(data);
         } catch (err) {
-            console.error("Payroll Load Error:", err);
-            toast.error("Gagal memuat data brankas!");
+            console.error("Critical Load Error:", err);
+            // Tetap set loading false agar tidak stuck
         }
         setLoading(false);
     };
 
     useEffect(() => { verifyAndFetch(); }, []);
 
-    // --- LOGIC FILTER (DENGAN PROTECTION) ---
+    // --- LOGIC FILTER (DENGAN PROTEKSI NULL) ---
     const filteredPayroll = useMemo(() => {
         return payrollData.filter(item => {
             const matchStatus = item.status === activeTab;
-            // Tambahkan opsional chaining ?. agar tidak error jika name null
-            const nameLower = (item.name || "").toLowerCase();
-            const pangkatLower = (item.pangkat || "").toLowerCase();
-            const searchLower = searchQuery.toLowerCase();
 
-            const matchSearch = nameLower.includes(searchLower) || pangkatLower.includes(searchLower);
+            // Safety: Pastikan string tidak null sebelum toLowerCase
+            const safeName = (item.name || "").toLowerCase();
+            const safePangkat = (item.pangkat || "").toLowerCase();
+            const safeSearch = searchQuery.toLowerCase();
+
+            const matchSearch = safeName.includes(safeSearch) || safePangkat.includes(safeSearch);
             return matchStatus && matchSearch;
         });
     }, [payrollData, activeTab, searchQuery]);
 
     const handleStatusUpdate = async (id: string, newStatus: StatusFilter) => {
-        const tId = toast.loading(`Updating status to ${newStatus}...`);
+        const tId = toast.loading(`Updating status...`);
         const { error } = await supabase
             .from('pengajuan_gaji')
             .update({ status: newStatus })
@@ -95,13 +96,13 @@ export default function SectionAdminPayroll() {
         if (error) {
             toast.error("Gagal update status!", { id: tId });
         } else {
-            toast.success(`Payroll ${newStatus}!`, { id: tId });
+            toast.success(`Berhasil Update!`, { id: tId });
             verifyAndFetch();
         }
     };
 
     const clearHistory = async () => {
-        if (!confirm("Bersihkan semua data yang sudah terproses? (APPROVED/REJECTED/SENT)")) return;
+        if (!confirm("Bersihkan semua data yang sudah terproses?")) return;
         const { error } = await supabase
             .from('pengajuan_gaji')
             .delete()
@@ -176,7 +177,7 @@ export default function SectionAdminPayroll() {
                 </button>
             </div>
 
-            {/* LIST */}
+            {/* PAYROLL LIST */}
             {loading ? (
                 <div className="py-20 text-center font-black uppercase italic animate-pulse">Calculating Treasury Data...</div>
             ) : filteredPayroll.length === 0 ? (
@@ -198,11 +199,11 @@ export default function SectionAdminPayroll() {
                             >
                                 <div className="bg-slate-950 p-5 text-white flex justify-between items-start">
                                     <div>
-                                        {/* FIX: Nama diproteksi agar tidak crash jika format salah */}
+                                        {/* PROTEKSI SPLIT NAMA */}
                                         <h4 className="font-black uppercase italic text-lg leading-none truncate w-40">
-                                            {item.name?.includes('|') ? item.name.split('|').pop() : item.name || 'ANONIM'}
+                                            {item.name?.includes('|') ? item.name.split('|').pop() : (item.name || "Unknown")}
                                         </h4>
-                                        <p className="text-[9px] font-bold text-[#00E676] mt-1 uppercase italic">{item.pangkat || 'TIDAK ADA PANGKAT'}</p>
+                                        <p className="text-[9px] font-bold text-[#00E676] mt-1 uppercase italic">{item.pangkat || "No Rank"}</p>
                                     </div>
                                     <div className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
                                         <p className="text-[8px] font-black opacity-50 uppercase leading-none mb-1">Total Gaji</p>
@@ -231,11 +232,7 @@ export default function SectionAdminPayroll() {
                                         )}
 
                                         {(activeTab === 'APPROVED' || activeTab === 'SENT_IMAGE_QR') && (
-                                            <button onClick={() => setSelectedSlip(item)} className="w-full bg-blue-500 text-white border-2 border-black py-4 rounded-2xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 flex items-center justify-center gap-2"><Eye size={18} /> Open Financial Slip</button>
-                                        )}
-
-                                        {activeTab === 'REJECTED' && (
-                                            <button onClick={() => handleStatusUpdate(item.id, 'PENDING')} className="w-full bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase italic opacity-60">Restore to Pending</button>
+                                            <button onClick={() => setSelectedSlip(item)} className="w-full bg-blue-500 text-white border-2 border-black py-4 rounded-2xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 flex items-center justify-center gap-2"><Eye size={18} /> Open Slip</button>
                                         )}
                                     </div>
                                 </div>
@@ -249,13 +246,10 @@ export default function SectionAdminPayroll() {
             <AnimatePresence>
                 {selectedSlip && (
                     <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md p-4 flex items-center justify-center overflow-y-auto">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white max-w-4xl w-full rounded-[50px] border-[6px] border-slate-950 shadow-[15px_15px_0px_#00E676] overflow-hidden">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white max-w-4xl w-full rounded-[50px] border-[6px] border-slate-950 shadow-[15px_15px_0px_#00E676] overflow-hidden">
                             <div className="bg-slate-950 p-6 flex justify-between items-center text-white">
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-[#00E676] p-2 rounded-lg text-black"><Banknote size={20} /></div>
-                                    <h3 className="font-[1000] italic uppercase tracking-tighter">Vault Slip Preview</h3>
-                                </div>
-                                <button onClick={() => setSelectedSlip(null)} className="hover:rotate-90 transition-all"><XCircle size={32} /></button>
+                                <h3 className="font-[1000] italic uppercase tracking-tighter">Vault Slip Preview</h3>
+                                <button onClick={() => setSelectedSlip(null)}><XCircle size={32} /></button>
                             </div>
                             <div className="p-6 md:p-10">
                                 <SlipGajiTemplate data={selectedSlip} onClose={() => setSelectedSlip(null)} onSuccess={() => { setSelectedSlip(null); verifyAndFetch(); }} />

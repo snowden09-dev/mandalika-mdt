@@ -6,23 +6,51 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     CalendarDays, CheckCircle2, XCircle, Clock,
     User, ShieldCheck, Filter, Search, Trash2,
-    AlertTriangle, ChevronRight, Briefcase, Crown
+    AlertTriangle, ChevronRight, Briefcase, Crown, Lock
 } from 'lucide-react';
 import { format } from "date-fns";
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 export default function SectionAdminCuti() {
+    const router = useRouter();
     const [cutiLogs, setCutiLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAuthorized, setIsAuthorized] = useState(false); // Security state
     const [viewMode, setViewMode] = useState<'ANGGOTA' | 'PETINGGI'>('ANGGOTA');
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
 
-    const fetchCuti = async () => {
+    const verifyAndFetch = async () => {
         setLoading(true);
+        const sessionData = localStorage.getItem('police_session');
+
+        if (!sessionData) {
+            router.push('/');
+            return;
+        }
+
+        const parsed = JSON.parse(sessionData);
+
+        // --- DOUBLE SECURITY CHECK ---
+        // Verifikasi ke DB apakah user ini beneran admin
+        const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('is_admin, is_highadmin')
+            .eq('discord_id', parsed.discord_id)
+            .single();
+
+        if (userError || (!user.is_admin && !user.is_highadmin)) {
+            toast.error("UNAUTHORIZED ACCESS DETECTED!");
+            router.push('/portal');
+            return;
+        }
+
+        // Jika lolos verifikasi, baru ambil data cuti
+        setIsAuthorized(true);
         const { data, error } = await supabase
             .from('pengajuan_cuti')
             .select('*')
@@ -32,14 +60,12 @@ export default function SectionAdminCuti() {
         setLoading(false);
     };
 
-    useEffect(() => { fetchCuti(); }, []);
+    useEffect(() => { verifyAndFetch(); }, []);
 
-    // LOGIKA PEMISAHAN KASTA (Petinggi = Pangkat Tertentu)
     const filteredCuti = useMemo(() => {
         return cutiLogs.filter(log => {
             const isPetinggi = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL'].includes(log.pangkat?.toUpperCase());
             const matchStatus = log.status === statusFilter;
-
             if (viewMode === 'PETINGGI') return isPetinggi && matchStatus;
             return !isPetinggi && matchStatus;
         });
@@ -56,14 +82,24 @@ export default function SectionAdminCuti() {
             toast.error("Gagal memproses!", { id: tId });
         } else {
             toast.success(`Cuti ${status}!`, { id: tId });
-            fetchCuti();
+            verifyAndFetch();
         }
     };
 
+    // --- PROTECTED RENDER ---
+    if (!isAuthorized && loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+                <Lock size={48} className="text-slate-950 mb-4" />
+                <p className="font-black italic uppercase text-xs">Authenticating Clearance...</p>
+            </div>
+        );
+    }
+
+    if (!isAuthorized) return null;
+
     return (
         <div className="w-full max-w-7xl mx-auto space-y-6 font-mono pb-20 text-slate-950">
-
-            {/* HEADER & TOGGLE KASTA */}
             <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-6`}>
                 <div className="flex items-center gap-3">
                     <CalendarDays size={32} className="text-[#A78BFA]" />
@@ -90,7 +126,6 @@ export default function SectionAdminCuti() {
                 </div>
             </div>
 
-            {/* STATUS FILTER */}
             <div className="flex gap-2 overflow-x-auto pb-2">
                 {['PENDING', 'APPROVED', 'REJECTED'].map((s) => (
                     <button
@@ -105,7 +140,6 @@ export default function SectionAdminCuti() {
                 ))}
             </div>
 
-            {/* LIST LOG CUTI */}
             {loading ? (
                 <div className="text-center py-20 font-black italic animate-pulse">Scanning Personal Dossiers...</div>
             ) : filteredCuti.length === 0 ? (
@@ -123,7 +157,6 @@ export default function SectionAdminCuti() {
                                 animate={{ x: 0, opacity: 1 }}
                                 className={`bg-white ${boxBorder} ${hardShadow} rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-hidden group`}
                             >
-                                {/* Pangkat Indicator Strip */}
                                 <div className={cn("absolute left-0 top-0 bottom-0 w-2", viewMode === 'PETINGGI' ? 'bg-[#FFD100]' : 'bg-[#3B82F6]')} />
 
                                 <div className="flex items-center gap-6 w-full md:w-auto">
@@ -152,7 +185,6 @@ export default function SectionAdminCuti() {
                                         </div>
                                     </div>
 
-                                    {/* ACTION BUTTONS (HANYA MUNCUL DI PENDING) */}
                                     {statusFilter === 'PENDING' && (
                                         <div className="flex gap-2">
                                             <button
@@ -170,7 +202,6 @@ export default function SectionAdminCuti() {
                                         </div>
                                     )}
 
-                                    {/* STATUS INFO (APPROVED/REJECTED) */}
                                     {statusFilter !== 'PENDING' && (
                                         <div className={cn("px-4 py-2 border-2 border-black rounded-lg font-black text-[10px] uppercase italic",
                                             statusFilter === 'APPROVED' ? 'bg-[#00E676]' : 'bg-[#FF4D4D]'

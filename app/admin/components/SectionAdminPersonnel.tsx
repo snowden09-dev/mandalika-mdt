@@ -5,10 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield, Zap, Clock, Search, Edit, UserMinus, AlertTriangle,
-    ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart
+    ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
@@ -17,8 +18,10 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 const inputStyle = `w-full bg-[#f1f5f9] border-[3px] border-slate-950 rounded-xl px-4 py-3 text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[3px_3px_0px_#000] appearance-none`;
 
 export default function SectionAdminPersonnel() {
+    const router = useRouter();
     const [personnel, setPersonnel] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAuthorized, setIsAuthorized] = useState(false); // SECURITY LOCK
     const [searchQuery, setSearchQuery] = useState("");
 
     // KASTA ADMIN
@@ -40,8 +43,36 @@ export default function SectionAdminPersonnel() {
         is_admin: false
     });
 
-    const fetchPersonnel = async () => {
+    const verifyAndFetch = async () => {
         setLoading(true);
+        const sessionData = localStorage.getItem('police_session');
+        if (!sessionData) {
+            router.push('/');
+            return;
+        }
+
+        const parsed = JSON.parse(sessionData);
+
+        // --- STAGE 1: SECURITY CLEARANCE ---
+        // Cek apakah pengakses beneran High Admin atau Jendral
+        const { data: auth, error: authError } = await supabase
+            .from('users')
+            .select('pangkat, is_highadmin, is_admin')
+            .eq('discord_id', parsed.discord_id)
+            .single();
+
+        if (authError || (!auth.is_admin && !auth.is_highadmin)) {
+            toast.error("AKSES DITOLAK! Anda tidak memiliki otoritas personel.");
+            router.push('/portal');
+            return;
+        }
+
+        // --- STAGE 2: SET ROLES & FETCH DATA ---
+        setIsAuthorized(true);
+        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) {
+            setIsSuperAdmin(true);
+        }
+
         const { data, error } = await supabase
             .from('users')
             .select('*')
@@ -51,7 +82,10 @@ export default function SectionAdminPersonnel() {
         setLoading(false);
     };
 
-    // --- FITUR ANALISIS DISTRIBUSI DIVISI ---
+    useEffect(() => {
+        verifyAndFetch();
+    }, []);
+
     const stats = useMemo(() => {
         const total = personnel.length;
         const distribution = personnel.reduce((acc: any, p: any) => {
@@ -61,23 +95,6 @@ export default function SectionAdminPersonnel() {
         }, {});
         return { total, distribution };
     }, [personnel]);
-
-    const checkAdminTier = async () => {
-        const sessionData = localStorage.getItem('police_session');
-        if (!sessionData) return;
-        const parsed = JSON.parse(sessionData);
-
-        const { data } = await supabase.from('users').select('pangkat, is_highadmin').eq('discord_id', parsed.discord_id).single();
-
-        if (data && (data.pangkat === 'JENDRAL' || data.is_highadmin === true)) {
-            setIsSuperAdmin(true);
-        }
-    };
-
-    useEffect(() => {
-        checkAdminTier();
-        fetchPersonnel();
-    }, []);
 
     const filteredPersonnel = personnel.filter(p =>
         p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -114,7 +131,7 @@ export default function SectionAdminPersonnel() {
             }
 
             setEditingUser(null);
-            fetchPersonnel();
+            verifyAndFetch();
         } catch (error: any) {
             toast.error(`ERROR: ${error.message}`, { id: tId });
         }
@@ -131,7 +148,7 @@ export default function SectionAdminPersonnel() {
             const { error } = await supabase.from('users').delete().eq('discord_id', discordId);
             if (error) throw error;
             toast.success(`${nama} TELAH DI-TERMINATE!`, { id: tId });
-            fetchPersonnel();
+            verifyAndFetch();
         } catch (error: any) {
             toast.error(`ERROR: ${error.message}`, { id: tId });
         }
@@ -169,27 +186,38 @@ export default function SectionAdminPersonnel() {
         });
     };
 
+    // --- PROTECTED RENDER ---
+    if (!isAuthorized && loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-950 animate-pulse">
+                <Lock size={48} className="mb-4" />
+                <p className="font-black italic uppercase text-xs">Accessing Personnel Files...</p>
+            </div>
+        );
+    }
+
+    if (!isAuthorized) return null;
+
     return (
         <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-mono text-slate-950">
+            <Toaster position="top-center" richColors />
 
-            {/* --- DASHBOARD STATS (NEW FEATURE) --- */}
+            {/* DASHBOARD STATS */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                {/* Total Anggota */}
                 <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-3xl flex items-center gap-5`}>
                     <div className="bg-[#3B82F6] p-4 rounded-2xl border-2 border-black">
                         <Users className="text-white" size={32} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-black uppercase opacity-40">Total Personnel</p>
+                        <p className="text-[10px] font-black uppercase opacity-40 leading-none mb-1">Total Personnel</p>
                         <h3 className="text-4xl font-[1000] italic leading-none">{stats.total}</h3>
                     </div>
                 </div>
 
-                {/* Distribusi Divisi Bento */}
                 <div className={`md:col-span-3 bg-slate-950 p-6 ${boxBorder} ${hardShadow} rounded-3xl flex flex-wrap gap-4 items-center`}>
-                    <div className="flex items-center gap-3 mr-4">
+                    <div className="flex items-center gap-3 mr-4 text-white">
                         <PieChart className="text-[#00E676]" size={24} />
-                        <span className="text-white font-black italic text-xs uppercase">Divisi Unit:</span>
+                        <span className="font-black italic text-xs uppercase">Unit Distribution:</span>
                     </div>
                     {Object.entries(stats.distribution).map(([name, count]: any) => (
                         <div key={name} className="bg-white border-2 border-black px-4 py-2 rounded-xl flex items-center gap-3 shadow-[3px_3px_0px_#00E676]">
@@ -201,7 +229,7 @@ export default function SectionAdminPersonnel() {
             </div>
 
             {/* HEADER & SEARCH BAR */}
-            <div className="bg-white border-[4px] border-slate-950 shadow-[6px_6px_0px_#000] p-6 rounded-2xl flex flex-col md:flex-row gap-4 justify-between items-center text-slate-950">
+            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-[25px] flex flex-col md:flex-row gap-4 justify-between items-center`}>
                 <div>
                     <h2 className="font-black italic uppercase text-2xl flex items-center gap-2 tracking-tighter">
                         <Shield className="text-[#3B82F6]" /> Personnel Records
@@ -224,7 +252,7 @@ export default function SectionAdminPersonnel() {
                     </div>
 
                     {isSuperAdmin && (
-                        <button onClick={openAddModal} className="bg-[#A3E635] text-slate-950 border-[3px] border-slate-950 px-5 py-3 rounded-xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2">
+                        <button onClick={openAddModal} className="bg-[#A3E635] text-slate-950 border-[3px] border-slate-950 px-5 py-3 rounded-xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all flex items-center justify-center gap-2">
                             <UserPlus size={16} strokeWidth={3} /> Tambah Personel
                         </button>
                     )}
@@ -233,11 +261,11 @@ export default function SectionAdminPersonnel() {
 
             {/* DAFTAR PERSONEL */}
             {loading ? (
-                <div className="text-center py-20 font-black italic uppercase animate-pulse text-slate-950">Scanning Database...</div>
+                <div className="text-center py-20 font-black italic uppercase animate-pulse">Scanning Intelligence Database...</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredPersonnel.map((p) => (
-                        <div key={p.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] flex flex-col overflow-hidden relative`}>
+                        <div key={p.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] flex flex-col overflow-hidden relative group`}>
 
                             <div className="absolute top-2 right-2 flex flex-col gap-1 items-end z-10">
                                 {p.is_highadmin && (
@@ -288,32 +316,29 @@ export default function SectionAdminPersonnel() {
                 </div>
             )}
 
-            {/* --- MODAL ADD / EDIT DATA NEO-BRUTALISM --- */}
+            {/* MODAL ADD / EDIT */}
             <AnimatePresence>
                 {editingUser && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
-                    >
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md overflow-y-auto">
                         <motion.div
-                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
                             className={`w-full max-w-lg bg-white ${boxBorder} ${hardShadow} rounded-[30px] overflow-hidden flex flex-col my-8 text-slate-950`}
                         >
-                            <div className={`${isAddMode ? 'bg-[#A3E635]' : 'bg-[#FFD100]'} p-4 border-b-[3.5px] border-slate-950 flex justify-between items-center sticky top-0 z-10`}>
-                                <h3 className="font-black italic uppercase text-lg">
-                                    {isAddMode ? 'INPUT DATA ANGGOTA' : 'MODIFIKASI BERKAS'}
+                            <div className={`${isAddMode ? 'bg-[#A3E635]' : 'bg-[#FFD100]'} p-5 border-b-[3.5px] border-slate-950 flex justify-between items-center sticky top-0 z-10`}>
+                                <h3 className="font-black italic uppercase text-lg leading-none">
+                                    {isAddMode ? 'REKRUTMEN BARU' : 'DOSSIER MODIFICATION'}
                                 </h3>
-                                <button type="button" onClick={() => setEditingUser(null)} className="p-1 bg-white border-2 border-slate-950 rounded-md shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none"><X size={16} /></button>
+                                <button onClick={() => setEditingUser(null)} className="p-2 bg-white border-2 border-slate-950 rounded-xl shadow-[3px_3px_0px_#000] active:translate-y-px active:shadow-none"><X size={18} /></button>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="p-6 space-y-4 font-mono">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-1 block">NAMA LENGKAP</label>
-                                        <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className={inputStyle} required placeholder="CONTOH: OWEN" />
+                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">NAMA PERSONEL</label>
+                                        <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className={inputStyle} required />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-1 block">DISCORD ID</label>
+                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">DISCORD ID (UID)</label>
                                         <input
                                             type="text"
                                             value={editForm.discord_id}
@@ -321,21 +346,14 @@ export default function SectionAdminPersonnel() {
                                             className={cn(inputStyle, !isSuperAdmin && "opacity-50 bg-slate-200 cursor-not-allowed")}
                                             required
                                             disabled={!isSuperAdmin}
-                                            placeholder="CONTOH: 1234567..."
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="relative">
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-1 block">PANGKAT</label>
-                                        <select
-                                            value={editForm.pangkat}
-                                            onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })}
-                                            className={cn(inputStyle, "cursor-pointer pl-4 pr-8")}
-                                            required
-                                        >
-                                            <option value="" disabled>-- PILIH PANGKAT --</option>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">PANGKAT AKTIF</label>
+                                        <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
                                             <option value="BHARADA">BHARADA</option>
                                             <option value="BRIPDA">BRIPDA</option>
                                             <option value="BRIPTU">BRIPTU</option>
@@ -355,16 +373,9 @@ export default function SectionAdminPersonnel() {
                                             <option value="JENDRAL">JENDRAL</option>
                                         </select>
                                     </div>
-
-                                    <div className="relative">
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-1 block">DIVISI</label>
-                                        <select
-                                            value={editForm.divisi}
-                                            onChange={e => setEditForm({ ...editForm, divisi: e.target.value })}
-                                            className={cn(inputStyle, "cursor-pointer pl-4 pr-8")}
-                                            required
-                                        >
-                                            <option value="" disabled>-- PILIH DIVISI --</option>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">DIVISI UNIT</label>
+                                        <select value={editForm.divisi} onChange={e => setEditForm({ ...editForm, divisi: e.target.value })} className={inputStyle} required>
                                             <option value="SABHARA">SABHARA</option>
                                             <option value="SATLANTAS">SATLANTAS</option>
                                             <option value="BRIMOB">BRIMOB</option>
@@ -374,75 +385,44 @@ export default function SectionAdminPersonnel() {
                                     </div>
                                 </div>
 
-                                <div className="p-4 bg-slate-100 border-[3px] border-slate-950 rounded-xl mt-4 space-y-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h4 className="font-black italic uppercase text-xs">OTORITAS HIGH ADMIN</h4>
-                                        {!isSuperAdmin && <span className="text-[#FF4D4D] text-[9px] font-black italic bg-[#ff4d4d20] px-2 py-1 border border-[#FF4D4D] rounded-md">LOCKED</span>}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4 text-slate-950">
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase italic flex items-center gap-1 mb-1">
-                                                <Clock size={12} /> TOTAL JAM
-                                            </label>
-                                            <input
-                                                type="number" step="0.1"
-                                                value={editForm.total_jam_duty}
-                                                onChange={e => setEditForm({ ...editForm, total_jam_duty: Number(e.target.value) })}
-                                                className={cn(inputStyle, "py-2", !isSuperAdmin && "opacity-50 bg-slate-200 cursor-not-allowed")}
-                                                disabled={!isSuperAdmin}
-                                            />
+                                {isSuperAdmin && (
+                                    <div className="p-6 bg-slate-50 border-[3px] border-slate-950 rounded-[25px] space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-black italic uppercase text-xs">High Authority Override</h4>
+                                            <ShieldAlert size={16} className="text-red-500" />
                                         </div>
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase italic flex items-center gap-1 mb-1">
-                                                <Zap size={12} className="text-blue-600" /> POINT PRP
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="text-[9px] font-black uppercase mb-2 block">TOTAL JAM DUTY</label>
+                                                <input type="number" step="0.1" value={editForm.total_jam_duty} onChange={e => setEditForm({ ...editForm, total_jam_duty: Number(e.target.value) })} className={cn(inputStyle, "py-2")} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[9px] font-black uppercase mb-2 block">POINT PRP</label>
+                                                <input type="number" value={editForm.point_prp} onChange={e => setEditForm({ ...editForm, point_prp: Number(e.target.value) })} className={cn(inputStyle, "py-2")} />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-3">
+                                            <label className="flex items-center gap-3 p-3 bg-white border-2 border-black rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
+                                                <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-5 h-5 accent-slate-950" />
+                                                <span className="text-[10px] font-black uppercase italic">Berikan Akses Staff Admin</span>
                                             </label>
-                                            <input
-                                                type="number"
-                                                value={editForm.point_prp}
-                                                onChange={e => setEditForm({ ...editForm, point_prp: Number(e.target.value) })}
-                                                className={cn(inputStyle, "py-2", !isSuperAdmin && "opacity-50 bg-slate-200 cursor-not-allowed")}
-                                                disabled={!isSuperAdmin}
-                                            />
+                                            <label className="flex items-center gap-3 p-3 bg-white border-2 border-black rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
+                                                <input type="checkbox" checked={editForm.is_highadmin} onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })} className="w-5 h-5 accent-slate-950" />
+                                                <span className="text-[10px] font-black uppercase italic">Berikan Otoritas High Admin</span>
+                                            </label>
                                         </div>
                                     </div>
+                                )}
 
-                                    {isSuperAdmin && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                                            <label className="flex items-center gap-3 p-3 bg-white border-[3px] border-slate-950 rounded-lg cursor-pointer hover:bg-blue-500 hover:text-white transition-all group">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={editForm.is_admin}
-                                                    onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })}
-                                                    className="w-5 h-5 border-[3px] border-slate-950 accent-slate-950 rounded-sm cursor-pointer"
-                                                />
-                                                <span className="text-[10px] font-black uppercase italic tracking-widest flex items-center gap-2">
-                                                    <Shield size={14} className="group-hover:rotate-12 transition-transform" /> Akses Admin
-                                                </span>
-                                            </label>
-
-                                            <label className="flex items-center gap-3 p-3 bg-white border-[3px] border-slate-950 rounded-lg cursor-pointer hover:bg-[#A78BFA] hover:text-white transition-all group">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={editForm.is_highadmin}
-                                                    onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })}
-                                                    className="w-5 h-5 border-[3px] border-slate-950 accent-slate-950 rounded-sm cursor-pointer"
-                                                />
-                                                <span className="text-[10px] font-black uppercase italic tracking-widest flex items-center gap-2">
-                                                    <Crown size={14} className="group-hover:animate-bounce" /> Akses High Admin
-                                                </span>
-                                            </label>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <button type="submit" className={`w-full py-4 ${isAddMode ? 'bg-[#3B82F6] text-white' : 'bg-[#A3E635] text-slate-950'} border-[3.5px] border-slate-950 rounded-xl font-[1000] uppercase italic tracking-widest shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all mt-6 flex justify-center items-center gap-2 tracking-tighter`}>
-                                    {isAddMode ? <UserPlus size={18} /> : <CheckCircle2 size={18} />}
-                                    {isAddMode ? 'REKRUT PERSONEL BARU' : 'SIMPAN PERUBAHAN DATA'}
+                                <button type="submit" className={`w-full py-5 ${isAddMode ? 'bg-[#3B82F6] text-white' : 'bg-[#A3E635] text-slate-950'} border-[3.5px] border-slate-950 rounded-[20px] font-[1000] uppercase italic tracking-widest shadow-[6px_6px_0px_#000] active:translate-y-1 active:shadow-none transition-all flex justify-center items-center gap-2`}>
+                                    {isAddMode ? <UserPlus size={20} /> : <CheckCircle2 size={20} />}
+                                    {isAddMode ? 'CONFIRM RECRUITMENT' : 'UPDATE PERSONNEL DATA'}
                                 </button>
                             </form>
                         </motion.div>
-                    </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>

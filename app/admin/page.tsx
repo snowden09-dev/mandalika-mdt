@@ -51,7 +51,7 @@ export default function AdminPortal() {
 
                     if (!hasAccess) {
                         toast.error("AKSES ILEGAL TERDETEKSI! Kembali ke Portal.");
-                        setTimeout(() => router.push('/portal'), 1500);
+                        setTimeout(() => router.push('/dashboard'), 1500);
                     } else {
                         setIsChecking(false);
                     }
@@ -93,7 +93,7 @@ export default function AdminPortal() {
                             <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 italic leading-none mt-1">Admin Protocol Active</p>
                         </div>
                     </div>
-                    <button onClick={() => router.push('/portal')} className="flex items-center gap-2 bg-[#FFD100] border-[3.5px] border-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <button onClick={() => router.push('/dashboard')} className="flex items-center gap-2 bg-[#FFD100] border-[3.5px] border-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">
                         <ArrowLeft size={16} /> <span className="hidden md:inline italic text-[10px]">Back to Portal</span>
                     </button>
                 </header>

@@ -24,7 +24,7 @@ export default function SectionAdminPayroll() {
     const router = useRouter();
     const [payrollData, setPayrollData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isAuthorized, setIsAuthorized] = useState(false); // SECURITY LOCK
+    const [isAuthorized, setIsAuthorized] = useState(false);
     const [activeTab, setActiveTab] = useState<StatusFilter>('PENDING');
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedSlip, setSelectedSlip] = useState<any>(null);
@@ -54,7 +54,7 @@ export default function SectionAdminPayroll() {
                 return;
             }
 
-            // --- DATA FETCH AFTER AUTH ---
+            // --- DATA FETCH ---
             setIsAuthorized(true);
             const { data, error } = await supabase
                 .from('pengajuan_gaji')
@@ -63,24 +63,28 @@ export default function SectionAdminPayroll() {
 
             if (data) setPayrollData(data);
         } catch (err) {
-            router.push('/');
+            console.error("Payroll Load Error:", err);
+            toast.error("Gagal memuat data brankas!");
         }
         setLoading(false);
     };
 
     useEffect(() => { verifyAndFetch(); }, []);
 
-    // --- LOGIC FILTER ---
+    // --- LOGIC FILTER (DENGAN PROTECTION) ---
     const filteredPayroll = useMemo(() => {
         return payrollData.filter(item => {
             const matchStatus = item.status === activeTab;
-            const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.pangkat.toLowerCase().includes(searchQuery.toLowerCase());
+            // Tambahkan opsional chaining ?. agar tidak error jika name null
+            const nameLower = (item.name || "").toLowerCase();
+            const pangkatLower = (item.pangkat || "").toLowerCase();
+            const searchLower = searchQuery.toLowerCase();
+
+            const matchSearch = nameLower.includes(searchLower) || pangkatLower.includes(searchLower);
             return matchStatus && matchSearch;
         });
     }, [payrollData, activeTab, searchQuery]);
 
-    // --- ACTION: UPDATE STATUS ---
     const handleStatusUpdate = async (id: string, newStatus: StatusFilter) => {
         const tId = toast.loading(`Updating status to ${newStatus}...`);
         const { error } = await supabase
@@ -96,7 +100,6 @@ export default function SectionAdminPayroll() {
         }
     };
 
-    // --- ACTION: BULK DELETE (Hanya untuk yang sudah terproses) ---
     const clearHistory = async () => {
         if (!confirm("Bersihkan semua data yang sudah terproses? (APPROVED/REJECTED/SENT)")) return;
         const { error } = await supabase
@@ -110,7 +113,6 @@ export default function SectionAdminPayroll() {
         }
     };
 
-    // --- PROTECTED RENDER ---
     if (!isAuthorized && loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-slate-950 animate-pulse">
@@ -126,7 +128,7 @@ export default function SectionAdminPayroll() {
         <div className="w-full max-w-7xl mx-auto space-y-6 font-mono pb-20 text-slate-950">
             <Toaster position="top-center" richColors />
 
-            {/* HEADER & CONTROLS */}
+            {/* HEADER */}
             <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-[35px] flex flex-col lg:flex-row justify-between items-center gap-6`}>
                 <div className="flex items-center gap-4">
                     <div className="bg-[#00E676] p-3 border-2 border-black rounded-2xl shadow-[3px_3px_0px_#000]">
@@ -154,7 +156,7 @@ export default function SectionAdminPayroll() {
                 </div>
             </div>
 
-            {/* SEARCH & UTILITY */}
+            {/* SEARCH */}
             <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" size={20} />
@@ -174,7 +176,7 @@ export default function SectionAdminPayroll() {
                 </button>
             </div>
 
-            {/* PAYROLL LIST */}
+            {/* LIST */}
             {loading ? (
                 <div className="py-20 text-center font-black uppercase italic animate-pulse">Calculating Treasury Data...</div>
             ) : filteredPayroll.length === 0 ? (
@@ -194,66 +196,46 @@ export default function SectionAdminPayroll() {
                                 exit={{ opacity: 0, scale: 0.9 }}
                                 className={`bg-white ${boxBorder} ${hardShadow} rounded-[35px] overflow-hidden flex flex-col group`}
                             >
-                                {/* Header Card */}
                                 <div className="bg-slate-950 p-5 text-white flex justify-between items-start">
                                     <div>
-                                        <h4 className="font-black uppercase italic text-lg leading-none truncate w-40">{item.name.split('|').pop()}</h4>
-                                        <p className="text-[9px] font-bold text-[#00E676] mt-1 uppercase italic">{item.pangkat}</p>
+                                        {/* FIX: Nama diproteksi agar tidak crash jika format salah */}
+                                        <h4 className="font-black uppercase italic text-lg leading-none truncate w-40">
+                                            {item.name?.includes('|') ? item.name.split('|').pop() : item.name || 'ANONIM'}
+                                        </h4>
+                                        <p className="text-[9px] font-bold text-[#00E676] mt-1 uppercase italic">{item.pangkat || 'TIDAK ADA PANGKAT'}</p>
                                     </div>
                                     <div className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
                                         <p className="text-[8px] font-black opacity-50 uppercase leading-none mb-1">Total Gaji</p>
-                                        <p className="text-xs font-[1000] text-[#00E676]">Rp {item.total_gaji.toLocaleString()}</p>
+                                        <p className="text-xs font-[1000] text-[#00E676]">Rp {(item.total_gaji || 0).toLocaleString()}</p>
                                     </div>
                                 </div>
 
-                                {/* Body Card */}
                                 <div className="p-6 space-y-4 flex-1">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-slate-50 p-3 border-2 border-black rounded-xl">
                                             <p className="text-[8px] font-black opacity-40 uppercase italic">Duty Time</p>
-                                            <p className="text-xs font-black">{item.total_jam_duty} JAM</p>
+                                            <p className="text-xs font-black">{item.total_jam_duty || 0} JAM</p>
                                         </div>
                                         <div className="bg-slate-50 p-3 border-2 border-black rounded-xl">
                                             <p className="text-[8px] font-black opacity-40 uppercase italic">PRP Points</p>
-                                            <p className="text-xs font-black">{item.point_prp} PTS</p>
+                                            <p className="text-xs font-black">{item.point_prp || 0} PTS</p>
                                         </div>
                                     </div>
 
-                                    {/* Action Buttons */}
                                     <div className="pt-2">
                                         {activeTab === 'PENDING' && (
                                             <div className="grid grid-cols-2 gap-3">
-                                                <button
-                                                    onClick={() => handleStatusUpdate(item.id, 'REJECTED')}
-                                                    className="bg-[#FF4D4D] border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all"
-                                                >
-                                                    Reject
-                                                </button>
-                                                <button
-                                                    onClick={() => handleStatusUpdate(item.id, 'APPROVED')}
-                                                    className="bg-[#00E676] border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all"
-                                                >
-                                                    Approve
-                                                </button>
+                                                <button onClick={() => handleStatusUpdate(item.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1">Reject</button>
+                                                <button onClick={() => handleStatusUpdate(item.id, 'APPROVED')} className="bg-[#00E676] border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1">Approve</button>
                                             </div>
                                         )}
 
                                         {(activeTab === 'APPROVED' || activeTab === 'SENT_IMAGE_QR') && (
-                                            <button
-                                                onClick={() => setSelectedSlip(item)}
-                                                className="w-full bg-blue-500 text-white border-2 border-black py-4 rounded-2xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 flex items-center justify-center gap-2 transition-all"
-                                            >
-                                                <Eye size={18} /> Open Financial Slip
-                                            </button>
+                                            <button onClick={() => setSelectedSlip(item)} className="w-full bg-blue-500 text-white border-2 border-black py-4 rounded-2xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 flex items-center justify-center gap-2"><Eye size={18} /> Open Financial Slip</button>
                                         )}
 
                                         {activeTab === 'REJECTED' && (
-                                            <button
-                                                onClick={() => handleStatusUpdate(item.id, 'PENDING')}
-                                                className="w-full bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase italic opacity-60 hover:opacity-100"
-                                            >
-                                                Restore to Pending
-                                            </button>
+                                            <button onClick={() => handleStatusUpdate(item.id, 'PENDING')} className="w-full bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase italic opacity-60">Restore to Pending</button>
                                         )}
                                     </div>
                                 </div>
@@ -267,32 +249,16 @@ export default function SectionAdminPayroll() {
             <AnimatePresence>
                 {selectedSlip && (
                     <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md p-4 flex items-center justify-center overflow-y-auto">
-                        <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            className="bg-white max-w-4xl w-full rounded-[50px] border-[6px] border-slate-950 shadow-[15px_15px_0px_#00E676] overflow-hidden"
-                        >
-                            {/* Header Modal */}
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white max-w-4xl w-full rounded-[50px] border-[6px] border-slate-950 shadow-[15px_15px_0px_#00E676] overflow-hidden">
                             <div className="bg-slate-950 p-6 flex justify-between items-center text-white">
                                 <div className="flex items-center gap-3">
                                     <div className="bg-[#00E676] p-2 rounded-lg text-black"><Banknote size={20} /></div>
                                     <h3 className="font-[1000] italic uppercase tracking-tighter">Vault Slip Preview</h3>
                                 </div>
-                                <button onClick={() => setSelectedSlip(null)} className="hover:rotate-90 transition-all">
-                                    <XCircle size={32} />
-                                </button>
+                                <button onClick={() => setSelectedSlip(null)} className="hover:rotate-90 transition-all"><XCircle size={32} /></button>
                             </div>
-
-                            {/* Content Modal */}
                             <div className="p-6 md:p-10">
-                                <SlipGajiTemplate
-                                    data={selectedSlip}
-                                    onClose={() => setSelectedSlip(null)}
-                                    onSuccess={() => {
-                                        setSelectedSlip(null);
-                                        verifyAndFetch();
-                                    }}
-                                />
+                                <SlipGajiTemplate data={selectedSlip} onClose={() => setSelectedSlip(null)} onSuccess={() => { setSelectedSlip(null); verifyAndFetch(); }} />
                             </div>
                         </motion.div>
                     </div>

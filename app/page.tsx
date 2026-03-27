@@ -38,16 +38,22 @@ export default function LandingPage() {
       setTime(new Date().toLocaleTimeString());
     }, 1000);
 
-    // LOGIKA CEK ROLE SETELAH LOGIN
+    // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT ---
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         setIsLoading(true);
         setStatus('MENGECEK AKSES...');
 
         try {
-          // Ambil Discord ID dari metadata session
+          // 1. Ambil Identitas dari Discord Metadata
           const discordId = session.user.user_metadata.provider_id;
+          const discordName =
+            session.user.user_metadata.full_name ||
+            session.user.user_metadata.custom_claims?.global_name ||
+            session.user.user_metadata.name ||
+            "UNKNOWN PERSONEL";
 
+          // 2. Verifikasi Role via API
           const response = await fetch('/api/check-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -55,14 +61,38 @@ export default function LandingPage() {
           });
 
           if (!response.ok) throw new Error("API_ERROR");
-
           const result = await response.json();
 
           if (result.isPolice) {
+            setStatus('SINKRONISASI DATA...');
+
+            // --- 🛡️ LOGIKA ANTI-DUPLIKAT (UPSERT) 🛡️ ---
+            // Menggunakan .upsert agar jika discord_id sudah ada, hanya update nama.
+            // OnConflict memastikan tidak ada baris baru yang tercipta untuk ID yang sama.
+            const { error: syncError } = await supabase
+              .from('users')
+              .upsert({
+                discord_id: discordId,
+                name: discordName.toUpperCase(),
+                // Field di bawah hanya akan terisi jika user BENAR-BENAR BARU (Insert)
+                // Jika sudah ada, database akan mempertahankan nilai yang sudah ada (Update)
+                pangkat: result.pangkat || 'BHARADA',
+                divisi: result.divisi || 'SABHARA'
+              }, {
+                onConflict: 'discord_id',
+                ignoreDuplicates: false
+              });
+
+            if (syncError) {
+              console.error("Sync Error Details:", syncError);
+              // Jika error karena belum ada constraint UNIQUE di DB, sistem tetap lanjut
+            }
+
             setStatus('AKSES DIBERIKAN!');
-            // Simpan info ke localStorage agar dashboard bisa baca
+            // Simpan info ke localStorage
             localStorage.setItem('police_session', JSON.stringify(result));
-            // Gunakan router.push agar lebih smooth (Next.js way)
+
+            // Redirect smooth ke dashboard
             router.push('/dashboard');
           } else {
             setStatus('AKSES DITOLAK!');

@@ -21,7 +21,6 @@ export default function PortalPage() {
     const [nickname, setNickname] = useState("LOADING...");
     const [userData, setUserData] = useState<any>(null);
 
-    // --- FIX 1: Default state ditambah is_highadmin ---
     const [dbStatus, setDbStatus] = useState({ is_admin: false, is_highadmin: false });
     const [realtimeData, setRealtimeData] = useState({ point_prp: 0, total_jam_duty: 0, pangkat: "RECRUIT", divisi: "SABHARA" });
 
@@ -32,7 +31,6 @@ export default function PortalPage() {
 
             const parsed = JSON.parse(sessionData);
 
-            // --- FIX 2: Pastikan select('*') narik semua kolom termasuk is_highadmin dan is_admin ---
             const { data, error } = await supabase.from('users').select('*').eq('discord_id', parsed.discord_id).single();
 
             if (data) {
@@ -40,12 +38,13 @@ export default function PortalPage() {
                 const cleanName = data.name.includes('|') ? data.name.split('|').pop().trim() : data.name;
                 setNickname(cleanName.toUpperCase());
 
-                // --- FIX 3: Logika Akses Diperketat & Diperluas ---
-                const isAdmin = data.pangkat === 'JENDRAL' || data.divisi === 'PETINGGI' || data.is_admin === true || data.is_highadmin === true;
+                // --- FIX: LOGIKA AKSES HANYA BERDASARKAN BOOLEAN DATABASE ---
+                // Pangkat dan Divisi tidak lagi memberikan akses admin otomatis
+                const hasAdminAccess = data.is_admin === true || data.is_highadmin === true;
 
                 setDbStatus({
-                    is_admin: isAdmin, // Tombol muncul jika salah satu true
-                    is_highadmin: data.is_highadmin || false
+                    is_admin: hasAdminAccess,
+                    is_highadmin: data.is_highadmin === true
                 });
 
                 setRealtimeData({
@@ -69,7 +68,6 @@ export default function PortalPage() {
 
     return (
         <div className="flex min-h-screen bg-[#E0E7FF] font-mono overflow-hidden text-black">
-            {/* Sidebar sekarang nerima dbStatus yang sudah ada is_highadmin-nya */}
             <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} dbStatus={dbStatus} />
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
@@ -120,7 +118,7 @@ export default function PortalPage() {
                         <span className="text-[10px] font-black uppercase italic block text-center">Gaji</span>
                     </button>
 
-                    {/* --- FIX 4: Tombol Admin Mobile juga harus bisa baca is_admin --- */}
+                    {/* TOMBOL ADMIN MOBILE SEKARANG DISARING KETAT */}
                     {dbStatus.is_admin && (
                         <button onClick={() => router.push('/admin')} className="flex flex-col items-center gap-1 text-[#FF4D4D] transition-all scale-110">
                             <ShieldAlert size={26} strokeWidth={2.5} />

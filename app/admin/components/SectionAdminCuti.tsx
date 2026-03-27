@@ -7,7 +7,7 @@ import {
     CalendarDays, CheckCircle2, XCircle, Clock,
     User, ShieldCheck, Filter, Search, Trash2,
     AlertTriangle, ChevronRight, Briefcase, Crown, Lock
-} from 'lucide-react';
+} from 'lucide-center';
 import { format } from "date-fns";
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -35,7 +35,6 @@ export default function SectionAdminCuti() {
 
         const parsed = JSON.parse(sessionData);
 
-        // --- DOUBLE SECURITY CHECK ---
         const { data: user, error: userError } = await supabase
             .from('users')
             .select('is_admin, is_highadmin')
@@ -162,9 +161,9 @@ export default function SectionAdminCuti() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            {/* --- FIX LOGIKA NAMA DISINI --- */}
+                                            {/* --- FIX SESUAI SCHEMA: nama_panggilan --- */}
                                             <h4 className="font-black text-lg uppercase italic leading-none">
-                                                {log.name?.includes('|') ? log.name.split('|').pop()?.trim() : log.name || 'UNKNOWN'}
+                                                {log.nama_panggilan || 'UNKNOWN'}
                                             </h4>
                                             <span className="bg-slate-950 text-white text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest">{log.pangkat}</span>
                                         </div>

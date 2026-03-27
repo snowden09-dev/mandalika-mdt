@@ -20,7 +20,7 @@ export default function SectionAdminCuti() {
     const router = useRouter();
     const [cutiLogs, setCutiLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isAuthorized, setIsAuthorized] = useState(false); // Security state
+    const [isAuthorized, setIsAuthorized] = useState(false);
     const [viewMode, setViewMode] = useState<'ANGGOTA' | 'PETINGGI'>('ANGGOTA');
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
 
@@ -36,7 +36,6 @@ export default function SectionAdminCuti() {
         const parsed = JSON.parse(sessionData);
 
         // --- DOUBLE SECURITY CHECK ---
-        // Verifikasi ke DB apakah user ini beneran admin
         const { data: user, error: userError } = await supabase
             .from('users')
             .select('is_admin, is_highadmin')
@@ -49,7 +48,6 @@ export default function SectionAdminCuti() {
             return;
         }
 
-        // Jika lolos verifikasi, baru ambil data cuti
         setIsAuthorized(true);
         const { data, error } = await supabase
             .from('pengajuan_cuti')
@@ -86,11 +84,10 @@ export default function SectionAdminCuti() {
         }
     };
 
-    // --- PROTECTED RENDER ---
     if (!isAuthorized && loading) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 animate-pulse">
-                <Lock size={48} className="text-slate-950 mb-4" />
+            <div className="flex flex-col items-center justify-center py-20 animate-pulse text-slate-950">
+                <Lock size={48} className="mb-4" />
                 <p className="font-black italic uppercase text-xs">Authenticating Clearance...</p>
             </div>
         );
@@ -165,7 +162,10 @@ export default function SectionAdminCuti() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h4 className="font-black text-lg uppercase italic leading-none">{log.name?.split('|').pop()?.trim() || 'UNKNOWN'}</h4>
+                                            {/* --- FIX LOGIKA NAMA DISINI --- */}
+                                            <h4 className="font-black text-lg uppercase italic leading-none">
+                                                {log.name?.includes('|') ? log.name.split('|').pop()?.trim() : log.name || 'UNKNOWN'}
+                                            </h4>
                                             <span className="bg-slate-950 text-white text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest">{log.pangkat}</span>
                                         </div>
                                         <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase italic">

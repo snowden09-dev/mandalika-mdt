@@ -31,6 +31,7 @@ export default function PortalPage() {
 
             const parsed = JSON.parse(sessionData);
 
+            // Ambil data terbaru dari Supabase
             const { data, error } = await supabase.from('users').select('*').eq('discord_id', parsed.discord_id).single();
 
             if (data) {
@@ -38,13 +39,14 @@ export default function PortalPage() {
                 const cleanName = data.name.includes('|') ? data.name.split('|').pop().trim() : data.name;
                 setNickname(cleanName.toUpperCase());
 
-                // --- FIX: LOGIKA AKSES HANYA BERDASARKAN BOOLEAN DATABASE ---
-                // Pangkat dan Divisi tidak lagi memberikan akses admin otomatis
-                const hasAdminAccess = data.is_admin === true || data.is_highadmin === true;
+                // --- FIX FINAL: HANYA BOLEH TRUE JIKA KOLOM DB TRUE ---
+                // Pastikan tidak ada variabel pangkat atau divisi yang nyelip di sini
+                const isAdmin = data.is_admin === true;
+                const isHighAdmin = data.is_highadmin === true;
 
                 setDbStatus({
-                    is_admin: hasAdminAccess,
-                    is_highadmin: data.is_highadmin === true
+                    is_admin: isAdmin || isHighAdmin, // Tombol muncul jika salah satu true
+                    is_highadmin: isHighAdmin
                 });
 
                 setRealtimeData({

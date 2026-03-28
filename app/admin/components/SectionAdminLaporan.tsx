@@ -7,7 +7,7 @@ import {
     CheckCircle2, XCircle, Clock, Eye, Send,
     Trash2, ShieldCheck, Image as ImageIcon,
     Filter, ArrowRight, ExternalLink, X, Zap, AlertOctagon,
-    Settings, Save, Hash, Search, Loader2, Lock, Globe
+    Settings, Save, Hash, Search, Loader2, Lock, Globe, Camera
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { format, parseISO } from "date-fns";
@@ -117,7 +117,7 @@ export default function SectionAdminLaporan() {
                         .eq('discord_id', report.user_id_discord);
                 }
 
-                // 2. AMBIL CONFIG DISCORD (WEBHOOK & THREAD)
+                // 2. AMBIL CONFIG DISCORD
                 const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
                 const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
                 const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
@@ -141,7 +141,7 @@ export default function SectionAdminLaporan() {
 
                 if (!response.ok) throw new Error("Discord API Error! Gagal Mengirim.");
 
-                // 4. UPDATE DB: HANYA STATUS & IS_SENT (thread_id dihapus agar tidak error)
+                // 4. UPDATE DB: STATUS APPROVED & IS_SENT
                 const { error } = await supabase.from('laporan_aktivitas')
                     .update({
                         status: 'APPROVED',
@@ -150,17 +150,30 @@ export default function SectionAdminLaporan() {
                     .eq('id', report.id);
 
                 if (error) throw error;
+
+                // --- 🛡️ LOGIKA PEMBERSIH (INSTANT REFRESH STATE LOKAL) ---
+                setReports(prev => prev.map(r =>
+                    r.id === report.id ? { ...r, status: 'APPROVED', is_sent_discord: true } : r
+                ));
+
                 toast.success(`Berhasil! Poin cair & terkirim ke Discord.`, { id: tId });
 
             } else {
                 // JIKA DIREJECT
                 const { error } = await supabase.from('laporan_aktivitas').update({ status }).eq('id', report.id);
                 if (error) throw error;
+
+                // Update state lokal untuk reject
+                setReports(prev => prev.map(r =>
+                    r.id === report.id ? { ...r, status: 'REJECTED' } : r
+                ));
+
                 toast.success(`Laporan DITOLAK!`, { id: tId });
             }
 
-            // REFRESH DATA
+            // Tetap panggil fetch asli untuk memastikan sinkronisasi database
             verifyAndFetch();
+
         } catch (err: any) {
             console.error("Detail Error:", err);
             toast.error(`Gagal: ${err.message}`, { id: tId });
@@ -287,17 +300,19 @@ export default function SectionAdminLaporan() {
                                     {lap.isi_laporan}
                                 </div>
 
-                                {/* Indikator Bukti Foto */}
+                                {/* --- 📸 QUICK VIEW BUKTI (DITAMBAHKAN) --- */}
                                 {lap.bukti_foto && (
-                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase text-blue-600">
-                                        <ImageIcon size={12} /> BUKTI FOTO TERLAMPIR
-                                    </div>
+                                    <button
+                                        onClick={() => setPreviewData(lap)}
+                                        className="w-full flex items-center justify-center gap-2 bg-blue-50 border-2 border-black border-dashed py-2 rounded-xl text-[9px] font-[1000] uppercase italic text-blue-600 hover:bg-blue-100 transition-all"
+                                    >
+                                        <Camera size={14} /> Lihat Bukti Foto
+                                    </button>
                                 )}
 
                                 <div className="grid grid-cols-2 gap-3">
                                     {lap.status === 'PENDING' ? (
                                         <>
-                                            {/* PASS ENTIRE REPORT OBJECT (lap) to handleAction */}
                                             <button onClick={() => handleAction(lap, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950">Reject</button>
                                             <button onClick={() => handleAction(lap, 'APPROVED')} className="bg-[#A3E635] border-2 border-black py-2.5 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950">Approve</button>
                                         </>

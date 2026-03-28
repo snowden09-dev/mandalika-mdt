@@ -38,9 +38,28 @@ export default function LandingPage() {
       setTime(new Date().toLocaleTimeString());
     }, 1000);
 
+    // --- 🚀 FAST TRACK INTERCEPTOR ---
+    // Jika user sudah punya session di browser, langsung lempar ke dashboard!
+    // Gak perlu nunggu loading sinkronisasi lagi.
+    if (typeof window !== 'undefined') {
+      const localSession = localStorage.getItem('police_session');
+      if (localSession) {
+        router.replace('/dashboard');
+        return;
+      }
+    }
+
     // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT ---
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      // FIX: Tangkap juga 'INITIAL_SESSION' (saat user refresh halaman tapi sudah login di background)
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+
+        // Double check, kalau tiba-tiba session udah masuk, langsung skip
+        if (localStorage.getItem('police_session')) {
+          router.replace('/dashboard');
+          return;
+        }
+
         setIsLoading(true);
         setStatus('MENGECEK AKSES...');
 
@@ -67,15 +86,11 @@ export default function LandingPage() {
             setStatus('SINKRONISASI DATA...');
 
             // --- 🛡️ LOGIKA ANTI-DUPLIKAT (UPSERT) 🛡️ ---
-            // Menggunakan .upsert agar jika discord_id sudah ada, hanya update nama.
-            // OnConflict memastikan tidak ada baris baru yang tercipta untuk ID yang sama.
             const { error: syncError } = await supabase
               .from('users')
               .upsert({
                 discord_id: discordId,
                 name: discordName.toUpperCase(),
-                // Field di bawah hanya akan terisi jika user BENAR-BENAR BARU (Insert)
-                // Jika sudah ada, database akan mempertahankan nilai yang sudah ada (Update)
                 pangkat: result.pangkat || 'BHARADA',
                 divisi: result.divisi || 'SABHARA'
               }, {
@@ -85,18 +100,19 @@ export default function LandingPage() {
 
             if (syncError) {
               console.error("Sync Error Details:", syncError);
-              // Jika error karena belum ada constraint UNIQUE di DB, sistem tetap lanjut
             }
 
             setStatus('AKSES DIBERIKAN!');
             // Simpan info ke localStorage
             localStorage.setItem('police_session', JSON.stringify(result));
 
-            // Redirect smooth ke dashboard
-            router.push('/dashboard');
+            // FIX: Gunakan window.location.href agar browser benar-benar pindah
+            // dan me-refresh state secara total (menghindari nyangkut di Next.js router)
+            window.location.href = '/dashboard';
           } else {
             setStatus('AKSES DITOLAK!');
             await supabase.auth.signOut();
+            localStorage.removeItem('police_session'); // Bersihkan sampah session
             router.push('/unauthorized');
           }
         } catch (err) {

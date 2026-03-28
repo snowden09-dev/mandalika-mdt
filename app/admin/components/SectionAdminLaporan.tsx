@@ -126,7 +126,7 @@ export default function SectionAdminLaporan() {
                     throw new Error(`Webhook untuk ${report.jenis_laporan} belum diatur di Panel Config!`);
                 }
 
-                // 3. OTOMATIS TRANSMIT KE DISCORD
+                // 3. TRANSMIT KE DISCORD
                 const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
                 const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
 
@@ -139,9 +139,9 @@ export default function SectionAdminLaporan() {
                     })
                 });
 
-                if (!response.ok) throw new Error("Discord API Error! Gagal Mengirim.");
+                if (!response.ok) throw new Error("Discord API Error!");
 
-                // 4. UPDATE DB: STATUS APPROVED & IS_SENT
+                // 4. UPDATE DB: STATUS APPROVED & IS_SENT (thread_id tidak diupdate karena tidak ada kolomnya)
                 const { error } = await supabase.from('laporan_aktivitas')
                     .update({
                         status: 'APPROVED',
@@ -151,7 +151,8 @@ export default function SectionAdminLaporan() {
 
                 if (error) throw error;
 
-                // --- 🛡️ LOGIKA PEMBERSIH (INSTANT REFRESH STATE LOKAL) ---
+                // --- 🛡️ LOGIKA PEMBERSIH (INSTANT UI REFRESH) ---
+                // Ini yang membuat data langsung pindah tab di layar Jendral
                 setReports(prev => prev.map(r =>
                     r.id === report.id ? { ...r, status: 'APPROVED', is_sent_discord: true } : r
                 ));
@@ -160,7 +161,10 @@ export default function SectionAdminLaporan() {
 
             } else {
                 // JIKA DIREJECT
-                const { error } = await supabase.from('laporan_aktivitas').update({ status }).eq('id', report.id);
+                const { error } = await supabase.from('laporan_aktivitas')
+                    .update({ status: 'REJECTED' })
+                    .eq('id', report.id);
+
                 if (error) throw error;
 
                 // Update state lokal untuk reject
@@ -171,8 +175,8 @@ export default function SectionAdminLaporan() {
                 toast.success(`Laporan DITOLAK!`, { id: tId });
             }
 
-            // Tetap panggil fetch asli untuk memastikan sinkronisasi database
-            verifyAndFetch();
+            // Opsional: Panggil verifyAndFetch() untuk double-check sinkronisasi DB
+            // verifyAndFetch(); 
 
         } catch (err: any) {
             console.error("Detail Error:", err);

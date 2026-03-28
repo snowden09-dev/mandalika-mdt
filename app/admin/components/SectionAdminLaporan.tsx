@@ -31,16 +31,8 @@ export default function SectionAdminLaporan() {
 
     // --- STATE CONFIG (MULTI-WEBHOOK & MULTI-THREAD) ---
     const [adminConfigs, setAdminConfigs] = useState({
-        // Webhooks
-        webhook_penangkapan: "",
-        webhook_kasus_besar: "",
-        webhook_patroli: "",
-        webhook_backup: "",
-        // Threads
-        thread_penangkapan: "",
-        thread_kasus_besar: "",
-        thread_patroli: "",
-        thread_backup: ""
+        webhook_penangkapan: "", webhook_kasus_besar: "", webhook_patroli: "", webhook_backup: "",
+        thread_penangkapan: "", thread_kasus_besar: "", thread_patroli: "", thread_backup: ""
     });
 
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
@@ -93,18 +85,59 @@ export default function SectionAdminLaporan() {
         } catch (err) { toast.error("Gagal update konfigurasi!"); }
     };
 
-    const handleAction = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-        const tId = toast.loading(`Updating status...`);
-        const { error } = await supabase.from('laporan_aktivitas').update({ status }).eq('id', id);
-        if (error) toast.error("Gagal!");
-        else { toast.success(`Status: ${status}`, { id: tId }); verifyAndFetch(); }
+    // --- 🛠️ LOGIKA BARU: APPROVAL & PENAMBAHAN POIN ---
+    const handleAction = async (reportId: string, status: 'APPROVED' | 'REJECTED') => {
+        const tId = toast.loading(`Processing ${status}...`);
+        try {
+            // Jika di-Approve, kita tambahkan poin PRP ke anggotanya
+            if (status === 'APPROVED') {
+                const targetReport = reports.find(r => r.id === reportId);
+
+                if (targetReport && targetReport.user_id_discord) {
+                    // Ambil poin saat ini
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('point_prp')
+                        .eq('discord_id', targetReport.user_id_discord)
+                        .single();
+
+                    const currentPoin = Number(userData?.point_prp) || 0;
+                    const poinTambahan = Number(targetReport.poin_estimasi) || 0;
+
+                    // Suntik Poin Baru
+                    await supabase
+                        .from('users')
+                        .update({ point_prp: currentPoin + poinTambahan })
+                        .eq('discord_id', targetReport.user_id_discord);
+                }
+            }
+
+            // Update status Laporan
+            const { error } = await supabase.from('laporan_aktivitas').update({ status }).eq('id', reportId);
+            if (error) throw error;
+
+            toast.success(`Berhasil di-${status}! ${status === 'APPROVED' ? '(Poin Cair)' : ''}`, { id: tId });
+            verifyAndFetch();
+        } catch (err) {
+            toast.error("Gagal memproses!", { id: tId });
+        }
     };
 
-    // --- TRANSMIT LOGIC DENGAN MAPPING DUAL (WEBHOOK & THREAD) ---
+    // --- HELPER: FORMATTER URL GAMBAR DISCORD ---
+    const formatImageUrlForDiscord = (url: string) => {
+        if (!url) return null;
+        let finalUrl = url.trim();
+        if (finalUrl.includes('imgur.com') && !finalUrl.match(/\.(jpeg|jpg|gif|png)$/)) {
+            finalUrl = finalUrl.replace('imgur.com', 'i.imgur.com') + '.jpg';
+        }
+        return finalUrl;
+    };
+
+    // --- TRANSMIT LOGIC KE DISCORD ---
     const handleTransmit = async (report: any) => {
         const tId = toast.loading("Transmitting to Dedicated Channel...");
 
-        const typeKey = report.jenis_laporan.replace(' ', '_').toLowerCase();
+        const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
         const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
         const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
 
@@ -113,13 +146,17 @@ export default function SectionAdminLaporan() {
             return;
         }
 
+        // Susun Gambar Embed
+        const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
+        const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
+
         try {
-            const response = await fetch(`${targetWebhook}?thread_id=${targetThread}`, {
+            const response = await fetch(`${targetWebhook}${targetThread ? `?thread_id=${targetThread}` : ''}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    content: `**[LAPORAN ${report.jenis_laporan}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
-                    embeds: report.bukti_foto ? [{ image: { url: report.bukti_foto }, color: 3447003 }] : []
+                    content: `**[LAPORAN ${(report.jenis_laporan || "").toUpperCase()}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
+                    embeds: embedsPayload
                 })
             });
 
@@ -210,7 +247,7 @@ export default function SectionAdminLaporan() {
 
                             <div className="bg-slate-950 text-white p-5 flex justify-between items-start border-b-[3.5px] border-black">
                                 <div>
-                                    <h4 className="font-black uppercase italic leading-none truncate w-32">{lap.users?.name?.split('|').pop()}</h4>
+                                    <h4 className="font-black uppercase italic leading-none truncate w-32">{lap.users?.name?.includes('|') ? lap.users.name.split('|').pop() : (lap.users?.name || "ANONIM")}</h4>
                                     <p className="text-[9px] font-bold text-[#A3E635] mt-1 uppercase italic">{lap.users?.pangkat} • {lap.jenis_laporan}</p>
                                 </div>
                                 <div className="bg-blue-600 px-2 py-1 rounded-lg font-black text-[9px] italic border border-white/20">+{lap.poin_estimasi} PRP</div>
@@ -220,6 +257,14 @@ export default function SectionAdminLaporan() {
                                 <div className="bg-slate-50 border-2 border-black p-4 rounded-2xl h-40 overflow-y-auto scrollbar-hide text-[10px] font-bold whitespace-pre-wrap italic text-slate-900">
                                     {lap.isi_laporan}
                                 </div>
+
+                                {/* Indikator Bukti Foto */}
+                                {lap.bukti_foto && (
+                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase text-blue-600">
+                                        <ImageIcon size={12} /> BUKTI FOTO TERLAMPIR
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-3">
                                     {lap.status === 'PENDING' ? (
                                         <>
@@ -238,7 +283,7 @@ export default function SectionAdminLaporan() {
                 </div>
             )}
 
-            {/* MODALS PREVIEW TETAP SAMA */}
+            {/* MODALS PREVIEW */}
             <AnimatePresence>
                 {previewData && (
                     <div className="fixed inset-0 z-[200] bg-black/90 p-4 flex items-center justify-center overflow-y-auto">
@@ -246,11 +291,19 @@ export default function SectionAdminLaporan() {
                             <div className="bg-slate-950 p-6 flex justify-between items-center text-white"><h3 className="font-[1000] italic uppercase tracking-tighter">Discord Preview</h3><button onClick={() => setPreviewData(null)}><X size={24} /></button></div>
                             <div className="p-8 space-y-6">
                                 <div className="bg-[#2C2F33] text-[#DCDDDE] p-6 rounded-3xl font-mono text-xs border-4 border-black whitespace-pre-wrap">{previewData.isi_laporan}</div>
-                                {previewData.bukti_foto && <img src={previewData.bukti_foto} className="w-full h-auto rounded-2xl border-4 border-black shadow-[6px_6px_0px_#000]" />}
+
+                                {/* Render Gambar di Preview */}
+                                {previewData.bukti_foto && (
+                                    <div className="relative">
+                                        <div className="absolute top-2 left-2 bg-blue-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-md z-10 border border-black shadow-[2px_2px_0px_#000]">Attached Evidence</div>
+                                        <img src={formatImageUrlForDiscord(previewData.bukti_foto) || previewData.bukti_foto} className="w-full h-auto rounded-2xl border-4 border-black shadow-[6px_6px_0px_#000]" alt="Bukti Laporan" />
+                                    </div>
+                                )}
+
                                 <div className="flex flex-col md:flex-row gap-4 pt-4">
                                     <div className="flex-1 bg-slate-50 p-4 rounded-2xl border-2 border-black border-dashed">
                                         <p className="text-[9px] font-black uppercase opacity-40 italic">Active Webhook URL:</p>
-                                        <p className="text-[8px] font-black truncate text-blue-600">{adminConfigs[`webhook_${previewData.jenis_laporan.replace(' ', '_').toLowerCase()}` as keyof typeof adminConfigs] || 'N/A'}</p>
+                                        <p className="text-[8px] font-black truncate text-blue-600">{adminConfigs[`webhook_${(previewData.jenis_laporan || "").replace(' ', '_').toLowerCase()}` as keyof typeof adminConfigs] || 'N/A'}</p>
                                     </div>
                                     <button onClick={() => handleTransmit(previewData)} className="bg-[#00E676] border-4 border-black px-10 py-5 rounded-2xl font-[1000] uppercase italic text-sm shadow-[6px_6px_0px_#000] active:translate-y-1 flex items-center gap-2 text-slate-950"><Send size={18} /> Transmit</button>
                                 </div>

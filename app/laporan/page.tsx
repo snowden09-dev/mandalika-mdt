@@ -80,28 +80,12 @@ export default function LaporanMultiForm() {
 
     const MENTION_ROLE = "<@&1393366590942085220>";
 
-    // --- CONFIG: WEBHOOK & THREAD ID ---
+    // --- CONFIG --- (Webhook/Thread di-handle di panel Admin)
     const CONFIG: any = {
-        tangkap: {
-            color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert,
-            thread: "1485611644754329793",
-            webhook: "https://discord.com/api/webhooks/1471360906234691657/5W5xtNgE9iCEZnAoxo-eL99BOI5-se_17l2tBfrXC3kfyUR77VKFr8GtvARZ_KXpFqkL"
-        },
-        kasus: {
-            color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target,
-            thread: "1485611860970438737",
-            webhook: "https://discord.com/api/webhooks/1485960116200144906/P4C5QwxdU63YR8wAdFlL0XVfOmsiGTVZa0D_4TPeIBK57RE5qvIpn0NCN7evyH_W4TN5"
-        },
-        patroli: {
-            color: "#3b82f6", label: "Patroli", poin: 5, icon: Search,
-            thread: "1485611402264838266",
-            webhook: "https://discord.com/api/webhooks/1485960546506375302/GSsV5b_rxDsQb6kVWdv9wkGzsWL2f5KTcKFcbebCeuyg_Obav-R4cu1EZ2qDRRxHATRU"
-        },
-        backup: {
-            color: "#ef4444", label: "Backup", poin: 3, icon: Zap,
-            thread: "1485612034434531328",
-            webhook: "https://discord.com/api/webhooks/1485960975671889930/P-l52L15m2xPRsxNiBkasOWcgQh6362sXB2oIf2A32-SwrTSjZB-kZY2xFU5LbilYXbQ"
-        }
+        tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
+        kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
+        patroli: { color: "#3b82f6", label: "Patroli", poin: 5, icon: Search },
+        backup: { color: "#ef4444", label: "Backup", poin: 3, icon: Zap }
     };
 
     const getFormatMessage = (d: any) => {
@@ -130,47 +114,61 @@ export default function LaporanMultiForm() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+    // --- LOGIKA SUBMIT TERBARU (DIKIRIM KE DATABASE SAJA) ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
-        if (!foto) return toast.error("FOTO BUKTI WAJIB!");
+        if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
 
         setLoading(true);
         const conf = CONFIG[tipe];
         const sessionData = JSON.parse(localStorage.getItem('police_session') || '{}');
 
         try {
-            // 1. TRANSMISI KE DISCORD (DENGAN THREAD ID)
-            const payload = new FormData();
-            payload.append("payload_json", JSON.stringify({ content: getFormatMessage(formData) }));
-            payload.append("file", foto);
+            toast.loading("Mengamankan Data & Foto Bukti...", { id: "upload-toast" });
 
-            // Kirim ke Webhook + Thread ID Query Param
-            await fetch(`${conf.webhook}?thread_id=${conf.thread}`, { method: 'POST', body: payload });
+            // 1. UPLOAD FOTO KE SUPABASE STORAGE
+            const fileExt = foto.name.split('.').pop();
+            const fileName = `${sessionData.discord_id}-${Date.now()}.${fileExt}`;
 
-            // 2. UPDATE POIN PRP DI DATABASE
-            const { data: user } = await supabase.from('users').select('point_prp').eq('discord_id', sessionData.discord_id).single();
-            const newPoin = (Number(user?.point_prp) || 0) + Number(conf.poin);
+            // Mengunggah ke bucket bernama 'bukti_laporan'
+            const { error: uploadError } = await supabase.storage
+                .from('bukti_laporan')
+                .upload(fileName, foto);
 
-            await supabase.from('users').update({ point_prp: newPoin }).eq('discord_id', sessionData.discord_id);
+            if (uploadError) throw new Error("Gagal mengunggah foto. Pastikan Bucket Storage sudah disiapkan.");
 
-            // 3. LOG LAPORAN
-            await supabase.from('laporan_aktivitas').insert([{
+            // Dapatkan URL Publik dari foto yang diunggah
+            const { data: publicUrlData } = supabase.storage
+                .from('bukti_laporan')
+                .getPublicUrl(fileName);
+
+            const fotoUrl = publicUrlData.publicUrl;
+
+            // 2. SIMPAN LAPORAN KE DATABASE (STATUS PENDING)
+            // Tidak ada penambahan poin PRP di sini. Poin akan ditambah oleh Admin saat Approve.
+            const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
                 isi_laporan: getFormatMessage(formData),
-                poin_estimasi: conf.poin
+                poin_estimasi: conf.poin,
+                bukti_foto: fotoUrl,
+                status: 'PENDING' // <-- Terkunci sebagai PENDING
             }]);
 
-            toast.success("TRANSMISI BERHASIL!", { description: `Poin PRP Bertambah: +${conf.poin}` });
+            if (insertError) throw new Error("Gagal menyimpan log laporan ke database!");
+
+            toast.success("LAPORAN TERKIRIM KE MARKAS!", { id: "upload-toast", description: `Menunggu ACC Atasan untuk +${conf.poin} PRP.` });
             setTimeout(() => router.push('/dashboard'), 2000);
         } catch (err: any) {
-            toast.error("KESALAHAN SISTEM", { description: err.message });
-        } finally { setLoading(false); }
+            toast.error("KESALAHAN SISTEM", { id: "upload-toast", description: err.message });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-mono p-4 md:p-10 relative overflow-hidden">
-            <Toaster position="top-center" />
+            <Toaster position="top-center" richColors />
             <div className="max-w-[800px] mx-auto relative z-10">
 
                 <motion.button
@@ -235,19 +233,19 @@ export default function LaporanMultiForm() {
                                     )}
                                 </div>
 
-                                {/* UPLOAD */}
+                                {/* UPLOAD BUKTI */}
                                 <div className="space-y-4">
-                                    <label className={labelStyle}><Camera size={12} /> BUKTI SS</label>
+                                    <label className={labelStyle}><Camera size={12} /> BUKTI FOTO (WAJIB)</label>
                                     <label className="cursor-pointer block">
                                         <div className={`w-full ${boxBorder} border-dashed rounded-[30px] p-12 bg-slate-50 flex flex-col items-center gap-4 hover:bg-blue-50 transition-all`}>
-                                            {preview ? <img src={preview} className="max-w-[300px] rounded-xl border-4 border-black" /> : <><Camera size={40} className="text-slate-300" /><p className="text-[10px] font-black italic">KLIK UNTUK UNGGAH BUKTI</p></>}
+                                            {preview ? <img src={preview} className="max-w-[300px] rounded-xl border-4 border-black" /> : <><Camera size={40} className="text-slate-300" /><p className="text-[10px] font-black italic">KLIK UNTUK UNGGAH FOTO BUKTI</p></>}
                                         </div>
                                         <input type="file" accept="image/*" required onChange={(e: any) => { const f = e.target.files[0]; if (f) { setFoto(f); setPreview(URL.createObjectURL(f)); } }} className="hidden" />
                                     </label>
                                 </div>
 
                                 <button disabled={loading} type="submit" className={`w-full bg-slate-900 text-white py-8 rounded-[30px] ${fontBlack} text-xl tracking-[0.4em] ${boxBorder} ${cardShadow} hover:bg-blue-600 disabled:opacity-50`}>
-                                    {loading ? "MENGIRIM..." : "KIRIM LAPORAN"}
+                                    {loading ? "MENGAMANKAN DATA..." : "KIRIM LAPORAN (PENDING)"}
                                 </button>
                             </form>
                         </motion.div>

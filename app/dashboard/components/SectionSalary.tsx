@@ -257,7 +257,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             </div>
                             <div className="p-6">
                                 <p className="text-sm font-black uppercase italic leading-relaxed text-black">{notif.message}</p>
-                                <button onClick={() => setNotif({ ...notif, show: false })} className={cn("w-full mt-6 py-3 border-[3px] border-black font-black uppercase italic shadow-[4px_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all", notif.type === 'ERROR' ? 'bg-[#FF4D4D]' : notif.type === 'SUCCESS' ? 'bg-[#00E676]' : 'bg-[#3B82F6]')}>Mengerti, Jendral!</button>
+                                <button onClick={() => setNotif({ ...notif, show: false })} className={cn("w-full mt-6 py-3 border-[3px] border-black font-black uppercase italic shadow-[4px_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all", notif.type === 'ERROR' ? 'bg-[#FF4D4D]' : notif.type === 'SUCCESS' ? 'bg-[#00E676]' : 'bg-[#3B82F6]')}>Mengerti!</button>
                             </div>
                         </motion.div>
                     </motion.div>

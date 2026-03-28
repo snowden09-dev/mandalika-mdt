@@ -85,44 +85,6 @@ export default function SectionAdminLaporan() {
         } catch (err) { toast.error("Gagal update konfigurasi!"); }
     };
 
-    // --- 🛠️ LOGIKA BARU: APPROVAL & PENAMBAHAN POIN ---
-    const handleAction = async (reportId: string, status: 'APPROVED' | 'REJECTED') => {
-        const tId = toast.loading(`Processing ${status}...`);
-        try {
-            // Jika di-Approve, kita tambahkan poin PRP ke anggotanya
-            if (status === 'APPROVED') {
-                const targetReport = reports.find(r => r.id === reportId);
-
-                if (targetReport && targetReport.user_id_discord) {
-                    // Ambil poin saat ini
-                    const { data: userData } = await supabase
-                        .from('users')
-                        .select('point_prp')
-                        .eq('discord_id', targetReport.user_id_discord)
-                        .single();
-
-                    const currentPoin = Number(userData?.point_prp) || 0;
-                    const poinTambahan = Number(targetReport.poin_estimasi) || 0;
-
-                    // Suntik Poin Baru
-                    await supabase
-                        .from('users')
-                        .update({ point_prp: currentPoin + poinTambahan })
-                        .eq('discord_id', targetReport.user_id_discord);
-                }
-            }
-
-            // Update status Laporan
-            const { error } = await supabase.from('laporan_aktivitas').update({ status }).eq('id', reportId);
-            if (error) throw error;
-
-            toast.success(`Berhasil di-${status}! ${status === 'APPROVED' ? '(Poin Cair)' : ''}`, { id: tId });
-            verifyAndFetch();
-        } catch (err) {
-            toast.error("Gagal memproses!", { id: tId });
-        }
-    };
-
     // --- HELPER: FORMATTER URL GAMBAR DISCORD ---
     const formatImageUrlForDiscord = (url: string) => {
         if (!url) return null;
@@ -133,20 +95,82 @@ export default function SectionAdminLaporan() {
         return finalUrl;
     };
 
-    // --- TRANSMIT LOGIC KE DISCORD ---
-    const handleTransmit = async (report: any) => {
-        const tId = toast.loading("Transmitting to Dedicated Channel...");
+    // --- 🛠️ LOGIKA BARU: APPROVAL OTOMATIS KIRIM KE DISCORD & CAIRKAN POIN ---
+    const handleAction = async (report: any, status: 'APPROVED' | 'REJECTED') => {
+        const tId = toast.loading(`Processing ${status}...`);
+        try {
+            if (status === 'APPROVED') {
+                // 1. TAMBAH POIN PRP KE ANGGOTA
+                if (report.user_id_discord) {
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('point_prp')
+                        .eq('discord_id', report.user_id_discord)
+                        .single();
 
+                    const currentPoin = Number(userData?.point_prp) || 0;
+                    const poinTambahan = Number(report.poin_estimasi) || 0;
+
+                    await supabase
+                        .from('users')
+                        .update({ point_prp: currentPoin + poinTambahan })
+                        .eq('discord_id', report.user_id_discord);
+                }
+
+                // 2. OTOMATIS TRANSMIT KE DISCORD
+                const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
+                const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
+                const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
+
+                if (!targetWebhook) {
+                    throw new Error(`Webhook untuk ${report.jenis_laporan} belum diatur di Panel Config!`);
+                }
+
+                const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
+                const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
+
+                const response = await fetch(`${targetWebhook}${targetThread ? `?thread_id=${targetThread}` : ''}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: `**[LAPORAN ${(report.jenis_laporan || "").toUpperCase()}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
+                        embeds: embedsPayload
+                    })
+                });
+
+                if (!response.ok) throw new Error("Discord API Error! Gagal Mengirim.");
+
+                // 3. UPDATE DB: STATUS APPROVED & TANDA SUDAH DIKIRIM
+                const { error } = await supabase.from('laporan_aktivitas')
+                    .update({ status: 'APPROVED', is_sent_discord: true, thread_id: targetThread })
+                    .eq('id', report.id);
+
+                if (error) throw error;
+                toast.success(`Berhasil! Poin cair & terkirim ke Discord.`, { id: tId });
+
+            } else {
+                // JIKA DIREJECT
+                const { error } = await supabase.from('laporan_aktivitas').update({ status }).eq('id', report.id);
+                if (error) throw error;
+                toast.success(`Laporan DITOLAK!`, { id: tId });
+            }
+
+            // REFRESH DATA AGAR PINDAH TAB
+            verifyAndFetch();
+        } catch (err: any) {
+            toast.error(`Gagal: ${err.message}`, { id: tId });
+        }
+    };
+
+    // --- MANUAL TRANSMIT (Digunakan saat Preview Arsip) ---
+    const handleTransmit = async (report: any) => {
+        const tId = toast.loading("Resending to Dedicated Channel...");
         const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
         const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
         const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
 
-        if (!targetWebhook) {
-            toast.error(`Webhook untuk ${report.jenis_laporan} belum di-set!`, { id: tId });
-            return;
-        }
+        if (!targetWebhook) return toast.error(`Webhook belum di-set!`, { id: tId });
 
-        // Susun Gambar Embed
         const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
         const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
 
@@ -155,7 +179,7 @@ export default function SectionAdminLaporan() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    content: `**[LAPORAN ${(report.jenis_laporan || "").toUpperCase()}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
+                    content: `**[RESEND LAPORAN ${(report.jenis_laporan || "").toUpperCase()}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
                     embeds: embedsPayload
                 })
             });
@@ -163,7 +187,7 @@ export default function SectionAdminLaporan() {
             if (!response.ok) throw new Error("Discord Webhook Error!");
 
             await supabase.from('laporan_aktivitas').update({ is_sent_discord: true, thread_id: targetThread }).eq('id', report.id);
-            toast.success("TRANSMITTED SUCCESSFULLY!", { id: tId });
+            toast.success("RESENT SUCCESSFULLY!", { id: tId });
             setPreviewData(null);
             verifyAndFetch();
         } catch (err: any) { toast.error(err.message, { id: tId }); }
@@ -268,12 +292,13 @@ export default function SectionAdminLaporan() {
                                 <div className="grid grid-cols-2 gap-3">
                                     {lap.status === 'PENDING' ? (
                                         <>
-                                            <button onClick={() => handleAction(lap.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950">Reject</button>
-                                            <button onClick={() => handleAction(lap.id, 'APPROVED')} className="bg-[#A3E635] border-2 border-black py-2.5 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950">Approve</button>
+                                            {/* PASS ENTIRE REPORT OBJECT (lap) to handleAction */}
+                                            <button onClick={() => handleAction(lap, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950">Reject</button>
+                                            <button onClick={() => handleAction(lap, 'APPROVED')} className="bg-[#A3E635] border-2 border-black py-2.5 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950">Approve</button>
                                         </>
                                     ) : (
                                         <button onClick={() => setPreviewData(lap)} className="col-span-2 bg-blue-500 text-white border-2 border-black py-3 rounded-xl font-[1000] text-[10px] uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 flex items-center justify-center gap-2">
-                                            <Eye size={16} /> Preview & Transmit
+                                            <Eye size={16} /> Lihat Arsip Laporan
                                         </button>
                                     )}
                                 </div>
@@ -288,7 +313,7 @@ export default function SectionAdminLaporan() {
                 {previewData && (
                     <div className="fixed inset-0 z-[200] bg-black/90 p-4 flex items-center justify-center overflow-y-auto">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white max-w-2xl w-full rounded-[40px] border-[6px] border-slate-950 shadow-[10px_10px_0px_#3B82F6] overflow-hidden text-slate-950">
-                            <div className="bg-slate-950 p-6 flex justify-between items-center text-white"><h3 className="font-[1000] italic uppercase tracking-tighter">Discord Preview</h3><button onClick={() => setPreviewData(null)}><X size={24} /></button></div>
+                            <div className="bg-slate-950 p-6 flex justify-between items-center text-white"><h3 className="font-[1000] italic uppercase tracking-tighter">Arsip & Preview</h3><button onClick={() => setPreviewData(null)}><X size={24} /></button></div>
                             <div className="p-8 space-y-6">
                                 <div className="bg-[#2C2F33] text-[#DCDDDE] p-6 rounded-3xl font-mono text-xs border-4 border-black whitespace-pre-wrap">{previewData.isi_laporan}</div>
 
@@ -305,7 +330,7 @@ export default function SectionAdminLaporan() {
                                         <p className="text-[9px] font-black uppercase opacity-40 italic">Active Webhook URL:</p>
                                         <p className="text-[8px] font-black truncate text-blue-600">{adminConfigs[`webhook_${(previewData.jenis_laporan || "").replace(' ', '_').toLowerCase()}` as keyof typeof adminConfigs] || 'N/A'}</p>
                                     </div>
-                                    <button onClick={() => handleTransmit(previewData)} className="bg-[#00E676] border-4 border-black px-10 py-5 rounded-2xl font-[1000] uppercase italic text-sm shadow-[6px_6px_0px_#000] active:translate-y-1 flex items-center gap-2 text-slate-950"><Send size={18} /> Transmit</button>
+                                    <button onClick={() => handleTransmit(previewData)} className="bg-yellow-400 border-4 border-black px-10 py-5 rounded-2xl font-[1000] uppercase italic text-sm shadow-[6px_6px_0px_#000] active:translate-y-1 flex items-center gap-2 text-slate-950"><Send size={18} /> Resend (Manual)</button>
                                 </div>
                             </div>
                         </motion.div>

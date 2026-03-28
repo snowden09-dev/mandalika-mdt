@@ -29,7 +29,7 @@ export default function SectionAdminLaporan() {
     const [previewData, setPreviewData] = useState<any>(null);
     const [showConfig, setShowConfig] = useState(false);
 
-    // --- STATE CONFIG (MULTI-WEBHOOK & MULTI-THREAD) ---
+    // --- STATE CONFIG ---
     const [adminConfigs, setAdminConfigs] = useState({
         webhook_penangkapan: "", webhook_kasus_besar: "", webhook_patroli: "", webhook_backup: "",
         thread_penangkapan: "", thread_kasus_besar: "", thread_patroli: "", thread_backup: ""
@@ -85,7 +85,6 @@ export default function SectionAdminLaporan() {
         } catch (err) { toast.error("Gagal update konfigurasi!"); }
     };
 
-    // --- HELPER: FORMATTER URL GAMBAR DISCORD ---
     const formatImageUrlForDiscord = (url: string) => {
         if (!url) return null;
         let finalUrl = url.trim();
@@ -95,38 +94,24 @@ export default function SectionAdminLaporan() {
         return finalUrl;
     };
 
-    // --- 🛠️ LOGIKA BARU: APPROVAL OTOMATIS KIRIM KE DISCORD & CAIRKAN POIN ---
+    // --- 🛠️ LOGIKA FIX: APPROVAL OTOMATIS KIRIM KE DISCORD (TANPA RACE CONDITION) ---
     const handleAction = async (report: any, status: 'APPROVED' | 'REJECTED') => {
         const tId = toast.loading(`Processing ${status}...`);
         try {
             if (status === 'APPROVED') {
-                // 1. TAMBAH POIN PRP KE ANGGOTA
                 if (report.user_id_discord) {
-                    const { data: userData } = await supabase
-                        .from('users')
-                        .select('point_prp')
-                        .eq('discord_id', report.user_id_discord)
-                        .single();
-
+                    const { data: userData } = await supabase.from('users').select('point_prp').eq('discord_id', report.user_id_discord).single();
                     const currentPoin = Number(userData?.point_prp) || 0;
                     const poinTambahan = Number(report.poin_estimasi) || 0;
-
-                    await supabase
-                        .from('users')
-                        .update({ point_prp: currentPoin + poinTambahan })
-                        .eq('discord_id', report.user_id_discord);
+                    await supabase.from('users').update({ point_prp: currentPoin + poinTambahan }).eq('discord_id', report.user_id_discord);
                 }
 
-                // 2. AMBIL CONFIG DISCORD
                 const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
                 const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
                 const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
 
-                if (!targetWebhook) {
-                    throw new Error(`Webhook untuk ${report.jenis_laporan} belum diatur di Panel Config!`);
-                }
+                if (!targetWebhook) throw new Error(`Webhook untuk ${report.jenis_laporan} belum diatur di Panel Config!`);
 
-                // 3. TRANSMIT KE DISCORD
                 const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
                 const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
 
@@ -141,42 +126,21 @@ export default function SectionAdminLaporan() {
 
                 if (!response.ok) throw new Error("Discord API Error!");
 
-                // 4. UPDATE DB: STATUS APPROVED & IS_SENT (thread_id tidak diupdate karena tidak ada kolomnya)
-                const { error } = await supabase.from('laporan_aktivitas')
-                    .update({
-                        status: 'APPROVED',
-                        is_sent_discord: true
-                    })
-                    .eq('id', report.id);
-
+                const { error } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED', is_sent_discord: true }).eq('id', report.id);
                 if (error) throw error;
 
-                // --- 🛡️ LOGIKA PEMBERSIH (INSTANT UI REFRESH) ---
-                // Ini yang membuat data langsung pindah tab di layar Jendral
-                setReports(prev => prev.map(r =>
-                    r.id === report.id ? { ...r, status: 'APPROVED', is_sent_discord: true } : r
-                ));
-
+                // INSTANT UI UPDATE (Tanpa perlu nunggu database lama)
+                setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'APPROVED', is_sent_discord: true } : r));
                 toast.success(`Berhasil! Poin cair & terkirim ke Discord.`, { id: tId });
 
             } else {
-                // JIKA DIREJECT
-                const { error } = await supabase.from('laporan_aktivitas')
-                    .update({ status: 'REJECTED' })
-                    .eq('id', report.id);
-
+                const { error } = await supabase.from('laporan_aktivitas').update({ status: 'REJECTED' }).eq('id', report.id);
                 if (error) throw error;
 
-                // Update state lokal untuk reject
-                setReports(prev => prev.map(r =>
-                    r.id === report.id ? { ...r, status: 'REJECTED' } : r
-                ));
-
+                // INSTANT UI UPDATE
+                setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'REJECTED' } : r));
                 toast.success(`Laporan DITOLAK!`, { id: tId });
             }
-
-            // Opsional: Panggil verifyAndFetch() untuk double-check sinkronisasi DB
-            // verifyAndFetch(); 
 
         } catch (err: any) {
             console.error("Detail Error:", err);
@@ -184,7 +148,6 @@ export default function SectionAdminLaporan() {
         }
     };
 
-    // --- MANUAL TRANSMIT (Digunakan saat Preview Arsip) ---
     const handleTransmit = async (report: any) => {
         const tId = toast.loading("Resending to Dedicated Channel...");
         const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
@@ -208,24 +171,35 @@ export default function SectionAdminLaporan() {
 
             if (!response.ok) throw new Error("Discord Webhook Error!");
 
-            await supabase.from('laporan_aktivitas').update({ is_sent_discord: true, thread_id: targetThread }).eq('id', report.id);
+            await supabase.from('laporan_aktivitas').update({ is_sent_discord: true }).eq('id', report.id);
+
+            // INSTANT UI UPDATE
+            setReports(prev => prev.map(r => r.id === report.id ? { ...r, is_sent_discord: true } : r));
+
             toast.success("RESENT SUCCESSFULLY!", { id: tId });
             setPreviewData(null);
-            verifyAndFetch();
         } catch (err: any) { toast.error(err.message, { id: tId }); }
     };
 
+    // --- 🛠️ LOGIKA FIX: HAPUS DENGAN INSTANT UI SYNC ---
     const executeDelete = async () => {
         if (deleteModal.type === 'ALL' && confirmInput !== "MANDALIKA") return toast.error("Kode Salah!");
         const tId = toast.loading("Processing...");
         try {
-            if (deleteModal.type === 'ALL') await supabase.from('laporan_aktivitas').delete().neq('status', 'PENDING');
-            else await supabase.from('laporan_aktivitas').delete().eq('id', deleteModal.id);
-            verifyAndFetch();
+            if (deleteModal.type === 'ALL') {
+                await supabase.from('laporan_aktivitas').delete().neq('status', 'PENDING');
+                // Hapus langsung dari UI
+                setReports(prev => prev.filter(r => r.status === 'PENDING'));
+            } else {
+                await supabase.from('laporan_aktivitas').delete().eq('id', deleteModal.id);
+                // Hapus langsung dari UI
+                setReports(prev => prev.filter(r => r.id !== deleteModal.id));
+            }
+
             setDeleteModal({ show: false, type: 'ALL' });
             setConfirmInput("");
-            toast.success("DELETED!", { id: tId });
-        } catch (err) { toast.error("Gagal!"); }
+            toast.success("DATA BERHASIL DIHAPUS!", { id: tId });
+        } catch (err) { toast.error("Gagal menghapus data!"); }
     };
 
     if (!isAuthorized && loading) return <div className="py-20 text-center animate-pulse font-black uppercase italic">Securing Intel...</div>;
@@ -304,7 +278,7 @@ export default function SectionAdminLaporan() {
                                     {lap.isi_laporan}
                                 </div>
 
-                                {/* --- 📸 QUICK VIEW BUKTI (DITAMBAHKAN) --- */}
+                                {/* --- 📸 QUICK VIEW BUKTI --- */}
                                 {lap.bukti_foto && (
                                     <button
                                         onClick={() => setPreviewData(lap)}
@@ -331,6 +305,39 @@ export default function SectionAdminLaporan() {
                     ))}
                 </div>
             )}
+
+            {/* --- 🛑 MODAL DOUBLE VERIFICATION (DELETE) 🛑 --- */}
+            <AnimatePresence>
+                {deleteModal.show && (
+                    <div className="fixed inset-0 z-[300] bg-black/90 p-4 flex items-center justify-center">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className={`bg-white max-w-sm w-full rounded-[30px] p-8 ${boxBorder} shadow-[10px_10px_0px_#FF4D4D] text-slate-950 space-y-6`}>
+                            <div className="flex items-center gap-3 text-red-600">
+                                <AlertOctagon size={32} />
+                                <h3 className="font-[1000] text-xl italic uppercase tracking-tighter">Konfirmasi</h3>
+                            </div>
+
+                            {deleteModal.type === 'ALL' ? (
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold uppercase text-slate-500">Hapus semua arsip yang BUKAN PENDING. Masukkan kode otorisasi keamanan:</p>
+                                    <input
+                                        value={confirmInput}
+                                        onChange={(e) => setConfirmInput(e.target.value)}
+                                        placeholder="KODE..."
+                                        className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl font-black text-xs outline-none focus:bg-white transition-all shadow-inner"
+                                    />
+                                </div>
+                            ) : (
+                                <p className="text-xs font-bold uppercase text-slate-500">Yakin ingin menghapus laporan ini dari database intelijen selamanya?</p>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button onClick={() => { setDeleteModal({ show: false, type: 'ALL' }); setConfirmInput(""); }} className="flex-1 bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all">Batal</button>
+                                <button onClick={executeDelete} className="flex-1 bg-red-500 text-white border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all">Eksekusi</button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* MODALS PREVIEW */}
             <AnimatePresence>

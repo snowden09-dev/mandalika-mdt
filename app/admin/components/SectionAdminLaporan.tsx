@@ -117,7 +117,7 @@ export default function SectionAdminLaporan() {
                         .eq('discord_id', report.user_id_discord);
                 }
 
-                // 2. OTOMATIS TRANSMIT KE DISCORD
+                // 2. AMBIL CONFIG DISCORD (WEBHOOK & THREAD)
                 const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
                 const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
                 const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
@@ -126,6 +126,7 @@ export default function SectionAdminLaporan() {
                     throw new Error(`Webhook untuk ${report.jenis_laporan} belum diatur di Panel Config!`);
                 }
 
+                // 3. OTOMATIS TRANSMIT KE DISCORD
                 const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
                 const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
 
@@ -140,9 +141,12 @@ export default function SectionAdminLaporan() {
 
                 if (!response.ok) throw new Error("Discord API Error! Gagal Mengirim.");
 
-                // 3. UPDATE DB: STATUS APPROVED & TANDA SUDAH DIKIRIM
+                // 4. UPDATE DB: HANYA STATUS & IS_SENT (thread_id dihapus agar tidak error)
                 const { error } = await supabase.from('laporan_aktivitas')
-                    .update({ status: 'APPROVED', is_sent_discord: true, thread_id: targetThread })
+                    .update({
+                        status: 'APPROVED',
+                        is_sent_discord: true
+                    })
                     .eq('id', report.id);
 
                 if (error) throw error;
@@ -155,9 +159,10 @@ export default function SectionAdminLaporan() {
                 toast.success(`Laporan DITOLAK!`, { id: tId });
             }
 
-            // REFRESH DATA AGAR PINDAH TAB
+            // REFRESH DATA
             verifyAndFetch();
         } catch (err: any) {
+            console.error("Detail Error:", err);
             toast.error(`Gagal: ${err.message}`, { id: tId });
         }
     };

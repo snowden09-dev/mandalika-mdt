@@ -117,53 +117,55 @@ export default function LaporanMultiForm() {
     // --- LOGIKA SUBMIT TERBARU (DIKIRIM KE DATABASE SAJA) ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
-        if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
+        if (!foto) return toast.error("FOTO BUKTI WAJIB!");
 
         setLoading(true);
         const conf = CONFIG[tipe];
         const sessionData = JSON.parse(localStorage.getItem('police_session') || '{}');
 
         try {
-            toast.loading("Mengamankan Data & Foto Bukti...", { id: "upload-toast" });
+            const tId = toast.loading("Mengamankan Data & Foto Bukti...");
 
-            // 1. UPLOAD FOTO KE SUPABASE STORAGE
+            // 1. UPLOAD KE STORAGE
             const fileExt = foto.name.split('.').pop();
             const fileName = `${sessionData.discord_id}-${Date.now()}.${fileExt}`;
 
-            // Mengunggah ke bucket bernama 'bukti_laporan'
             const { error: uploadError } = await supabase.storage
                 .from('bukti_laporan')
-                .upload(fileName, foto);
+                .upload(fileName, foto, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
-            if (uploadError) throw new Error("Gagal mengunggah foto. Pastikan Bucket Storage sudah disiapkan.");
+            if (uploadError) {
+                console.error("Storage Error:", uploadError);
+                throw new Error("Gagal upload! Cek apakah Bucket 'bukti_laporan' sudah PUBLIC & ada Policy INSERT.");
+            }
 
-            // Dapatkan URL Publik dari foto yang diunggah
+            // 2. AMBIL URL PUBLIK
             const { data: publicUrlData } = supabase.storage
                 .from('bukti_laporan')
                 .getPublicUrl(fileName);
 
             const fotoUrl = publicUrlData.publicUrl;
 
-            // 2. SIMPAN LAPORAN KE DATABASE (STATUS PENDING)
-            // Tidak ada penambahan poin PRP di sini. Poin akan ditambah oleh Admin saat Approve.
+            // 3. SIMPAN KE DATABASE (PASTIKAN NAMA KOLOM SESUAI)
             const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
                 isi_laporan: getFormatMessage(formData),
                 poin_estimasi: conf.poin,
-                bukti_foto: fotoUrl,
-                status: 'PENDING' // <-- Terkunci sebagai PENDING
+                bukti_foto: fotoUrl, // Kolom yang baru kita tambah di SQL
+                status: 'PENDING'
             }]);
 
-            if (insertError) throw new Error("Gagal menyimpan log laporan ke database!");
+            if (insertError) throw insertError;
 
-            toast.success("LAPORAN TERKIRIM KE MARKAS!", { id: "upload-toast", description: `Menunggu ACC Atasan untuk +${conf.poin} PRP.` });
+            toast.success("TRANSMISI BERHASIL!", { id: tId });
             setTimeout(() => router.push('/dashboard'), 2000);
         } catch (err: any) {
-            toast.error("KESALAHAN SISTEM", { id: "upload-toast", description: err.message });
-        } finally {
-            setLoading(false);
-        }
+            toast.error("ERROR", { description: err.message });
+        } finally { setLoading(false); }
     };
 
     return (

@@ -130,9 +130,12 @@ export default function AbsenPage() {
 
                 if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
 
+                // 🛠️ FIX: Logika Perhitungan Presisi
                 let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
-                const durasiJam = parseFloat(diff.toFixed(1));
+                const durasiJam = parseFloat(diff.toFixed(2));
+                const durasiMenitBulat = Math.round(durasiJam * 60);
 
+                // 1. Insert ke Log Presensi
                 const { error: insErr } = await supabase.from('presensi_duty').insert([{
                     user_id_discord: identity.discordId,
                     nama_panggilan: identity.nama,
@@ -140,16 +143,32 @@ export default function AbsenPage() {
                     divisi: identity.divisi,
                     start_time: startObj.toISOString(),
                     end_time: endObj.toISOString(),
-                    durasi_menit: Math.round(durasiJam * 60),
+                    durasi_menit: durasiMenitBulat,
                     status: 'SUCCESS',
                     catatan_duty: keterangan,
                     bukti_foto: photoUrls
                 }]);
+
                 if (insErr) throw insErr;
 
-                const { data: uData } = await supabase.from('users').select('total_jam_duty').eq('discord_id', identity.discordId).single();
-                const newTotal = (Number(uData?.total_jam_duty) || 0) + durasiJam;
-                await supabase.from('users').update({ total_jam_duty: newTotal }).eq('discord_id', identity.discordId);
+                // 2. 🛠️ FIX: Update Total Jam di Tabel Users dengan Strict Number
+                const { data: uData, error: fetchErr } = await supabase
+                    .from('users')
+                    .select('total_jam_duty')
+                    .eq('discord_id', identity.discordId)
+                    .single();
+
+                if (fetchErr) throw fetchErr;
+
+                const currentTotal = Number(uData?.total_jam_duty) || 0;
+                const newTotal = Number((currentTotal + durasiJam).toFixed(2));
+
+                const { error: updErr } = await supabase
+                    .from('users')
+                    .update({ total_jam_duty: newTotal })
+                    .eq('discord_id', identity.discordId);
+
+                if (updErr) throw updErr;
 
                 // FIX NOTIF: Timpa toast langsung tanpa dismiss!
                 toast.custom((t) => (

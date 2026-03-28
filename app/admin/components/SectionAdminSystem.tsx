@@ -114,7 +114,15 @@ export default function SectionAdminSystem() {
         verifyAndFetch();
     };
 
-    // (Helper functions: inactivePersonnel, getDayStatus, handleSendWarning - Tetap sama)
+    const handleSendWarning = (user: any) => {
+        const tId = toast.loading(`Menyiapkan Surat Peringatan...`);
+        // Simulator for Discord Webhook Delay
+        setTimeout(() => {
+            toast.success(`DISCORD WEBHOOK TERKIRIM UNTUK ${user?.name?.split('|').pop()?.trim() || 'PERSONEL'}!`, { id: tId });
+        }, 1500);
+    };
+
+    // (Helper functions: inactivePersonnel, getDayStatus)
     const inactivePersonnel = useMemo(() => {
         return personnel.filter(p => {
             const hasDuty = duties.some(d => d.user_id_discord === p.discord_id);

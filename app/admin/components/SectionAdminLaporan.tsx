@@ -94,7 +94,7 @@ export default function SectionAdminLaporan() {
         return finalUrl;
     };
 
-    // --- 🛠️ LOGIKA FIX: APPROVAL OTOMATIS KIRIM KE DISCORD (TANPA RACE CONDITION) ---
+    // --- 🛠️ LOGIKA FIX: PENAMBAHAN SYSTEM RADAR BUKTI (Mencegah Silent Fail) ---
     const handleAction = async (report: any, status: 'APPROVED' | 'REJECTED') => {
         const tId = toast.loading(`Processing ${status}...`);
         try {
@@ -103,7 +103,11 @@ export default function SectionAdminLaporan() {
                     const { data: userData } = await supabase.from('users').select('point_prp').eq('discord_id', report.user_id_discord).single();
                     const currentPoin = Number(userData?.point_prp) || 0;
                     const poinTambahan = Number(report.poin_estimasi) || 0;
-                    await supabase.from('users').update({ point_prp: currentPoin + poinTambahan }).eq('discord_id', report.user_id_discord);
+
+                    // Force Select Bukti PRP Nambah
+                    const { data: prpCheck, error: prpErr } = await supabase.from('users').update({ point_prp: currentPoin + poinTambahan }).eq('discord_id', report.user_id_discord).select();
+                    if (prpErr) throw prpErr;
+                    if (!prpCheck || prpCheck.length === 0) throw new Error("Akses Database Ditolak (RLS Users Blokir)!");
                 }
 
                 const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
@@ -126,18 +130,20 @@ export default function SectionAdminLaporan() {
 
                 if (!response.ok) throw new Error("Discord API Error!");
 
-                const { error } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED', is_sent_discord: true }).eq('id', report.id);
+                // Force Select Bukti Status Berubah
+                const { data: statusCheck, error } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED', is_sent_discord: true }).eq('id', report.id).select();
                 if (error) throw error;
+                if (!statusCheck || statusCheck.length === 0) throw new Error("Update Gagal: Database Supabase RLS Memblokir!");
 
-                // INSTANT UI UPDATE (Tanpa perlu nunggu database lama)
                 setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'APPROVED', is_sent_discord: true } : r));
                 toast.success(`Berhasil! Poin cair & terkirim ke Discord.`, { id: tId });
 
             } else {
-                const { error } = await supabase.from('laporan_aktivitas').update({ status: 'REJECTED' }).eq('id', report.id);
+                // Force Select Bukti Status Berubah
+                const { data: statusCheck, error } = await supabase.from('laporan_aktivitas').update({ status: 'REJECTED' }).eq('id', report.id).select();
                 if (error) throw error;
+                if (!statusCheck || statusCheck.length === 0) throw new Error("Update Gagal: Database Supabase RLS Memblokir!");
 
-                // INSTANT UI UPDATE
                 setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'REJECTED' } : r));
                 toast.success(`Laporan DITOLAK!`, { id: tId });
             }
@@ -171,9 +177,10 @@ export default function SectionAdminLaporan() {
 
             if (!response.ok) throw new Error("Discord Webhook Error!");
 
-            await supabase.from('laporan_aktivitas').update({ is_sent_discord: true }).eq('id', report.id);
+            const { data: transCheck, error } = await supabase.from('laporan_aktivitas').update({ is_sent_discord: true }).eq('id', report.id).select();
+            if (error) throw error;
+            if (!transCheck || transCheck.length === 0) throw new Error("Akses Database Ditolak RLS!");
 
-            // INSTANT UI UPDATE
             setReports(prev => prev.map(r => r.id === report.id ? { ...r, is_sent_discord: true } : r));
 
             toast.success("RESENT SUCCESSFULLY!", { id: tId });
@@ -181,25 +188,28 @@ export default function SectionAdminLaporan() {
         } catch (err: any) { toast.error(err.message, { id: tId }); }
     };
 
-    // --- 🛠️ LOGIKA FIX: HAPUS DENGAN INSTANT UI SYNC ---
     const executeDelete = async () => {
         if (deleteModal.type === 'ALL' && confirmInput !== "MANDALIKA") return toast.error("Kode Salah!");
         const tId = toast.loading("Processing...");
         try {
             if (deleteModal.type === 'ALL') {
-                await supabase.from('laporan_aktivitas').delete().neq('status', 'PENDING');
-                // Hapus langsung dari UI
+                const { data: delCheck, error } = await supabase.from('laporan_aktivitas').delete().neq('status', 'PENDING').select();
+                if (error) throw error;
+                if (!delCheck || delCheck.length === 0) throw new Error("Akses Hapus Database Ditolak RLS!");
+
                 setReports(prev => prev.filter(r => r.status === 'PENDING'));
             } else {
-                await supabase.from('laporan_aktivitas').delete().eq('id', deleteModal.id);
-                // Hapus langsung dari UI
+                const { data: delCheck, error } = await supabase.from('laporan_aktivitas').delete().eq('id', deleteModal.id).select();
+                if (error) throw error;
+                if (!delCheck || delCheck.length === 0) throw new Error("Akses Hapus Spesifik Ditolak RLS!");
+
                 setReports(prev => prev.filter(r => r.id !== deleteModal.id));
             }
 
             setDeleteModal({ show: false, type: 'ALL' });
             setConfirmInput("");
             toast.success("DATA BERHASIL DIHAPUS!", { id: tId });
-        } catch (err) { toast.error("Gagal menghapus data!"); }
+        } catch (err: any) { toast.error(err.message, { id: tId }); }
     };
 
     if (!isAuthorized && loading) return <div className="py-20 text-center animate-pulse font-black uppercase italic">Securing Intel...</div>;

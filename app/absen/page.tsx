@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { format, addDays } from "date-fns";
 import { id } from "date-fns/locale";
 import { toast, Toaster } from "sonner";
+import TacticalTransition from '@/app/dashboard/components/TacticalTransition'; // 🚀 IMPORT TRANSISI
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
@@ -24,6 +25,7 @@ export default function AbsenPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'DUTY' | 'CUTI'>('DUTY');
     const [loading, setLoading] = useState(false);
+    const [isNavigating, setIsNavigating] = useState(false); // 🚀 STATE UNTUK LOADING SCREEN
     const [identity, setIdentity] = useState({ nama: 'MENDETEKSI...', pangkat: '...', divisi: '...', discordId: '' });
 
     const [tanggalDuty, setTanggalDuty] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -53,6 +55,14 @@ export default function AbsenPage() {
         }
         getActiveUser();
     }, []);
+
+    // 🚀 FUNGSI NAVIGASI KHUSUS DENGAN ANIMASI
+    const handleNavigation = (path: string) => {
+        setIsNavigating(true);
+        setTimeout(() => {
+            router.push(path);
+        }, 3000); // Durasi animasi bintang Lottie
+    };
 
     const showErrorToast = (pesan: string) => {
         toast.custom((t) => (
@@ -216,7 +226,10 @@ export default function AbsenPage() {
                 ), { id: tId, duration: 4000 });
             }
 
-            setTimeout(() => router.push('/dashboard'), 4000);
+            // 🚀 SETELAH SUKSES MENGIRIM DATA, MUNCULKAN LOADING SCREEN MENUJU DASHBOARD
+            setTimeout(() => {
+                handleNavigation('/dashboard');
+            }, 2500); // Biarkan anggota membaca notifikasi "SUKSES" selama 2.5 detik dulu
 
         } catch (err: any) {
             console.error("DEBUG ERROR:", JSON.stringify(err, null, 2));
@@ -226,7 +239,11 @@ export default function AbsenPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#e2e8f0] text-slate-950 font-mono p-4 pb-24 flex flex-col items-center overflow-x-hidden">
+        <div className="min-h-screen bg-[#e2e8f0] text-slate-950 font-mono p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
+
+            {/* 🚀 RENDER KOMPONEN TRANSISI DI SINI */}
+            <TacticalTransition isVisible={isNavigating} />
+
             <Toaster position="top-center" />
 
             <div className="mb-10 text-center mt-6">
@@ -331,7 +348,8 @@ export default function AbsenPage() {
                 </form>
             </motion.div>
 
-            <button onClick={() => router.push('/dashboard')} className="mt-8 mb-10 flex items-center gap-2 bg-white border-[3px] border-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all">
+            {/* 🚀 TOMBOL BACK JUGA MENGGUNAKAN FUNGSI handleNavigation */}
+            <button onClick={() => handleNavigation('/dashboard')} className="mt-8 mb-10 flex items-center gap-2 bg-white border-[3px] border-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all">
                 <ArrowLeft size={16} /> Kembali ke Dashboard
             </button>
         </div>

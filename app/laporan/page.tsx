@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { DayPicker } from "react-day-picker";
 import { toast, Toaster } from "sonner";
+import TacticalTransition from '@/app/dashboard/components/TacticalTransition'; // 🚀 IMPORT TRANSISI
 
 // --- UTILS ---
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
@@ -68,6 +69,7 @@ export default function LaporanMultiForm() {
     const [tipe, setTipe] = useState("");
     const [loading, setLoading] = useState(false);
     const [calOpen, setCalOpen] = useState(false);
+    const [isNavigating, setIsNavigating] = useState(false); // 🚀 STATE UNTUK LOADING SCREEN
 
     const [formData, setFormData] = useState({
         nama_petugas: "", pangkat: "", tanggal: new Date(), waktu_shift: "",
@@ -114,6 +116,14 @@ export default function LaporanMultiForm() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+    // 🚀 FUNGSI NAVIGASI KHUSUS DENGAN ANIMASI KOMPUTER
+    const handleNavigation = (path: string) => {
+        setIsNavigating(true);
+        setTimeout(() => {
+            router.push(path);
+        }, 3000); // Durasi animasi Lottie
+    };
+
     // --- LOGIKA SUBMIT TERBARU (DIKIRIM KE DATABASE SAJA) ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
@@ -155,27 +165,39 @@ export default function LaporanMultiForm() {
                 jenis_laporan: conf.label,
                 isi_laporan: getFormatMessage(formData),
                 poin_estimasi: conf.poin,
-                bukti_foto: fotoUrl, // Kolom yang baru kita tambah di SQL
+                bukti_foto: fotoUrl,
                 status: 'PENDING'
             }]);
 
             if (insertError) throw insertError;
 
             toast.success("TRANSMISI BERHASIL!", { id: tId });
-            setTimeout(() => router.push('/dashboard'), 2000);
+
+            // 🚀 JEDA 1.5 DETIK AGAR TOAST TERBACA, LALU MUNCULKAN LOADING KOMPUTER MENUJU DASHBOARD
+            setTimeout(() => {
+                handleNavigation('/dashboard');
+            }, 1500);
+
         } catch (err: any) {
             toast.error("ERROR", { description: err.message });
-        } finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-mono p-4 md:p-10 relative overflow-hidden">
+
+            {/* 🚀 RENDER KOMPONEN TRANSISI DI SINI (MODE COMPUTER) */}
+            <TacticalTransition isVisible={isNavigating} type="COMPUTER" />
+
             <Toaster position="top-center" richColors />
             <div className="max-w-[800px] mx-auto relative z-10">
 
                 <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => step === 0 ? router.push('/dashboard') : setStep(0)}
+                    // 🚀 GANTI KE FUNGSI handleNavigation SAAT KEMBALI DARI STEP 0
+                    onClick={() => step === 0 ? handleNavigation('/dashboard') : setStep(0)}
                     className={`mb-10 flex items-center gap-3 bg-white ${boxBorder} px-6 py-3 rounded-2xl ${fontBlack} text-[10px] ${hardShadow}`}
                 >
                     <ArrowLeft size={16} /> {step === 0 ? "KEMBALI" : "GANTI TIPE"}

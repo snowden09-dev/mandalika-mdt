@@ -9,7 +9,7 @@ import {
     Skull, Bomb, AlertOctagon, Lock, UserX, Send, ShieldAlert, XCircle,
     LayoutDashboard, Activity, UserCheck, UserMinus, HelpCircle, PieChart, Database
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay, subDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -76,27 +76,25 @@ export default function SectionAdminSystem() {
         const tId = toast.loading("Memulai Operasi Pembersihan...");
         try {
             if (confirmModal.type === 'PURGE') {
-                // HAPUS DATA DATABASE (REKAP SEBULAN SEKALI)
-                const limitDate = subDays(new Date(), 30).toISOString();
+                // HAPUS DATA KECUALI MINGGU INI (Berdasarkan waktu dunia nyata saat tombol ditekan)
+                const realWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString();
 
                 // Pakai select() untuk deteksi RLS
-                const { error: err1 } = await supabase.from('presensi_duty').delete().lt('created_at', limitDate).select();
-                const { error: err2 } = await supabase.from('pengajuan_cuti').delete().lt('created_at', limitDate).select();
+                const { error: err1 } = await supabase.from('presensi_duty').delete().lt('created_at', realWeekStart).select();
+                const { error: err2 } = await supabase.from('pengajuan_cuti').delete().lt('created_at', realWeekStart).select();
 
                 if (err1) throw err1;
                 if (err2) throw err2;
 
-                toast.success("REKAP > 30 HARI TELAH DIMUSNAHKAN!", { id: tId });
+                toast.success("DATA LAMA TELAH DIMUSNAHKAN! (Sisa Minggu Ini)", { id: tId });
             }
 
             else if (confirmModal.type === 'STORAGE_CLEAN') {
-                // FIX: Gunakan nama bucket yang benar 'bukti-absen' dan cari di dalam folder 'duty'
                 const { data: files, error: listError } = await supabase.storage.from('bukti-absen').list('duty', { limit: 1000 });
 
                 if (listError) throw listError;
 
                 if (files && files.length > 0) {
-                    // FIX: Gabungkan nama folder dengan nama file
                     const filePaths = files.map(f => `duty/${f.name}`);
                     const { error: delError } = await supabase.storage.from('bukti-absen').remove(filePaths);
                     if (delError) throw delError;
@@ -142,7 +140,7 @@ export default function SectionAdminSystem() {
         return personnel.filter(p => {
             const hasDuty = duties.some(d => d.user_id_discord === p.discord_id);
             const hasCuti = cutis.some(c => {
-                if (c.status !== 'APPROVED') return false; // Hanya hitung cuti approved
+                if (c.status !== 'APPROVED') return false;
                 if (c.user_id_discord !== p.discord_id) return false;
                 const start = startOfDay(new Date(c.tanggal_mulai));
                 const end = startOfDay(new Date(c.tanggal_selesai));
@@ -176,36 +174,34 @@ export default function SectionAdminSystem() {
             <Toaster position="top-center" richColors />
 
             {/* HEADER & SUPER ADMIN TOOLS */}
-            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-2xl flex flex-col md:flex-row gap-6 justify-between items-center`}>
-                <div className="flex items-center gap-4">
+            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-2xl flex flex-col lg:flex-row gap-6 justify-between items-center`}>
+                <div className="flex items-center gap-4 w-full lg:w-auto">
                     <div className="p-3 bg-slate-950 text-white rounded-xl shadow-[3px_3px_0px_#A78BFA]"><Activity /></div>
                     <div>
-                        <h2 className="font-[1000] italic uppercase text-2xl tracking-tighter leading-none">Operational Monitoring</h2>
+                        <h2 className="font-[1000] italic uppercase text-xl md:text-2xl tracking-tighter leading-none">Operational Monitoring</h2>
                         <p className="text-[10px] font-black uppercase opacity-40 italic mt-1">Mandalika Tactical Command v3.0</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-slate-100 p-1 rounded-xl border-2 border-black mr-2">
+                <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+                    <div className="flex bg-slate-100 p-1 rounded-xl border-2 border-black w-full md:w-auto justify-center">
                         <button onClick={() => setViewMode('DETAIL')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'DETAIL' ? "bg-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40")}>Detail</button>
                         <button onClick={() => setViewMode('ANALYSIS')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'ANALYSIS' ? "bg-[#3B82F6] text-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40")}>Analisis</button>
                     </div>
 
                     {isSuperAdmin && (
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
-                                className="bg-orange-500 text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all"
-                                title="Hapus Semua Bukti Foto"
+                                className="bg-orange-500 text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
                             >
-                                <Database size={16} />
+                                <Database size={16} /> Hapus Foto Bukti
                             </button>
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'PURGE' })}
-                                className="bg-[#FF4D4D] text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all"
-                                title="Purge Rekap > 30 Hari"
+                                className="bg-[#FF4D4D] text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
                             >
-                                <Bomb size={16} />
+                                <Bomb size={16} /> Hapus Data Lama
                             </button>
                         </div>
                     )}
@@ -254,7 +250,6 @@ export default function SectionAdminSystem() {
                                                         {status.data.bukti_foto?.[0] && <button onClick={() => setSelectedPhoto(status.data.bukti_foto[0])} className="bg-black text-white rounded-lg py-1.5 flex justify-center hover:bg-blue-600"><ImageIcon size={14} /></button>}
                                                     </div>
                                                 )}
-                                                {/* FIX: Tambahan tombol Delete (X) untuk Cuti */}
                                                 {status.type === 'CUTI' && (
                                                     <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[120px] justify-center items-center text-center relative group">
                                                         <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover:opacity-100 z-10"><X size={10} /></button>
@@ -288,14 +283,14 @@ export default function SectionAdminSystem() {
                             {(confirmModal.type === 'PURGE' || confirmModal.type === 'STORAGE_CLEAN') ? (
                                 <div className="space-y-3">
                                     <p className="text-[10px] font-bold uppercase text-slate-500">
-                                        {confirmModal.type === 'PURGE' ? 'Menghapus seluruh rekap presensi di atas 30 hari.' : 'Menghapus SELURUH file bukti foto di storage.'}
+                                        {confirmModal.type === 'PURGE' ? 'Menghapus seluruh rekap presensi dan cuti SEBELUM minggu ini.' : 'Menghapus SELURUH file bukti foto di storage.'}
                                         <br />Masukkan kode otorisasi:
                                     </p>
                                     <input
                                         value={purgeInput}
                                         onChange={(e) => setPurgeInput(e.target.value)}
                                         placeholder="MANDALIKA"
-                                        className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl font-black text-xs outline-none"
+                                        className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl font-black text-xs outline-none focus:bg-white shadow-inner"
                                     />
                                 </div>
                             ) : (
@@ -303,8 +298,8 @@ export default function SectionAdminSystem() {
                             )}
 
                             <div className="flex gap-3">
-                                <button onClick={() => { setConfirmModal({ show: false, type: 'SINGLE' }); setPurgeInput(""); }} className="flex-1 bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase">Batal</button>
-                                <button onClick={confirmModal.type === 'SINGLE' ? executeDeleteSingle : executePurgeOperation} className="flex-1 bg-red-500 text-white border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase">Eksekusi</button>
+                                <button onClick={() => { setConfirmModal({ show: false, type: 'SINGLE' }); setPurgeInput(""); }} className="flex-1 bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all">Batal</button>
+                                <button onClick={confirmModal.type === 'SINGLE' ? executeDeleteSingle : executePurgeOperation} className="flex-1 bg-red-500 text-white border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all">Eksekusi</button>
                             </div>
                         </motion.div>
                     </div>

@@ -2,27 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert } from 'lucide-react';
-// import Lottie from 'lottie-react';
-// import starAnimation from '@/public/star.json'; // Uncomment if you have the Lottie file!
+import Lottie from 'lottie-react';
+import starAnimation from '@/public/star.json'; // Pastikan path ini benar
 
 const loadingTexts = [
-    "MEMULAI PROTOKOL TRANSMISI...",
-    "MENGAKSES JARINGAN MANDALIKA...",
+    "MEMBANGUN KONEKSI...",
+    "MEMVERIFIKASI ID JENDRAL...",
+    "MENGAKSES DATABASE...",
     "MENYANDI DATA INTELIJEN...",
-    "MENGALIHKAN JALUR KOMUNIKASI...",
-    "MEMVERIFIKASI OTORISASI JENDRAL..."
+    "MENYIAPKAN RADAR..."
 ];
 
 export default function TacticalTransition({ isVisible }: { isVisible: boolean }) {
     const [textIndex, setTextIndex] = useState(0);
 
-    // Efek mengganti teks setiap 1.2 detik saat loading
+    // Efek mengganti teks setiap 600ms (lebih cepat agar terasa agresif)
     useEffect(() => {
         if (!isVisible) return;
         const interval = setInterval(() => {
             setTextIndex((prev) => (prev + 1) % loadingTexts.length);
-        }, 1200);
+        }, 600);
         return () => clearInterval(interval);
     }, [isVisible]);
 
@@ -32,49 +31,52 @@ export default function TacticalTransition({ isVisible }: { isVisible: boolean }
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    exit={{ opacity: 0, transition: { duration: 0.5 } }}
-                    className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden"
+                    exit={{ opacity: 0, transition: { duration: 0.3 } }}
+                    // Background kuning khas garis polisi/caution
+                    className="fixed inset-0 z-[9999] bg-[#FFD100] flex flex-col items-center justify-center p-4 overflow-hidden"
                 >
-                    {/* Fallback Icon (Ganti kembali dengan Lottie jika JSON sudah ada) */}
+                    {/* Kotak Loading Neo-Brutalism */}
                     <motion.div
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="mb-8 p-6 bg-[#00E676] rounded-full border-[6px] border-[#00E676] shadow-[0px_0px_50px_#00E676]"
+                        initial={{ scale: 0.8, y: 50 }}
+                        animate={{ scale: 1, y: 0 }}
+                        className="bg-white border-[6px] border-slate-950 shadow-[12px_12px_0px_#000] rounded-[40px] p-8 md:p-12 w-full max-w-sm flex flex-col items-center relative overflow-hidden"
                     >
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                        >
-                            <ShieldAlert size={80} className="text-slate-950" strokeWidth={2.5} />
-                        </motion.div>
+                        {/* Garis-garis caution di background kotak (opsional untuk estetika) */}
+                        <div className="absolute inset-0 opacity-5 pointer-events-none"
+                            style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 2px, transparent 2px, transparent 8px)' }}
+                        />
+
+                        {/* Animasi Bintang Jendral */}
+                        <div className="w-40 h-40 mb-6 bg-slate-100 rounded-3xl border-4 border-slate-950 shadow-inner flex items-center justify-center p-4">
+                            <Lottie animationData={starAnimation} loop={true} className="w-full h-full" />
+                        </div>
+
+                        {/* Teks Status */}
+                        <div className="h-10 w-full flex items-center justify-center border-t-4 border-b-4 border-slate-950 py-2 bg-[#A3E635]">
+                            <AnimatePresence mode="wait">
+                                <motion.p
+                                    key={textIndex}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 1.1 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="text-slate-950 font-mono font-[1000] text-[11px] md:text-sm tracking-widest text-center uppercase italic leading-none"
+                                >
+                                    {loadingTexts[textIndex]}
+                                </motion.p>
+                            </AnimatePresence>
+                        </div>
                     </motion.div>
 
-                    {/* Teks Animasi Berganti */}
-                    <div className="h-8 flex items-center justify-center">
-                        <AnimatePresence mode="wait">
-                            <motion.p
-                                key={textIndex}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                transition={{ duration: 0.3 }}
-                                className="text-[#00E676] font-mono font-[1000] text-sm md:text-xl tracking-widest text-center uppercase italic"
-                            >
-                                {loadingTexts[textIndex]}
-                            </motion.p>
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Footer System */}
-                    <div className="absolute bottom-10 flex flex-col items-center opacity-40">
+                    {/* Footer Warning Neo-Brutalism */}
+                    <div className="absolute bottom-10 flex flex-col items-center">
                         <motion.div
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 2 }}
-                            className="w-32 h-1 bg-[#A3E635] rounded-full mb-3 shadow-[0px_0px_10px_#A3E635]"
-                        />
-                        <p className="text-white font-mono text-[10px] uppercase tracking-[0.3em] font-black">
-                            Mandalika Tactical Command v3.0
-                        </p>
+                            animate={{ x: [-10, 10, -10] }}
+                            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                            className="bg-slate-950 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-[0.3em] border-[3px] border-white shadow-[4px_4px_0px_#000]"
+                        >
+                            STANDBY
+                        </motion.div>
                     </div>
                 </motion.div>
             )}

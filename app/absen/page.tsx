@@ -161,24 +161,34 @@ export default function AbsenPage() {
 
                 if (insErr) throw insErr;
 
-                // 2. 🛠️ FIX: Update Total Jam di Tabel Users dengan Strict Number
-                const { data: uData, error: fetchErr } = await supabase
+                // 2. 🛠️ FIX TOTAL JAM KERJA (AKUMULASI)
+                // Ambil data total jam saat ini terlebih dahulu untuk diakumulasi
+                const { data: currentUserData, error: fetchUserErr } = await supabase
                     .from('users')
                     .select('total_jam_duty')
                     .eq('discord_id', identity.discordId)
-                    .single();
+                    .maybeSingle();
 
-                if (fetchErr) throw fetchErr;
+                if (fetchUserErr) {
+                    console.error("Gagal sinkronisasi data user:", fetchUserErr);
+                    throw new Error("Gagal mengambil data user terbaru.");
+                }
 
-                const currentTotal = Number(uData?.total_jam_duty) || 0;
-                const newTotal = Number((currentTotal + durasiJam).toFixed(2));
+                // Kalkulasi Penambahan: (Data Lama + Data Baru)
+                const currentTotal = Number(currentUserData?.total_jam_duty || 0);
+                const additionalHours = Number((durasiMenitBulat / 60).toFixed(2));
+                const newTotalHours = Number((currentTotal + additionalHours).toFixed(2));
 
-                const { error: updErr } = await supabase
+                // Update kembali ke tabel users
+                const { error: updUserErr } = await supabase
                     .from('users')
-                    .update({ total_jam_duty: newTotal })
+                    .update({ total_jam_duty: newTotalHours })
                     .eq('discord_id', identity.discordId);
 
-                if (updErr) throw updErr;
+                if (updUserErr) {
+                    console.error("Gagal update jam duty ke users:", updUserErr);
+                    throw new Error("Presensi tercatat, namun gagal memperbarui statistik jam di profil.");
+                }
 
                 // FIX NOTIF: Timpa toast langsung tanpa dismiss!
                 toast.custom((t) => (
@@ -188,7 +198,7 @@ export default function AbsenPage() {
                         </div>
                         <div>
                             <h1 className="font-black uppercase text-sm italic tracking-wider text-slate-950 leading-none">TRANSMISI SUKSES</h1>
-                            <p className="text-[10px] font-bold uppercase text-slate-900 mt-1 leading-tight">Presensi sudah dikirim ke database.</p>
+                            <p className="text-[10px] font-bold uppercase text-slate-900 mt-1 leading-tight">Presensi dikirim. Jam diupdate.</p>
                         </div>
                         <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100 transition-opacity">
                             <X size={14} className="text-slate-950" />

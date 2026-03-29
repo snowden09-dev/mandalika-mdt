@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, Variants } from 'framer-motion';
 import {
     Zap, Clock, Calendar, FileText, Award,
@@ -8,6 +8,7 @@ import {
     Crosshair, Activity, ShieldAlert, TrendingUp
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import TacticalTransition from './TacticalTransition';
 
 const RANKS_DB = [
     { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
@@ -25,9 +26,14 @@ const RANKS_DB = [
 export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
     const router = useRouter();
 
+    // 🚀 STATE NAVIGASI UNTUK LOADING SCREEN
+    const [navState, setNavState] = useState<{ active: boolean, type: 'STAR' | 'COMPUTER' }>({
+        active: false,
+        type: 'STAR'
+    });
+
     const boxBorder = "border-[4.5px] border-black";
     const hardShadow = "shadow-[10px_10px_0px_#000]";
-    const textBlack = "font-mono font-[1000] italic uppercase tracking-tighter text-black";
 
     const container: Variants = {
         hidden: { opacity: 0 },
@@ -37,6 +43,14 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const item: Variants = {
         hidden: { y: 20, opacity: 0 },
         show: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    };
+
+    // 🚀 FUNGSI NAVIGASI TAKTIS
+    const handleAction = (path: string, type: 'STAR' | 'COMPUTER') => {
+        setNavState({ active: true, type });
+        setTimeout(() => {
+            router.push(path);
+        }, 3000);
     };
 
     const progress = useMemo(() => {
@@ -62,6 +76,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             variants={container} initial="hidden" animate="show"
             className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative"
         >
+            {/* 🚀 LAYAR TRANSISI */}
+            <TacticalTransition isVisible={navState.active} type={navState.type} />
+
             {/* --- HERO SECTION --- */}
             <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-8 ${boxBorder} ${hardShadow} relative overflow-hidden flex flex-col justify-end min-h-[220px] group`}>
                 <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500">
@@ -156,7 +173,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             {/* --- ACTION 1: ABSEN --- */}
             <motion.button
                 variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/absen')}
+                onClick={() => handleAction('/absen', 'STAR')}
                 className={`bg-[#FF4D4D] p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
             >
                 <div className="bg-white p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12">
@@ -168,7 +185,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             {/* --- ACTION 2: LAPORAN --- */}
             <motion.button
                 variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/laporan')}
+                onClick={() => handleAction('/laporan', 'COMPUTER')}
                 className={`bg-[#A78BFA] p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
             >
                 <div className="bg-white p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12">

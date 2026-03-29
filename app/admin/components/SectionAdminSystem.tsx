@@ -60,7 +60,8 @@ export default function SectionAdminSystem() {
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
         if (dutyData) setDuties(dutyData);
 
-        const { data: cutiData } = await supabase.from('pengajuan_cuti').select('*').eq('status', 'APPROVED');
+        // Ambil semua cuti untuk render
+        const { data: cutiData } = await supabase.from('pengajuan_cuti').select('*');
         if (cutiData) setCutis(cutiData);
 
         setLoading(false);
@@ -78,24 +79,31 @@ export default function SectionAdminSystem() {
                 // HAPUS DATA DATABASE (REKAP SEBULAN SEKALI)
                 const limitDate = subDays(new Date(), 30).toISOString();
 
-                await supabase.from('presensi_duty').delete().lt('created_at', limitDate);
-                await supabase.from('pengajuan_cuti').delete().lt('created_at', limitDate);
+                // Pakai select() untuk deteksi RLS
+                const { error: err1 } = await supabase.from('presensi_duty').delete().lt('created_at', limitDate).select();
+                const { error: err2 } = await supabase.from('pengajuan_cuti').delete().lt('created_at', limitDate).select();
+
+                if (err1) throw err1;
+                if (err2) throw err2;
 
                 toast.success("REKAP > 30 HARI TELAH DIMUSNAHKAN!", { id: tId });
             }
 
             else if (confirmModal.type === 'STORAGE_CLEAN') {
-                // HAPUS SEMUA FOTO DI BUCKET 'bukti_absen'
-                const { data: files, error: listError } = await supabase.storage.from('bukti_absen').list();
+                // FIX: Gunakan nama bucket yang benar 'bukti-absen' dan cari di dalam folder 'duty'
+                const { data: files, error: listError } = await supabase.storage.from('bukti-absen').list('duty', { limit: 1000 });
 
                 if (listError) throw listError;
-                if (files && files.length > 0) {
-                    const fileNames = files.map(f => f.name);
-                    const { error: delError } = await supabase.storage.from('bukti_absen').remove(fileNames);
-                    if (delError) throw delError;
-                }
 
-                toast.success("SELURUH BUKTI FOTO TELAH DIHAPUS!", { id: tId });
+                if (files && files.length > 0) {
+                    // FIX: Gabungkan nama folder dengan nama file
+                    const filePaths = files.map(f => `duty/${f.name}`);
+                    const { error: delError } = await supabase.storage.from('bukti-absen').remove(filePaths);
+                    if (delError) throw delError;
+                    toast.success(`${files.length} BUKTI FOTO TELAH DIHAPUS!`, { id: tId });
+                } else {
+                    toast.info("Bucket Storage sudah kosong!", { id: tId });
+                }
             }
 
             setConfirmModal({ show: false, type: 'SINGLE' });
@@ -108,25 +116,33 @@ export default function SectionAdminSystem() {
 
     const executeDeleteSingle = async () => {
         const tId = toast.loading("Menghapus data spesifik...");
-        await supabase.from(confirmModal.data.table).delete().eq('id', confirmModal.data.id);
-        toast.success("DATA TERHAPUS", { id: tId });
+        // Pakai select() untuk ngecek RLS
+        const { data, error } = await supabase.from(confirmModal.data.table).delete().eq('id', confirmModal.data.id).select();
+
+        if (error) {
+            toast.error("Gagal: " + error.message, { id: tId });
+        } else if (!data || data.length === 0) {
+            toast.error("Gagal: RLS Database Memblokir Hapus Data!", { id: tId });
+        } else {
+            toast.success("DATA TERHAPUS", { id: tId });
+        }
+
         setConfirmModal({ show: false, type: 'SINGLE' });
         verifyAndFetch();
     };
 
     const handleSendWarning = (user: any) => {
         const tId = toast.loading(`Menyiapkan Surat Peringatan...`);
-        // Simulator for Discord Webhook Delay
         setTimeout(() => {
             toast.success(`DISCORD WEBHOOK TERKIRIM UNTUK ${user?.name?.split('|').pop()?.trim() || 'PERSONEL'}!`, { id: tId });
         }, 1500);
     };
 
-    // (Helper functions: inactivePersonnel, getDayStatus)
     const inactivePersonnel = useMemo(() => {
         return personnel.filter(p => {
             const hasDuty = duties.some(d => d.user_id_discord === p.discord_id);
             const hasCuti = cutis.some(c => {
+                if (c.status !== 'APPROVED') return false; // Hanya hitung cuti approved
                 if (c.user_id_discord !== p.discord_id) return false;
                 const start = startOfDay(new Date(c.tanggal_mulai));
                 const end = startOfDay(new Date(c.tanggal_selesai));
@@ -140,6 +156,7 @@ export default function SectionAdminSystem() {
         const targetDate = format(date, 'yyyy-MM-dd');
         const dutyToday = duties.find(d => d.user_id_discord === discordId && d.start_time.startsWith(targetDate));
         if (dutyToday) return { type: 'DUTY', data: dutyToday };
+
         const cutiToday = cutis.find(c => {
             if (c.user_id_discord !== discordId) return false;
             const start = startOfDay(new Date(c.tanggal_mulai));
@@ -148,6 +165,7 @@ export default function SectionAdminSystem() {
             return current >= start && current <= end;
         });
         if (cutiToday) return { type: 'CUTI', data: cutiToday };
+
         return { type: 'NONE', data: null };
     };
 
@@ -175,7 +193,6 @@ export default function SectionAdminSystem() {
 
                     {isSuperAdmin && (
                         <div className="flex gap-2">
-                            {/* Tombol Hapus Foto */}
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
                                 className="bg-orange-500 text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all"
@@ -183,7 +200,6 @@ export default function SectionAdminSystem() {
                             >
                                 <Database size={16} />
                             </button>
-                            {/* Tombol Purge Database */}
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'PURGE' })}
                                 className="bg-[#FF4D4D] text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all"
@@ -196,7 +212,7 @@ export default function SectionAdminSystem() {
                 </div>
             </div>
 
-            {/* TABEL DAN NAVIGASI (Sama seperti sebelumnya) */}
+            {/* TABEL DAN NAVIGASI */}
             <div className="flex justify-center items-center gap-4">
                 <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="p-3 bg-white border-2 border-black shadow-[4px_4px_0px_#000] rounded-xl active:translate-y-1"><ChevronLeft /></button>
                 <div className="bg-slate-950 text-[#00E676] px-10 py-3 rounded-xl font-black italic uppercase border-2 border-white shadow-[4px_4px_0px_#000] min-w-[300px] text-center tracking-tighter text-sm">
@@ -205,7 +221,7 @@ export default function SectionAdminSystem() {
                 <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="p-3 bg-white border-2 border-black shadow-[4px_4px_0px_#000] rounded-xl active:translate-y-1"><ChevronRight /></button>
             </div>
 
-            {/* MAIN TABLE (Sama seperti sebelumnya) */}
+            {/* MAIN TABLE */}
             <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[1200px]">
@@ -238,10 +254,13 @@ export default function SectionAdminSystem() {
                                                         {status.data.bukti_foto?.[0] && <button onClick={() => setSelectedPhoto(status.data.bukti_foto[0])} className="bg-black text-white rounded-lg py-1.5 flex justify-center hover:bg-blue-600"><ImageIcon size={14} /></button>}
                                                     </div>
                                                 )}
+                                                {/* FIX: Tambahan tombol Delete (X) untuk Cuti */}
                                                 {status.type === 'CUTI' && (
-                                                    <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[120px] justify-center items-center text-center">
+                                                    <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[120px] justify-center items-center text-center relative group">
+                                                        <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover:opacity-100 z-10"><X size={10} /></button>
                                                         <ShieldAlert size={20} className="mb-2" />
                                                         <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>
+                                                        <p className="text-[8px] font-bold opacity-50 uppercase mt-1 italic truncate w-full">{status.data.alasan}</p>
                                                     </div>
                                                 )}
                                             </td>
@@ -275,12 +294,12 @@ export default function SectionAdminSystem() {
                                     <input
                                         value={purgeInput}
                                         onChange={(e) => setPurgeInput(e.target.value)}
-                                        placeholder="KODE..."
+                                        placeholder="MANDALIKA"
                                         className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl font-black text-xs outline-none"
                                     />
                                 </div>
                             ) : (
-                                <p className="text-xs font-bold uppercase text-slate-500">Hapus laporan ini secara permanen?</p>
+                                <p className="text-xs font-bold uppercase text-slate-500">Hapus laporan/izin ini secara permanen?</p>
                             )}
 
                             <div className="flex gap-3">
@@ -292,29 +311,7 @@ export default function SectionAdminSystem() {
                 )}
             </AnimatePresence>
 
-            {/* (MODAL WARNING & IMAGE PREVIEW - Tetap Sama) */}
-            <AnimatePresence>
-                {showWarningModal && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-                        <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className={`w-full max-w-lg bg-white ${boxBorder} ${hardShadow} rounded-[40px] overflow-hidden`}>
-                            <div className="bg-slate-950 p-6 text-white flex items-center gap-4">
-                                <div className="bg-[#FF4D4D] p-3 rounded-2xl border-2 border-white"><AlertOctagon size={32} /></div>
-                                <div><h2 className="font-[1000] text-2xl uppercase italic tracking-tighter">OFFICIAL SP-1</h2></div>
-                            </div>
-                            <div className="p-8 space-y-6 text-slate-950">
-                                <div className="border-l-8 border-black pl-5 py-2 bg-slate-50">
-                                    <p className="font-[1000] text-2xl uppercase italic">{showWarningModal.name?.split('|').pop()}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button onClick={() => setShowWarningModal(null)} className="py-4 bg-slate-200 border-2 border-black rounded-2xl font-black uppercase text-xs">Batal</button>
-                                    <button onClick={() => { handleSendWarning(showWarningModal); setShowWarningModal(null); }} className="py-4 bg-[#FF4D4D] text-white border-2 border-black rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2"><Send size={18} /> Kirim SP</button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
+            {/* IMAGE PREVIEW */}
             <AnimatePresence>
                 {selectedPhoto && (
                     <div className="fixed inset-0 z-[400] bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedPhoto(null)}>

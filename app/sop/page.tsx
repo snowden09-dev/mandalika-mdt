@@ -225,16 +225,33 @@ export default function SOPPage() {
                     {/* TAB: DIVISI */}
                     {activeTab === 'DIVISI' && (
                         <motion.div key="divisi" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+
+                            {/* 🚀 SATLANTAS BARU DITAMBAHKAN */}
+                            <div className="bg-white border-[5px] border-black shadow-[10px_10px_0_0_#000] overflow-hidden">
+                                <div className="bg-[#FF9000] p-4 border-b-[5px] border-black"><h2 className="text-xl font-[1000] italic uppercase text-black">SATLANTAS (Lalu Lintas)</h2></div>
+                                <div className="p-6 text-sm font-bold text-slate-700 space-y-4">
+                                    <p>Satuan Lalu Lintas (SATLANTAS) adalah garda terdepan kepolisian dalam menjaga keamanan, keselamatan, ketertiban, dan kelancaran lalu lintas (Kamseltibcarlantas) di jalan raya.</p>
+                                    <h3 className="font-black text-black bg-slate-200 inline-block px-2 border-2 border-black">TUGAS POKOK</h3>
+                                    <ul className="list-disc list-inside space-y-1">
+                                        <li>Melaksanakan Pengaturan, Penjagaan, Pengawalan, dan Patroli (Turjawali) lalu lintas.</li>
+                                        <li>Melakukan penindakan pelanggaran lalu lintas (Traffic Stop / Tilang).</li>
+                                        <li>Penanganan dan olah Tempat Kejadian Perkara (TKP) kecelakaan lalu lintas.</li>
+                                        <li>Memberikan pengawalan khusus (VVIP/VIP) atau membuka jalur darurat untuk Tim Medis (EMS).</li>
+                                        <li>Mencegah terjadinya tindak kriminalitas pencurian kendaraan (Carstealing) di jalanan.</li>
+                                    </ul>
+                                </div>
+                            </div>
+
                             <div className="bg-white border-[5px] border-black shadow-[10px_10px_0_0_#000] overflow-hidden">
                                 <div className="bg-[#3B82F6] p-4 border-b-[5px] border-black"><h2 className="text-xl font-[1000] italic uppercase text-black">KORPS SABHARA</h2></div>
                                 <div className="p-6 text-sm font-bold text-slate-700 space-y-4">
                                     <p>Korps Sabhara (Samapta Bhayangkara) adalah unsur pelaksana utama Kepolisian yang bertugas sebagai garda terdepan dalam menjaga keamanan, ketertiban, dan stabilitas wilayah negara.</p>
                                     <h3 className="font-black text-black bg-slate-200 inline-block px-2 border-2 border-black">TUGAS POKOK</h3>
-                                    <ul className="list-disc list-inside">
+                                    <ul className="list-disc list-inside space-y-1">
                                         <li>Melaksanakan patroli rutin wilayah.</li>
-                                        <li>Menjaga Kamtibmas.</li>
-                                        <li>Respon awal laporan kejadian.</li>
-                                        <li>Pengamanan objek vital & kegiatan warga.</li>
+                                        <li>Menjaga keamanan dan ketertiban warga kota (Kamtibmas).</li>
+                                        <li>Respon awal terhadap laporan kejadian dari warga.</li>
+                                        <li>Pengamanan objek vital & kegiatan keramaian warga.</li>
                                         <li>Mengendalikan situasi kerumunan.</li>
                                     </ul>
                                 </div>
@@ -245,11 +262,11 @@ export default function SOPPage() {
                                 <div className="p-6 text-sm font-bold text-slate-700 space-y-4">
                                     <p>Satuan elite Polri yang bertugas menangani ancaman kamtibmas berintensitas tinggi, kerusuhan massa, terorisme, dan kejahatan bersenjata api.</p>
                                     <h3 className="font-black text-black bg-slate-200 inline-block px-2 border-2 border-black">TUGAS POKOK</h3>
-                                    <ul className="list-disc list-inside">
+                                    <ul className="list-disc list-inside space-y-1">
                                         <li>Penanggulangan ancaman tinggi (Terorisme/Separatis).</li>
                                         <li>Pengendalian kerusuhan massa berskala besar.</li>
-                                        <li>Operasi khusus (Gegana/Anti huru-hara).</li>
-                                        <li>Operasi SAR dalam bencana alam.</li>
+                                        <li>Operasi khusus (Gegana / Anti huru-hara).</li>
+                                        <li>Operasi pencarian dan penyelamatan (SAR) dalam bencana alam.</li>
                                     </ul>
                                 </div>
                             </div>
@@ -259,11 +276,11 @@ export default function SOPPage() {
                                 <div className="p-6 text-sm font-bold text-slate-700 space-y-4">
                                     <p>Divisi Profesi dan Pengamanan (PROPAM) membina tanggung jawab profesi, pengamanan internal, dan menegakkan disiplin serta kode etik anggota kepolisian.</p>
                                     <h3 className="font-black text-black bg-slate-200 inline-block px-2 border-2 border-black">TUGAS POKOK</h3>
-                                    <ul className="list-disc list-inside">
-                                        <li>Penegakan disiplin dan etika anggota.</li>
-                                        <li>Pelayanan pengaduan masyarakat atas tindakan polisi.</li>
-                                        <li>Penyelenggaraan sidang disiplin.</li>
-                                        <li>Penyelidikan internal kasus anggota.</li>
+                                    <ul className="list-disc list-inside space-y-1">
+                                        <li>Penegakan disiplin dan etika seluruh anggota kepolisian.</li>
+                                        <li>Pelayanan pengaduan masyarakat atas dugaan penyimpangan tindakan polisi.</li>
+                                        <li>Penyelenggaraan sidang disiplin dan kode etik.</li>
+                                        <li>Penyelidikan internal kasus pelanggaran yang dilakukan oleh anggota Polri.</li>
                                     </ul>
                                 </div>
                             </div>

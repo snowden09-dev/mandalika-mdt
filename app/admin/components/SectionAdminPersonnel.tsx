@@ -146,7 +146,7 @@ export default function SectionAdminPersonnel() {
     const openAddModal = () => {
         setIsAddMode(true); setOriginalDiscordId(""); setEditingUser({});
         setEditForm({
-            name: '', discord_id: '', pangkat: 'BHARADA', divisi: 'SABHARA',
+            name: '', discord_id: '', pangkat: 'CASIS', divisi: 'SABHARA', // 🚀 TWEAK: Default pangkat CASIS
             point_prp: 0, total_jam_duty: 0, is_highadmin: false, is_admin: false
         });
     };
@@ -220,7 +220,7 @@ export default function SectionAdminPersonnel() {
                                 </div>
                                 <div className="flex-1 min-w-0 pr-16">
                                     <h3 className="font-black text-sm uppercase truncate italic">{p.name?.split('|').pop()?.trim() || 'UNKNOWN'}</h3>
-                                    <p className="text-[10px] font-bold text-[#3B82F6] uppercase tracking-tighter">{p.pangkat} • {p.divisi}</p>
+                                    <p className={cn("text-[10px] font-bold uppercase tracking-tighter", p.pangkat === 'CASIS' ? "text-orange-500" : "text-[#3B82F6]")}>{p.pangkat} • {p.divisi}</p>
                                 </div>
                             </div>
                             <div className="p-4 grid grid-cols-2 gap-3 flex-1">
@@ -281,6 +281,8 @@ export default function SectionAdminPersonnel() {
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">PANGKAT</label>
                                             <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
+                                                {/* 🚀 OPSI CASIS DITAMBAHKAN DI SINI */}
+                                                <option value="CASIS">CASIS (CALON SISWA)</option>
                                                 <option value="BHARADA">BHARADA</option><option value="BRIPDA">BRIPDA</option><option value="BRIPTU">BRIPTU</option>
                                                 <option value="BRIGPOL">BRIGPOL</option><option value="BRIPKA">BRIPKA</option><option value="AIPDA">AIPDA</option>
                                                 <option value="AIPTU">AIPTU</option><option value="IPDA">IPDA</option><option value="IPTU">IPTU</option>

@@ -5,12 +5,14 @@ import { motion, Variants } from 'framer-motion';
 import {
     Zap, Clock, Calendar, FileText, Award,
     ChevronRight, Radar, Fingerprint, Target,
-    Crosshair, Activity, ShieldAlert, TrendingUp
+    Crosshair, Activity, ShieldAlert, TrendingUp,
+    UserCheck, HelpCircle, AlertTriangle, GraduationCap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
 
 const RANKS_DB = [
+    { name: "CASIS", prp: 0, hrs: 0 }, // 🎓 Entry level untuk anak didik baru
     { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
     { name: "BHARATU", prp: 50, hrs: 10 }, { name: "BRIPDA", prp: 100, hrs: 20 },
     { name: "BRIPTU", prp: 150, hrs: 25 }, { name: "BRIGADIR", prp: 250, hrs: 35 },
@@ -45,7 +47,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         show: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
     };
 
-    // 🚀 FUNGSI NAVIGASI TAKTIS
     const handleAction = (path: string, type: 'STAR' | 'COMPUTER') => {
         setNavState({ active: true, type });
         setTimeout(() => {
@@ -56,7 +57,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const progress = useMemo(() => {
         const currentPRP = Number(realtimeData.point_prp) || 0;
         const currentHRS = Number(realtimeData.total_jam_duty) || 0;
-        const currentRankName = realtimeData.pangkat?.toUpperCase() || "RECRUIT";
+        const currentRankName = realtimeData.pangkat?.toUpperCase() || "CASIS";
         const currentRankIndex = RANKS_DB.findIndex(r => r.name === currentRankName);
         const nextR = RANKS_DB[currentRankIndex + 1] || RANKS_DB[currentRankIndex];
 
@@ -70,6 +71,8 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             hrNeed: Math.max(nextR.hrs - currentHRS, 0)
         };
     }, [realtimeData]);
+
+    const isCasis = realtimeData.pangkat?.toUpperCase() === 'CASIS';
 
     return (
         <motion.div
@@ -87,7 +90,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(black 1px, transparent 0)', backgroundSize: '20px 20px' }} />
 
                 <div className="relative z-10">
-                    <div className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676]">Akses Terverifikasi</div>
+                    <div className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676]">
+                        {isCasis ? "Siswa Diklat Terdeteksi" : "Akses Terverifikasi"}
+                    </div>
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">{nickname}</h1>
                     <div className="flex gap-3">
                         <span className="bg-[#FFD100] px-4 py-1.5 border-[3px] border-black text-[12px] font-black italic shadow-[4px_4px_0_0_#000]">{realtimeData.pangkat}</span>
@@ -106,7 +111,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     <TrendingUp size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    {/* 🚀 PERBAIKAN: Font size responsif & truncate untuk mobile */}
                     <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{realtimeData.point_prp}</h2>
                     <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Points Collected</p>
                 </div>
@@ -131,7 +135,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     <Clock size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    {/* 🚀 PERBAIKAN: Font size responsif & truncate untuk mobile */}
                     <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{realtimeData.total_jam_duty}</h2>
                     <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Total Hours</p>
                 </div>
@@ -156,8 +159,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                         <Award size={32} className="md:w-10 md:h-10" />
                     </div>
                     <div className="overflow-hidden">
-                        <p className="text-[10px] md:text-[11px] font-black opacity-50 italic uppercase leading-none mb-2">Next Promotion Goal</p>
-                        {/* 🚀 PERBAIKAN: Ukuran pangkat mengecil di mobile */}
+                        <p className="text-[10px] md:text-[11px] font-black opacity-50 italic uppercase leading-none mb-2">
+                            {isCasis ? "Kelulusan Siswa Diklat" : "Next Promotion Goal"}
+                        </p>
                         <h3 className="text-2xl sm:text-3xl md:text-4xl font-[1000] italic leading-none tracking-tighter truncate">{progress.next}</h3>
                     </div>
                 </div>
@@ -173,29 +177,65 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 </div>
             </motion.div>
 
-            {/* --- ACTION 1: ABSEN --- */}
-            <motion.button
-                variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                onClick={() => handleAction('/absen', 'STAR')}
-                className={`bg-[#FF4D4D] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
-            >
-                <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12">
-                    <Radar size={40} className="md:w-12 md:h-12 animate-spin-slow text-black" />
-                </div>
-                <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Absensi</span>
-            </motion.button>
+            {/* --- 🔥 CONDITIONAL ACTIONS: CASIS VS POLICE --- */}
+            {isCasis ? (
+                <>
+                    {/* MODUL KHUSUS CASIS */}
+                    <motion.button
+                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => handleAction('/absen-diklat', 'STAR')}
+                        className={`bg-[#A3E635] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
+                    >
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:rotate-12">
+                            <GraduationCap size={40} className="md:w-12 md:h-12 text-black" />
+                        </div>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#A3E635]">Absen Diklat</span>
+                    </motion.button>
 
-            {/* --- ACTION 2: LAPORAN --- */}
-            <motion.button
-                variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                onClick={() => handleAction('/laporan', 'COMPUTER')}
-                className={`bg-[#A78BFA] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
-            >
-                <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12">
-                    <FileText size={40} className="md:w-12 md:h-12 text-black" />
-                </div>
-                <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Laporan</span>
-            </motion.button>
+                    <motion.button
+                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => handleAction('/izin-diklat', 'COMPUTER')}
+                        className={`bg-[#FFD100] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
+                    >
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:-rotate-12">
+                            <HelpCircle size={40} className="md:w-12 md:h-12 text-black" />
+                        </div>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#FFD100]">Izin/Sakit</span>
+                    </motion.button>
+
+                    <motion.div variants={item} className="col-span-2 bg-slate-950 text-white p-4 border-[3px] border-black rounded-xl flex items-center gap-3">
+                        <AlertTriangle className="text-yellow-400 shrink-0" />
+                        <p className="text-[10px] font-black uppercase italic leading-tight">
+                            Peringatan Siswa: Hanya diperbolehkan melakukan Presensi saat Pelatihan Resmi dimulai.
+                        </p>
+                    </motion.div>
+                </>
+            ) : (
+                <>
+                    {/* MODUL STANDAR POLISI */}
+                    <motion.button
+                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => handleAction('/absen', 'STAR')}
+                        className={`bg-[#FF4D4D] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
+                    >
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12">
+                            <Radar size={40} className="md:w-12 md:h-12 animate-spin-slow text-black" />
+                        </div>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Absensi</span>
+                    </motion.button>
+
+                    <motion.button
+                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => handleAction('/laporan', 'COMPUTER')}
+                        className={`bg-[#A78BFA] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
+                    >
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12">
+                            <FileText size={40} className="md:w-12 md:h-12 text-black" />
+                        </div>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Laporan</span>
+                    </motion.button>
+                </>
+            )}
 
             <style jsx global>{`
                 @keyframes spin-slow {

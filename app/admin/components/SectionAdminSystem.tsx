@@ -4,11 +4,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    CalendarDays, Trash2, ChevronLeft, ChevronRight,
-    Image as ImageIcon, Clock, AlertTriangle, CheckCircle2, X,
-    Skull, Bomb, AlertOctagon, Lock, UserX, Send, ShieldAlert, XCircle,
-    LayoutDashboard, Activity, UserCheck, UserMinus, HelpCircle, PieChart, Database, ScanLine,
-    GraduationCap, ToggleLeft, ToggleRight
+    ChevronLeft, ChevronRight, Image as ImageIcon, Clock, CheckCircle2, X,
+    Skull, Bomb, AlertOctagon, UserX, Send, ShieldAlert,
+    Activity, Database, ScanLine, GraduationCap, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";

@@ -281,14 +281,24 @@ export default function SectionAdminPersonnel() {
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">PANGKAT</label>
                                             <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
-                                                {/* 🚀 OPSI CASIS DITAMBAHKAN DI SINI */}
                                                 <option value="CASIS">CASIS (CALON SISWA)</option>
-                                                <option value="BHARADA">BHARADA</option><option value="BRIPDA">BRIPDA</option><option value="BRIPTU">BRIPTU</option>
-                                                <option value="BRIGPOL">BRIGPOL</option><option value="BRIPKA">BRIPKA</option><option value="AIPDA">AIPDA</option>
-                                                <option value="AIPTU">AIPTU</option><option value="IPDA">IPDA</option><option value="IPTU">IPTU</option>
-                                                <option value="AKP">AKP</option><option value="KOMPOL">KOMPOL</option><option value="AKBP">AKBP</option>
-                                                <option value="KOMBESPOL">KOMBESPOL</option><option value="BRIGJEN">BRIGJEN</option><option value="IRJEN">IRJEN</option>
-                                                <option value="KOMJEN">KOMJEN</option><option value="JENDRAL">JENDRAL</option>
+                                                <option value="BHARADA">BHARADA</option>
+                                                <option value="BRIPDA">BRIPDA</option>
+                                                <option value="BRIPTU">BRIPTU</option>
+                                                <option value="BRIGPOL">BRIGPOL</option>
+                                                <option value="BRIPKA">BRIPKA</option>
+                                                <option value="AIPDA">AIPDA</option>
+                                                <option value="AIPTU">AIPTU</option>
+                                                <option value="IPDA">IPDA</option>
+                                                <option value="IPTU">IPTU</option>
+                                                <option value="AKP">AKP</option>
+                                                <option value="KOMPOL">KOMPOL</option>
+                                                <option value="AKBP">AKBP</option>
+                                                <option value="KOMBESPOL">KOMBESPOL</option>
+                                                <option value="BRIGJEN">BRIGJEN</option>
+                                                <option value="IRJEN">IRJEN</option>
+                                                <option value="KOMJEN">KOMJEN</option>
+                                                <option value="JENDRAL">JENDRAL</option>
                                             </select>
                                         </div>
                                         <div>

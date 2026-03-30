@@ -54,7 +54,6 @@ export default function SectionAdminPersonnel() {
         const parsed = JSON.parse(sessionData);
 
         // --- STAGE 1: SECURITY CLEARANCE ---
-        // Cek apakah pengakses beneran High Admin atau Jendral
         const { data: auth, error: authError } = await supabase
             .from('users')
             .select('pangkat, is_highadmin, is_admin')
@@ -230,8 +229,8 @@ export default function SectionAdminPersonnel() {
 
             {/* HEADER & SEARCH BAR */}
             <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-[25px] flex flex-col md:flex-row gap-4 justify-between items-center`}>
-                <div>
-                    <h2 className="font-black italic uppercase text-2xl flex items-center gap-2 tracking-tighter">
+                <div className="text-center md:text-left">
+                    <h2 className="font-black italic uppercase text-xl md:text-2xl flex items-center justify-center md:justify-start gap-2 tracking-tighter">
                         <Shield className="text-[#3B82F6]" /> Personnel Records
                     </h2>
                     <p className="text-[10px] font-black uppercase opacity-60 italic leading-none mt-1">
@@ -316,115 +315,132 @@ export default function SectionAdminPersonnel() {
                 </div>
             )}
 
-            {/* MODAL ADD / EDIT */}
+            {/* 🚀 MODAL ADD / EDIT (RESTRUCTURED FOR MOBILE) */}
             <AnimatePresence>
                 {editingUser && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md overflow-y-auto">
+                    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm p-0 md:p-4">
                         <motion.div
-                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
-                            className={`w-full max-w-lg bg-white ${boxBorder} ${hardShadow} rounded-[30px] overflow-hidden flex flex-col my-8 text-slate-950`}
+                            initial={{ y: "100%" }}
+                            animate={{ y: 0 }}
+                            exit={{ y: "100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className={`w-full max-w-lg bg-white ${boxBorder} rounded-t-[30px] md:rounded-[30px] flex flex-col text-slate-950 max-h-[90vh] md:max-h-[85vh] shadow-[0px_-10px_30px_rgba(0,0,0,0.5)] md:shadow-[10px_10px_0px_#000]`}
                         >
-                            <div className={`${isAddMode ? 'bg-[#A3E635]' : 'bg-[#FFD100]'} p-5 border-b-[3.5px] border-slate-950 flex justify-between items-center sticky top-0 z-10`}>
-                                <h3 className="font-black italic uppercase text-lg leading-none">
+                            {/* FIXED HEADER */}
+                            <div className={`${isAddMode ? 'bg-[#A3E635]' : 'bg-[#FFD100]'} p-4 md:p-5 border-b-[3.5px] border-slate-950 flex justify-between items-center rounded-t-[26px] md:rounded-t-[26px] shrink-0 z-20 shadow-sm`}>
+                                <h3 className="font-black italic uppercase text-base md:text-lg leading-none">
                                     {isAddMode ? 'REKRUTMEN BARU' : 'DOSSIER MODIFICATION'}
                                 </h3>
-                                <button onClick={() => setEditingUser(null)} className="p-2 bg-white border-2 border-slate-950 rounded-xl shadow-[3px_3px_0px_#000] active:translate-y-px active:shadow-none"><X size={18} /></button>
+                                <button onClick={() => setEditingUser(null)} className="p-1.5 md:p-2 bg-white border-2 border-slate-950 rounded-xl shadow-[2px_2px_0px_#000] md:shadow-[3px_3px_0px_#000] active:translate-y-px active:shadow-none transition-all">
+                                    <X size={18} />
+                                </button>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">NAMA PERSONEL</label>
-                                        <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className={inputStyle} required />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">DISCORD ID (UID)</label>
-                                        <input
-                                            type="text"
-                                            value={editForm.discord_id}
-                                            onChange={e => setEditForm({ ...editForm, discord_id: e.target.value })}
-                                            className={cn(inputStyle, !isSuperAdmin && "opacity-50 bg-slate-200 cursor-not-allowed")}
-                                            required
-                                            disabled={!isSuperAdmin}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">PANGKAT AKTIF</label>
-                                        <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
-                                            <option value="BHARADA">BHARADA</option>
-                                            <option value="BRIPDA">BRIPDA</option>
-                                            <option value="BRIPTU">BRIPTU</option>
-                                            <option value="BRIGPOL">BRIGPOL</option>
-                                            <option value="BRIPKA">BRIPKA</option>
-                                            <option value="AIPDA">AIPDA</option>
-                                            <option value="AIPTU">AIPTU</option>
-                                            <option value="IPDA">IPDA</option>
-                                            <option value="IPTU">IPTU</option>
-                                            <option value="AKP">AKP</option>
-                                            <option value="KOMPOL">KOMPOL</option>
-                                            <option value="AKBP">AKBP</option>
-                                            <option value="KOMBESPOL">KOMBESPOL</option>
-                                            <option value="BRIGJEN">BRIGJEN</option>
-                                            <option value="IRJEN">IRJEN</option>
-                                            <option value="KOMJEN">KOMJEN</option>
-                                            <option value="JENDRAL">JENDRAL</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase italic ml-2 mb-2 block">DIVISI UNIT</label>
-                                        <select value={editForm.divisi} onChange={e => setEditForm({ ...editForm, divisi: e.target.value })} className={inputStyle} required>
-                                            <option value="SABHARA">SABHARA</option>
-                                            <option value="SATLANTAS">SATLANTAS</option>
-                                            <option value="BRIMOB">BRIMOB</option>
-                                            <option value="PROPAM">PROPAM</option>
-                                            <option value="PETINGGI">PETINGGI (HC)</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {isSuperAdmin && (
-                                    <div className="p-6 bg-slate-50 border-[3px] border-slate-950 rounded-[25px] space-y-6">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="font-black italic uppercase text-xs">High Authority Override</h4>
-                                            <ShieldAlert size={16} className="text-red-500" />
+                            {/* SCROLLABLE BODY */}
+                            <div className="overflow-y-auto p-5 md:p-8 space-y-5 md:space-y-6 flex-1 custom-scrollbar pb-8 md:pb-8">
+                                <form id="personnelForm" onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase italic ml-1 mb-1.5 block">NAMA PERSONEL</label>
+                                            <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className={inputStyle} required />
                                         </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase italic ml-1 mb-1.5 block">DISCORD ID (UID)</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.discord_id}
+                                                onChange={e => setEditForm({ ...editForm, discord_id: e.target.value })}
+                                                className={cn(inputStyle, !isSuperAdmin && "opacity-50 bg-slate-200 cursor-not-allowed")}
+                                                required
+                                                disabled={!isSuperAdmin}
+                                            />
+                                        </div>
+                                    </div>
 
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="text-[9px] font-black uppercase mb-2 block">TOTAL JAM DUTY</label>
-                                                <input type="number" step="0.1" value={editForm.total_jam_duty} onChange={e => setEditForm({ ...editForm, total_jam_duty: Number(e.target.value) })} className={cn(inputStyle, "py-2")} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase italic ml-1 mb-1.5 block">PANGKAT AKTIF</label>
+                                            <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
+                                                <option value="BHARADA">BHARADA</option>
+                                                <option value="BRIPDA">BRIPDA</option>
+                                                <option value="BRIPTU">BRIPTU</option>
+                                                <option value="BRIGPOL">BRIGPOL</option>
+                                                <option value="BRIPKA">BRIPKA</option>
+                                                <option value="AIPDA">AIPDA</option>
+                                                <option value="AIPTU">AIPTU</option>
+                                                <option value="IPDA">IPDA</option>
+                                                <option value="IPTU">IPTU</option>
+                                                <option value="AKP">AKP</option>
+                                                <option value="KOMPOL">KOMPOL</option>
+                                                <option value="AKBP">AKBP</option>
+                                                <option value="KOMBESPOL">KOMBESPOL</option>
+                                                <option value="BRIGJEN">BRIGJEN</option>
+                                                <option value="IRJEN">IRJEN</option>
+                                                <option value="KOMJEN">KOMJEN</option>
+                                                <option value="JENDRAL">JENDRAL</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase italic ml-1 mb-1.5 block">DIVISI UNIT</label>
+                                            <select value={editForm.divisi} onChange={e => setEditForm({ ...editForm, divisi: e.target.value })} className={inputStyle} required>
+                                                <option value="SABHARA">SABHARA</option>
+                                                <option value="SATLANTAS">SATLANTAS</option>
+                                                <option value="BRIMOB">BRIMOB</option>
+                                                <option value="PROPAM">PROPAM</option>
+                                                <option value="PETINGGI">PETINGGI (HC)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {isSuperAdmin && (
+                                        <div className="p-4 md:p-6 bg-slate-50 border-[3px] border-slate-950 rounded-2xl md:rounded-[25px] space-y-4 md:space-y-6 shadow-inner">
+                                            <div className="flex items-center justify-between border-b-2 border-slate-200 pb-2 md:pb-0 md:border-none">
+                                                <h4 className="font-black italic uppercase text-[10px] md:text-xs">High Authority Override</h4>
+                                                <ShieldAlert size={16} className="text-red-500" />
                                             </div>
-                                            <div>
-                                                <label className="text-[9px] font-black uppercase mb-2 block">POINT PRP</label>
-                                                <input type="number" value={editForm.point_prp} onChange={e => setEditForm({ ...editForm, point_prp: Number(e.target.value) })} className={cn(inputStyle, "py-2")} />
+
+                                            <div className="grid grid-cols-2 gap-4 md:gap-6">
+                                                <div>
+                                                    <label className="text-[8px] md:text-[9px] font-black uppercase mb-1.5 block">TOTAL JAM DUTY</label>
+                                                    <input type="number" step="0.1" value={editForm.total_jam_duty} onChange={e => setEditForm({ ...editForm, total_jam_duty: Number(e.target.value) })} className={cn(inputStyle, "py-2 text-center")} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[8px] md:text-[9px] font-black uppercase mb-1.5 block">POINT PRP</label>
+                                                    <input type="number" value={editForm.point_prp} onChange={e => setEditForm({ ...editForm, point_prp: Number(e.target.value) })} className={cn(inputStyle, "py-2 text-center")} />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2.5 md:gap-3">
+                                                <label className="flex items-center gap-3 p-2.5 md:p-3 bg-white border-2 border-black rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
+                                                    <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-4 h-4 md:w-5 md:h-5 accent-slate-950" />
+                                                    <span className="text-[9px] md:text-[10px] font-black uppercase italic leading-tight">Berikan Akses Staff Admin</span>
+                                                </label>
+                                                <label className="flex items-center gap-3 p-2.5 md:p-3 bg-white border-2 border-black rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
+                                                    <input type="checkbox" checked={editForm.is_highadmin} onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })} className="w-4 h-4 md:w-5 md:h-5 accent-slate-950" />
+                                                    <span className="text-[9px] md:text-[10px] font-black uppercase italic leading-tight">Berikan Otoritas High Admin</span>
+                                                </label>
                                             </div>
                                         </div>
+                                    )}
 
-                                        <div className="flex flex-col gap-3">
-                                            <label className="flex items-center gap-3 p-3 bg-white border-2 border-black rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
-                                                <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-5 h-5 accent-slate-950" />
-                                                <span className="text-[10px] font-black uppercase italic">Berikan Akses Staff Admin</span>
-                                            </label>
-                                            <label className="flex items-center gap-3 p-3 bg-white border-2 border-black rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
-                                                <input type="checkbox" checked={editForm.is_highadmin} onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })} className="w-5 h-5 accent-slate-950" />
-                                                <span className="text-[10px] font-black uppercase italic">Berikan Otoritas High Admin</span>
-                                            </label>
-                                        </div>
+                                    {/* FIXED BUTTON AT BOTTOM OF SCROLL */}
+                                    <div className="pt-2 sticky bottom-0 bg-white z-10">
+                                        <button type="submit" form="personnelForm" className={`w-full py-4 md:py-5 ${isAddMode ? 'bg-[#3B82F6] text-white' : 'bg-[#A3E635] text-slate-950'} border-[3.5px] border-slate-950 rounded-xl md:rounded-[20px] font-[1000] uppercase italic tracking-widest shadow-[4px_4px_0px_#000] md:shadow-[6px_6px_0px_#000] active:translate-y-1 active:shadow-none transition-all flex justify-center items-center gap-2 text-xs md:text-sm`}>
+                                            {isAddMode ? <UserPlus size={18} /> : <CheckCircle2 size={18} />}
+                                            {isAddMode ? 'REKRUT PERSONEL' : 'UPDATE DATA'}
+                                        </button>
                                     </div>
-                                )}
-
-                                <button type="submit" className={`w-full py-5 ${isAddMode ? 'bg-[#3B82F6] text-white' : 'bg-[#A3E635] text-slate-950'} border-[3.5px] border-slate-950 rounded-[20px] font-[1000] uppercase italic tracking-widest shadow-[6px_6px_0px_#000] active:translate-y-1 active:shadow-none transition-all flex justify-center items-center gap-2`}>
-                                    {isAddMode ? <UserPlus size={20} /> : <CheckCircle2 size={20} />}
-                                    {isAddMode ? 'CONFIRM RECRUITMENT' : 'UPDATE PERSONNEL DATA'}
-                                </button>
-                            </form>
+                                </form>
+                            </div>
                         </motion.div>
                     </div>
                 )}
             </AnimatePresence>
+
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+            `}</style>
         </div>
     );
 }

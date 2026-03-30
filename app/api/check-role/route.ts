@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         const member = await res.json();
         const roles = member.roles;
 
-        // --- DAFTAR PANGKAT (DIPERBARUI: CASIS DITAMBAHKAN) ---
+        // DAFTAR PANGKAT (Tertinggi ke Terendah)
         const RANK_HIERARCHY = [
             { name: "JENDRAL", id: "1393368961940324462" }, { name: "KOMJEN", id: "1393369949988327624" },
             { name: "IRJEN", id: "1393371303779500154" }, { name: "BRIGJEN", id: "1393373068709335121" },
@@ -33,17 +33,12 @@ export async function POST(req: Request) {
             { name: "BRIPDA", id: "1393377097673736264" }, { name: "ABRIPDA", id: "1447257983729008823" },
             { name: "ABRIPTU", id: "1447257808595587173" }, { name: "ABRIGPOL", id: "1468235299346845726" },
             { name: "BHARAKA", id: "1468236252028469552" }, { name: "BHARATU", id: "1414436319873994863" },
-            { name: "BHARADA", id: "1414436059806302339" },
-            // 🎓 PANGKAT KHUSUS CASIS
-            { name: "CASIS", id: "1472779169581760616" }
+            { name: "BHARADA", id: "1414436059806302339" }
         ];
 
         let detectedPangkat = "RECRUIT";
         for (const rank of RANK_HIERARCHY) {
-            if (roles.includes(rank.id)) {
-                detectedPangkat = rank.name;
-                break;
-            }
+            if (roles.includes(rank.id)) { detectedPangkat = rank.name; break; }
         }
 
         const DIVISI_ID = {
@@ -55,8 +50,7 @@ export async function POST(req: Request) {
             if (roles.includes(id)) { detectedDivisi = name; break; }
         }
 
-        // 🚨 CATATAN: Pastikan ID ini adalah ID Role Discord Utama Polisi/Warga yang diizinkan masuk web
-        const isPolice = roles.includes("1393366590942085220") || roles.includes("1472779169581760616");
+        const isPolice = roles.includes("1393366590942085220");
 
         if (isPolice) {
             await supabaseAdmin.from('users').upsert({

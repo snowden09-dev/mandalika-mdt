@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: any = {
+const nextConfig: NextConfig = {
   /* config options here */
   images: {
     remotePatterns: [
@@ -11,14 +11,6 @@ const nextConfig: any = {
         pathname: '/avatars/**',
       },
     ],
-  },
-  // 🛡️ PROTOKOL DARURAT: Abaikan 167 Error ESLint saat Build
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // 🛡️ PROTOKOL DARURAT: Abaikan Error Tipe Data (any) saat Build
-  typescript: {
-    ignoreBuildErrors: true,
   },
 };
 

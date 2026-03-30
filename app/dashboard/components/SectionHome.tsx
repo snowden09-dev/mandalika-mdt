@@ -4,11 +4,11 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, Variants, AnimatePresence } from 'framer-motion';
 import {
     Zap, Clock, FileText, Award, Radar, Fingerprint, Target,
-    Activity, TrendingUp, BookOpen, Scale, Info, LogOut, ChevronDown
+    Activity, TrendingUp, BookOpen, Scale, Info, LogOut
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
-import { supabase } from '@/lib/supabase'; // 🚀 Pastikan ada untuk fitur Logout
+import { supabase } from '@/lib/supabase';
 
 const RANKS_DB = [
     { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
@@ -80,18 +80,21 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 pt-16 relative">
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
-            {/* 🚀 FOTO PROFIL & DROPDOWN (ABSOLUTE TOP RIGHT) */}
-            <div className="absolute top-0 right-4 z-[100]" ref={dropdownRef}>
+            {/* 🚀 FOTO PROFIL MURNI SEBAGAI TOMBOL (ABSOLUTE TOP RIGHT) */}
+            <div className="absolute top-2 right-4 z-[100]" ref={dropdownRef}>
                 <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className={`flex items-center gap-3 bg-white p-2 rounded-2xl ${boxBorder} shadow-[5px_5px_0_0_#000] hover:-translate-y-1 transition-transform active:translate-y-0`}
+                    className="outline-none hover:-translate-y-1 active:translate-y-0 transition-transform relative group"
                 >
+                    {/* Fotonya langsung dikasih border tebal dan shadow gaya Neo-Brutalism */}
                     <img
                         src={realtimeData.image || "https://cdn.discordapp.com/embed/avatars/0.png"}
                         alt="Profile"
-                        className="w-10 h-10 rounded-xl border-2 border-black object-cover bg-slate-200"
+                        className={`w-14 h-14 rounded-[18px] object-cover bg-slate-200 border-[3.5px] border-black shadow-[4px_4px_0_0_#000] group-hover:shadow-[6px_6px_0_0_#000] transition-shadow`}
                     />
-                    <ChevronDown size={20} className={`transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} />
+
+                    {/* Indikator Online Hijau Kecil */}
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#00E676] border-2 border-black rounded-full shadow-[2px_2px_0_0_#000]"></span>
                 </button>
 
                 <AnimatePresence>

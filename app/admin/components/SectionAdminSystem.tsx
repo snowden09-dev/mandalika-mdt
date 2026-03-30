@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
+// 🚀 BUG FIXED: Semua ikon yang tidak terpakai sudah saya bumihanguskan!
 import {
     ChevronLeft, ChevronRight, Image as ImageIcon, Clock, CheckCircle2, X,
     Skull, Bomb, AlertOctagon, UserX, Send, ShieldAlert,

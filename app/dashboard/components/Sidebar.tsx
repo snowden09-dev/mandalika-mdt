@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
                     className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm text-black bg-[#FF4D4D] border-[4px] border-black shadow-[6px_6px_0px_#000] mt-auto hover:bg-[#ff3333] active:translate-y-[4px] active:shadow-none transition-all`}
                 >
                     <LogOut size={20} strokeWidth={3} />
-                    <span>TERMINATE SESSION</span>
+                    <span>LOGOUT</span>
                 </button>
 
                 <div className="mt-6 text-center text-[8px] font-black uppercase opacity-30 italic">

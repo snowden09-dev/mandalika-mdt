@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, User, ChevronLeft, Home, Banknote, LogOut, ShieldAlert, History } from 'lucide-react';
+import {
+    Menu, User, ChevronLeft, Home, Banknote, LogOut, ShieldAlert, History,
+    BookOpen, FileText, Scale, Info
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import NextImage from 'next/image';
 
@@ -13,6 +16,106 @@ import SectionSalary from "./components/SectionSalary";
 import SectionLog from "./components/SectionLog";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
+// 🚀 KOMPONEN DROPDOWN PROFIL NEO-BRUTALISM
+function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, pangkat: string, image: string }) {
+    const router = useRouter();
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // FUNGSI TUTUP DROPDOWN JIKA KLIK DI LUAR
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsProfileOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        localStorage.removeItem('police_session');
+        router.push('/');
+    };
+
+    return (
+        <div className="relative z-[999]" ref={dropdownRef}>
+            {/* INI BAGIAN YANG DITEKAN (FOTO & NAMA) */}
+            <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center gap-4 outline-none hover:-translate-y-1 active:translate-y-0 transition-transform text-right group"
+            >
+                {/* Nama & Pangkat */}
+                <div className="hidden md:flex flex-col items-end leading-none font-black italic">
+                    <span className="text-xs uppercase text-black">{nickname}</span>
+                    <span className="text-[10px] text-[#3B82F6]">{pangkat}</span>
+                </div>
+
+                {/* Foto Profil */}
+                <div className={`w-14 h-14 border-[3.5px] border-black overflow-hidden shadow-[4px_4px_0px_#000] group-hover:shadow-[6px_6px_0px_#000] bg-[#CCFF00] rounded-[18px] transition-shadow relative`}>
+                    {image ? (
+                        <NextImage src={image} alt="Profile" width={56} height={56} className="object-cover w-full h-full" />
+                    ) : (
+                        <User size={28} className="m-auto mt-2" />
+                    )}
+                    {/* Indikator Online */}
+                    <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#00E676] border-2 border-black rounded-full shadow-[2px_2px_0_0_#000]"></span>
+                </div>
+            </button>
+
+            {/* DROPDOWN MENU NEO-BRUTALISM */}
+            <AnimatePresence>
+                {isProfileOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-4 w-64 bg-white border-[4px] border-black rounded-2xl shadow-[8px_8px_0_0_#000] p-2 flex flex-col gap-1"
+                    >
+                        {/* Info Header (Tampil di Mobile) */}
+                        <div className="p-3 border-b-4 border-black mb-2 bg-slate-950 text-white rounded-xl md:hidden">
+                            <p className="text-[10px] font-black italic uppercase tracking-widest opacity-50">Log In As:</p>
+                            <p className="text-sm font-black truncate">{nickname}</p>
+                            <p className="text-[10px] text-[#3B82F6] font-black">{pangkat}</p>
+                        </div>
+
+                        <button onClick={() => router.push('/panduan')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
+                            <div className="bg-blue-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-blue-500 group-hover:text-white"><BookOpen size={16} /></div>
+                            <span className="font-black text-xs uppercase italic text-black">Panduan Sistem</span>
+                        </button>
+
+                        <button onClick={() => router.push('/sop')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
+                            <div className="bg-emerald-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-emerald-500 group-hover:text-white"><FileText size={16} /></div>
+                            <span className="font-black text-xs uppercase italic text-black">SOP Anggota</span>
+                        </button>
+
+                        <button onClick={() => router.push('/uu')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
+                            <div className="bg-amber-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-amber-500 group-hover:text-white"><Scale size={16} /></div>
+                            <span className="font-black text-xs uppercase italic text-black">UU Kepolisian</span>
+                        </button>
+
+                        <button onClick={() => router.push('/about')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
+                            <div className="bg-purple-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-purple-500 group-hover:text-white"><Info size={16} /></div>
+                            <span className="font-black text-xs uppercase italic text-black">About MDT</span>
+                        </button>
+
+                        <div className="h-1 bg-black my-1 rounded-full" />
+
+                        <button onClick={handleLogout} className="flex items-center gap-3 p-3 hover:bg-red-500 hover:text-white rounded-xl border-2 border-transparent hover:border-black transition-all group">
+                            <div className="bg-red-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-white group-hover:text-red-600"><LogOut size={16} /></div>
+                            <span className="font-black text-xs uppercase italic text-black group-hover:text-white">Cabut Kabel</span>
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
+// ----------------------------------------------------
 
 export default function PortalPage() {
     const router = useRouter();
@@ -31,7 +134,6 @@ export default function PortalPage() {
 
             const parsed = JSON.parse(sessionData);
 
-            // Ambil data terbaru dari Supabase
             const { data, error } = await supabase.from('users').select('*').eq('discord_id', parsed.discord_id).single();
 
             if (data) {
@@ -39,13 +141,11 @@ export default function PortalPage() {
                 const cleanName = data.name.includes('|') ? data.name.split('|').pop().trim() : data.name;
                 setNickname(cleanName.toUpperCase());
 
-                // --- FIX FINAL: HANYA BOLEH TRUE JIKA KOLOM DB TRUE ---
-                // Pastikan tidak ada variabel pangkat atau divisi yang nyelip di sini
                 const isAdmin = data.is_admin === true;
                 const isHighAdmin = data.is_highadmin === true;
 
                 setDbStatus({
-                    is_admin: isAdmin || isHighAdmin, // Tombol muncul jika salah satu true
+                    is_admin: isAdmin || isHighAdmin,
                     is_highadmin: isHighAdmin
                 });
 
@@ -84,14 +184,14 @@ export default function PortalPage() {
                             {activeTab === 'log' && 'Activity Log'}
                         </h2>
                     </div>
+
+                    {/* 🚀 MENGGANTI PROFIL LAMA DENGAN DROPDOWN BARU */}
                     <div className="flex items-center gap-4">
-                        <div className="hidden md:flex flex-col items-end leading-none font-black italic">
-                            <span className="text-xs uppercase">{nickname}</span>
-                            <span className="text-[10px] text-[#3B82F6]">{realtimeData.pangkat}</span>
-                        </div>
-                        <div className="w-12 h-12 border-[4px] border-black overflow-hidden shadow-[6px_6px_0px_#000] bg-[#CCFF00]">
-                            {userData?.image ? <NextImage src={userData.image} alt="User" width={48} height={48} className="object-cover" /> : <User size={24} className="m-auto mt-2" />}
-                        </div>
+                        <ProfileDropdownMenu
+                            nickname={nickname}
+                            pangkat={realtimeData.pangkat}
+                            image={userData?.image || ""}
+                        />
                     </div>
                 </header>
 
@@ -120,7 +220,6 @@ export default function PortalPage() {
                         <span className="text-[10px] font-black uppercase italic block text-center">Gaji</span>
                     </button>
 
-                    {/* TOMBOL ADMIN MOBILE SEKARANG DISARING KETAT */}
                     {dbStatus.is_admin && (
                         <button onClick={() => router.push('/admin')} className="flex flex-col items-center gap-1 text-[#FF4D4D] transition-all scale-110">
                             <ShieldAlert size={26} strokeWidth={2.5} />

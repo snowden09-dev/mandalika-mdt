@@ -8,7 +8,7 @@ import QRCode from "react-qr-code";
 import {
     Banknote, CheckCircle2, XCircle, Clock, Send, Trash2,
     Eye, X, AlertOctagon, Zap, ShieldCheck, DollarSign,
-    Calendar, User, Shield, FileText, Check, Fingerprint, MapPin, QrCode, TrendingUp, Loader2
+    Calendar, User, Shield, FileText, Check, Fingerprint, MapPin, QrCode, TrendingUp, Loader2, Database
 } from 'lucide-react';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { id } from "date-fns/locale";
@@ -204,58 +204,94 @@ export default function SectionAdminPayroll() {
         <div className="w-full max-w-7xl mx-auto space-y-6 font-mono pb-20 text-slate-950">
             <Toaster position="top-center" />
 
-            {/* BENTO STATS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                <div className={`bg-[#00E676] p-6 ${boxBorder} ${hardShadow} rounded-3xl`}><p className="text-[10px] font-black uppercase opacity-60">Weekly Paid</p><h3 className="text-4xl font-[1000] italic mt-1 leading-none">${financialStats.weeklyPaid.toLocaleString()}</h3></div>
-                <div className={`bg-[#FFD100] p-6 ${boxBorder} ${hardShadow} rounded-3xl`}><p className="text-[10px] font-black uppercase opacity-60">Pending</p><h3 className="text-4xl font-[1000] italic mt-1 leading-none">${financialStats.totalPending.toLocaleString()}</h3></div>
-                <div className={`bg-[#3B82F6] p-6 ${boxBorder} ${hardShadow} rounded-3xl text-white`}><p className="text-[10px] font-black uppercase opacity-60">Forecast</p><h3 className="text-4xl font-[1000] italic mt-1 leading-none">${financialStats.forecast.toLocaleString()}</h3></div>
+            {/* 🚀 BENTO STATS (MOBILE COMPACT GRID) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+                <div className={`col-span-2 md:col-span-1 bg-[#3B82F6] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl text-white`}>
+                    <p className="text-[10px] font-black uppercase opacity-80">System Forecast</p>
+                    <h3 className="text-3xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.forecast.toLocaleString()}</h3>
+                </div>
+                <div className={`bg-[#FFD100] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl`}>
+                    <p className="text-[10px] font-black uppercase opacity-60">Pending</p>
+                    <h3 className="text-2xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.totalPending.toLocaleString()}</h3>
+                </div>
+                <div className={`bg-[#00E676] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl`}>
+                    <p className="text-[10px] font-black uppercase opacity-60">Weekly Paid</p>
+                    <h3 className="text-2xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.weeklyPaid.toLocaleString()}</h3>
+                </div>
             </div>
 
-            {/* HEADER & TABS + TRASH ALL */}
-            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-6 relative z-10`}>
-                <div className="flex items-center gap-4">
-                    <h2 className="font-[1000] text-2xl italic uppercase tracking-tighter text-slate-950">Payroll Command</h2>
+            {/* 🚀 HEADER & TABS + TRASH ALL */}
+            <div className={`bg-white ${boxBorder} ${hardShadow} p-4 md:p-6 rounded-xl md:rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10 mb-6`}>
+                <div className="flex justify-between items-center w-full md:w-auto">
+                    <h2 className="font-[1000] text-xl md:text-2xl italic uppercase tracking-tighter text-slate-950">Payroll Command</h2>
                     {activeTab !== 'PENDING' && (
-                        <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="bg-red-500 text-white p-2 rounded-xl border-2 border-black hover:scale-110 transition-all shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none"><Trash2 size={20} /></button>
+                        <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="md:hidden bg-red-500 text-white p-2 rounded-lg border-2 border-black active:translate-y-1"><Trash2 size={16} /></button>
                     )}
                 </div>
-                <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto">
-                    {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED'].map((t) => (
-                        <button key={t} onClick={() => setActiveTab(t as any)} className={cn("px-4 py-2 rounded-lg text-[9px] font-black uppercase italic whitespace-nowrap", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40")}>{t.replace('_', ' ')}</button>
-                    ))}
+
+                <div className="flex w-full md:w-auto items-center gap-2">
+                    <div className="flex flex-1 md:flex-none bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
+                        {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED'].map((t) => (
+                            <button key={t} onClick={() => setActiveTab(t as any)} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40")}>{t.replace('_', ' ')}</button>
+                        ))}
+                    </div>
+                    {activeTab !== 'PENDING' && (
+                        <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="hidden md:flex bg-red-500 text-white p-2.5 rounded-xl border-2 border-black hover:scale-110 transition-all shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none"><Trash2 size={20} /></button>
+                    )}
                 </div>
             </div>
 
-            {/* GRID DATA */}
+            {/* 🚀 GRID DATA & EMPTY STATE */}
             {!loading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {filteredData.map((req) => (
-                        <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] overflow-hidden flex flex-col group relative`}>
-                            <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="absolute top-2 right-2 z-20 bg-white/10 hover:bg-red-500 hover:text-white p-1.5 rounded-lg border-2 border-black opacity-0 group-hover:opacity-100 transition-all text-slate-950"><X size={14} /></button>
-                            <div className="bg-slate-950 text-white p-5 flex justify-between items-center border-b-4 border-black">
-                                <div><h4 className="font-black uppercase italic leading-none truncate w-32">{req.nama_panggilan}</h4><p className="text-[9px] font-bold text-blue-400 mt-1 uppercase italic">{req.pangkat}</p></div>
-                                <div className="text-[#00E676] font-black text-xl italic leading-none tracking-tighter">${Number(req.jumlah_gaji).toLocaleString()}</div>
-                            </div>
-                            <div className="p-6 flex-1 space-y-4">
-                                <div className="bg-slate-50 border-2 border-black p-3 rounded-xl text-center font-black text-[10px] italic text-slate-900 uppercase">
-                                    {format(new Date(req.tanggal_mulai), 'dd MMM')} — {format(new Date(req.tanggal_selesai), 'dd MMM yyyy')}
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {activeTab === 'PENDING' ? (
-                                        <>
-                                            <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
-                                            <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
-                                        </>
-                                    ) : activeTab === 'NOT_SENT' ? (
-                                        <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="col-span-2 bg-blue-500 text-white border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
-                                            {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Eye size={16} />} Open Slip
-                                        </button>
-                                    ) : <div className="col-span-2 text-center text-[10px] font-black opacity-20 uppercase italic text-slate-950">Recorded</div>}
-                                </div>
-                            </div>
+                filteredData.length === 0 ? (
+                    // --- EMPTY STATE NEO-BRUTALISM ---
+                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
+                        <div className="bg-slate-100 p-5 md:p-6 border-[3.5px] border-slate-900 rounded-3xl mb-4 shadow-[6px_6px_0_0_#000]">
+                            <Database size={56} className="text-slate-400" />
                         </div>
-                    ))}
-                </div>
+                        <h3 className="text-2xl md:text-4xl font-[1000] italic uppercase tracking-tighter text-slate-900">NIHIL DATA</h3>
+                        <p className="text-xs font-black uppercase opacity-50 mt-2 max-w-sm">
+                            Saat ini tidak ada laporan di antrian <span className="text-blue-500">{activeTab.replace('_', ' ')}</span>.
+                        </p>
+                    </motion.div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                        {filteredData.map((req) => (
+                            <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
+                                <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="absolute top-2 right-2 z-20 bg-white/10 hover:bg-red-500 hover:text-white p-1.5 rounded-lg border-2 border-black opacity-0 group-hover:opacity-100 transition-all text-slate-950"><X size={14} /></button>
+
+                                {/* Header Card lebih compact di mobile */}
+                                <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-center border-b-4 border-black">
+                                    <div className="overflow-hidden mr-2">
+                                        <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-base">{req.nama_panggilan}</h4>
+                                        <p className="text-[9px] font-bold text-blue-400 mt-1 uppercase italic">{req.pangkat}</p>
+                                    </div>
+                                    <div className="text-[#00E676] font-black text-lg md:text-xl italic leading-none tracking-tighter shrink-0">${Number(req.jumlah_gaji).toLocaleString()}</div>
+                                </div>
+
+                                <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
+                                    <div className="bg-slate-50 border-2 border-black p-2 md:p-3 rounded-xl text-center font-black text-[9px] md:text-[10px] italic text-slate-900 uppercase">
+                                        {format(new Date(req.tanggal_mulai), 'dd MMM')} — {format(new Date(req.tanggal_selesai), 'dd MMM yyyy')}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 md:gap-3 mt-auto">
+                                        {activeTab === 'PENDING' ? (
+                                            <>
+                                                <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 md:py-2 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
+                                                <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black py-2.5 md:py-2 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
+                                            </>
+                                        ) : activeTab === 'NOT_SENT' ? (
+                                            <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="col-span-2 bg-blue-500 text-white border-2 border-black py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
+                                                {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Eye size={16} />} Open Slip
+                                            </button>
+                                        ) : (
+                                            <div className="col-span-2 text-center text-[10px] font-black opacity-20 uppercase italic text-slate-950 py-1">Recorded</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )
             )}
 
             {/* MODAL PREVIEW IMAGE */}
@@ -339,6 +375,11 @@ export default function SectionAdminPayroll() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+            `}</style>
         </div>
     );
 }

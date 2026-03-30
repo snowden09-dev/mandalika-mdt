@@ -150,9 +150,19 @@ export default function SectionAdminSystem() {
         });
     }, [personnel, duties, cutis, weekStart, weekEnd]);
 
+    // 🚀 --- FUNGSI GET DAY STATUS (SUDAH DIPERBAIKI UTC-NYA) ---
     const getDayStatus = (discordId: string, date: Date) => {
         const targetDate = format(date, 'yyyy-MM-dd');
-        const dutyToday = duties.find(d => d.user_id_discord === discordId && d.start_time.startsWith(targetDate));
+
+        const dutyToday = duties.find(d => {
+            if (d.user_id_discord !== discordId) return false;
+            if (!d.start_time) return false;
+
+            // Konversi UTC dari database ke Local Time sebelum dicocokkan
+            const dutyLocalDate = format(new Date(d.start_time), 'yyyy-MM-dd');
+            return dutyLocalDate === targetDate;
+        });
+
         if (dutyToday) return { type: 'DUTY', data: dutyToday };
 
         const cutiToday = cutis.find(c => {
@@ -162,6 +172,7 @@ export default function SectionAdminSystem() {
             const current = startOfDay(date);
             return current >= start && current <= end;
         });
+
         if (cutiToday) return { type: 'CUTI', data: cutiToday };
 
         return { type: 'NONE', data: null };

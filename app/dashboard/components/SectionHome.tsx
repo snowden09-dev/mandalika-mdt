@@ -88,7 +88,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
 
                 <div className="relative z-10">
                     <div className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676]">Akses Terverifikasi</div>
-                    <h1 className="text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">{nickname}</h1>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">{nickname}</h1>
                     <div className="flex gap-3">
                         <span className="bg-[#FFD100] px-4 py-1.5 border-[3px] border-black text-[12px] font-black italic shadow-[4px_4px_0_0_#000]">{realtimeData.pangkat}</span>
                         <span className="bg-[#CCFF00] px-4 py-1.5 border-[3px] border-black text-[12px] font-black italic shadow-[4px_4px_0_0_#000]">{realtimeData.divisi}</span>
@@ -97,17 +97,18 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             </motion.div>
 
             {/* --- BIG STATS: REP POINTS --- */}
-            <motion.div variants={item} className={`bg-[#FFD100] p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
+            <motion.div variants={item} className={`bg-[#FFD100] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
                 <div className="absolute -right-2 -top-2 opacity-10 group-hover:rotate-45 transition-transform">
                     <Zap size={100} />
                 </div>
                 <div className="flex justify-between items-center mb-4 relative z-10">
-                    <p className="text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Reputation Points</p>
-                    <TrendingUp size={24} />
+                    <p className="text-[10px] md:text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Reputation Points</p>
+                    <TrendingUp size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-7xl font-[1000] leading-none tracking-tighter italic">{realtimeData.point_prp}</h2>
-                    <p className="text-xs font-black uppercase italic mt-1 text-black/60">Points Collected</p>
+                    {/* 🚀 PERBAIKAN: Font size responsif & truncate untuk mobile */}
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{realtimeData.point_prp}</h2>
+                    <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Points Collected</p>
                 </div>
                 <div className="mt-auto relative z-10">
                     <div className="flex justify-between text-[10px] font-black uppercase mb-1">
@@ -121,17 +122,18 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             </motion.div>
 
             {/* --- BIG STATS: DUTY HOURS --- */}
-            <motion.div variants={item} className={`bg-[#00E676] p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
+            <motion.div variants={item} className={`bg-[#00E676] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
                 <div className="absolute -right-2 -top-2 opacity-10 group-hover:scale-110 transition-transform">
                     <Activity size={100} />
                 </div>
                 <div className="flex justify-between items-center mb-4 relative z-10">
-                    <p className="text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Duty Records</p>
-                    <Clock size={24} />
+                    <p className="text-[10px] md:text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Duty Records</p>
+                    <Clock size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-7xl font-[1000] leading-none tracking-tighter italic">{realtimeData.total_jam_duty}</h2>
-                    <p className="text-xs font-black uppercase italic mt-1 text-black/60">Total Hours</p>
+                    {/* 🚀 PERBAIKAN: Font size responsif & truncate untuk mobile */}
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{realtimeData.total_jam_duty}</h2>
+                    <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Total Hours</p>
                 </div>
                 <div className="mt-auto relative z-10">
                     <div className="flex justify-between text-[10px] font-black uppercase mb-1">
@@ -145,27 +147,28 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             </motion.div>
 
             {/* --- PROMOTION PATHWAY --- */}
-            <motion.div variants={item} className={`col-span-2 bg-white p-6 ${boxBorder} ${hardShadow} relative group overflow-hidden`}>
+            <motion.div variants={item} className={`col-span-2 bg-white p-4 md:p-6 ${boxBorder} ${hardShadow} relative group overflow-hidden`}>
                 <div className="absolute -right-6 -top-6 opacity-5 group-hover:scale-125 transition-transform duration-1000">
                     <Target size={180} />
                 </div>
-                <div className="flex items-center gap-6 mb-6 relative z-10">
-                    <div className="bg-[#A78BFA] p-4 border-[4px] border-black shadow-[6px_6px_0_0_#000] -rotate-2 group-hover:rotate-0 transition-transform">
-                        <Award size={40} />
+                <div className="flex items-center gap-4 md:gap-6 mb-6 relative z-10">
+                    <div className="bg-[#A78BFA] p-3 md:p-4 border-[4px] border-black shadow-[6px_6px_0_0_#000] -rotate-2 group-hover:rotate-0 transition-transform">
+                        <Award size={32} className="md:w-10 md:h-10" />
                     </div>
-                    <div>
-                        <p className="text-[11px] font-black opacity-50 italic uppercase leading-none mb-2">Next Promotion Goal</p>
-                        <h3 className="text-4xl font-[1000] italic leading-none tracking-tighter">{progress.next}</h3>
+                    <div className="overflow-hidden">
+                        <p className="text-[10px] md:text-[11px] font-black opacity-50 italic uppercase leading-none mb-2">Next Promotion Goal</p>
+                        {/* 🚀 PERBAIKAN: Ukuran pangkat mengecil di mobile */}
+                        <h3 className="text-2xl sm:text-3xl md:text-4xl font-[1000] italic leading-none tracking-tighter truncate">{progress.next}</h3>
                     </div>
                 </div>
-                <div className="grid grid-cols-2 gap-5 relative z-10">
-                    <div className="bg-[#FFD100] border-[4px] border-black p-4 flex flex-col shadow-[6px_6px_0_0_#000] group-hover:-translate-y-1 transition-transform">
-                        <span className="text-2xl font-[1000] text-black italic">-{progress.prpNeed} PRP</span>
-                        <span className="text-[10px] font-black uppercase italic text-black/60">Points Needed</span>
+                <div className="grid grid-cols-2 gap-3 md:gap-5 relative z-10">
+                    <div className="bg-[#FFD100] border-[4px] border-black p-3 md:p-4 flex flex-col shadow-[6px_6px_0_0_#000] group-hover:-translate-y-1 transition-transform">
+                        <span className="text-lg sm:text-xl md:text-2xl font-[1000] text-black italic truncate">-{progress.prpNeed} PRP</span>
+                        <span className="text-[9px] md:text-[10px] font-black uppercase italic text-black/60">Points Needed</span>
                     </div>
-                    <div className="bg-[#00E676] border-[4px] border-black p-4 flex flex-col shadow-[6px_6px_0_0_#000] group-hover:-translate-y-1 transition-transform">
-                        <span className="text-2xl font-[1000] text-black italic">-{progress.hrNeed} HRS</span>
-                        <span className="text-[10px] font-black uppercase italic text-black/60">Hours Needed</span>
+                    <div className="bg-[#00E676] border-[4px] border-black p-3 md:p-4 flex flex-col shadow-[6px_6px_0_0_#000] group-hover:-translate-y-1 transition-transform">
+                        <span className="text-lg sm:text-xl md:text-2xl font-[1000] text-black italic truncate">-{progress.hrNeed} HRS</span>
+                        <span className="text-[9px] md:text-[10px] font-black uppercase italic text-black/60">Hours Needed</span>
                     </div>
                 </div>
             </motion.div>
@@ -174,24 +177,24 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             <motion.button
                 variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
                 onClick={() => handleAction('/absen', 'STAR')}
-                className={`bg-[#FF4D4D] p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
+                className={`bg-[#FF4D4D] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
             >
-                <div className="bg-white p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12">
-                    <Radar size={48} className="animate-spin-slow text-black" />
+                <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12">
+                    <Radar size={40} className="md:w-12 md:h-12 animate-spin-slow text-black" />
                 </div>
-                <span className="text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Absensi</span>
+                <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Absensi</span>
             </motion.button>
 
             {/* --- ACTION 2: LAPORAN --- */}
             <motion.button
                 variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
                 onClick={() => handleAction('/laporan', 'COMPUTER')}
-                className={`bg-[#A78BFA] p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
+                className={`bg-[#A78BFA] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
             >
-                <div className="bg-white p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12">
-                    <FileText size={48} className="text-black" />
+                <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12">
+                    <FileText size={40} className="md:w-12 md:h-12 text-black" />
                 </div>
-                <span className="text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Laporan</span>
+                <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Laporan</span>
             </motion.button>
 
             <style jsx global>{`

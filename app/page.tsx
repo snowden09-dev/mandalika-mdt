@@ -39,8 +39,6 @@ export default function LandingPage() {
     }, 1000);
 
     // --- 🚀 FAST TRACK INTERCEPTOR ---
-    // Jika user sudah punya session di browser, langsung lempar ke dashboard!
-    // Gak perlu nunggu loading sinkronisasi lagi.
     if (typeof window !== 'undefined') {
       const localSession = localStorage.getItem('police_session');
       if (localSession) {
@@ -49,12 +47,10 @@ export default function LandingPage() {
       }
     }
 
-    // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT ---
+    // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT (PATCHED) ---
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // FIX: Tangkap juga 'INITIAL_SESSION' (saat user refresh halaman tapi sudah login di background)
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
 
-        // Double check, kalau tiba-tiba session udah masuk, langsung skip
         if (localStorage.getItem('police_session')) {
           router.replace('/dashboard');
           return;
@@ -64,28 +60,40 @@ export default function LandingPage() {
         setStatus('MENGECEK AKSES...');
 
         try {
-          // 1. Ambil Identitas dari Discord Metadata
-          const discordId = session.user.user_metadata.provider_id;
+          // 1. 🛡️ PATCH KEAMANAN: Ekstraksi ID Discord yang Valid & Tahan Banting
+          const identities = session.user.identities || [];
+          const discordIdentity = identities.find((id) => id.provider === 'discord');
+
+          // Cari ID dari berbagai sumber yang valid di Supabase
+          const discordId = discordIdentity?.id || session.user.user_metadata?.sub;
+
           const discordName =
-            session.user.user_metadata.full_name ||
-            session.user.user_metadata.custom_claims?.global_name ||
-            session.user.user_metadata.name ||
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.custom_claims?.global_name ||
+            session.user.user_metadata?.name ||
             "UNKNOWN PERSONEL";
+
+          // 🚨 PEMBLOKIRAN INSTAN: Jika ID tetap kosong, langsung tendang!
+          if (!discordId) {
+            console.error("CRITICAL ERROR: Discord ID gagal didapatkan dari Session!");
+            throw new Error("INVALID_ID");
+          }
 
           // 2. Verifikasi Role via API
           const response = await fetch('/api/check-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: discordId }),
+            body: JSON.stringify({ userId: discordId }), // Sekarang dijamin ADA ISINYA
           });
 
           if (!response.ok) throw new Error("API_ERROR");
           const result = await response.json();
 
-          if (result.isPolice) {
+          // 🚨 HARUS EXACTLY TRUE (Mencegah Bypass jika API error & mengirim string/object aneh)
+          if (result.isPolice === true) {
             setStatus('SINKRONISASI DATA...');
 
-            // --- 🛡️ LOGIKA ANTI-DUPLIKAT (UPSERT) 🛡️ ---
+            // 3. Upsert Database Aman (ID terjamin tidak null)
             const { error: syncError } = await supabase
               .from('users')
               .upsert({
@@ -103,21 +111,27 @@ export default function LandingPage() {
             }
 
             setStatus('AKSES DIBERIKAN!');
-            // Simpan info ke localStorage
-            localStorage.setItem('police_session', JSON.stringify(result));
+            localStorage.setItem('police_session', JSON.stringify({ ...result, discord_id: discordId }));
 
-            // FIX: Gunakan window.location.href agar browser benar-benar pindah
-            // dan me-refresh state secara total (menghindari nyangkut di Next.js router)
             window.location.href = '/dashboard';
           } else {
+            // JIKA BUKAN POLISI, TENDANG KELUAR!
             setStatus('AKSES DITOLAK!');
             await supabase.auth.signOut();
-            localStorage.removeItem('police_session'); // Bersihkan sampah session
+            localStorage.removeItem('police_session');
             router.push('/unauthorized');
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Gagal Verifikasi:", err);
-          setStatus('GAGAL SISTEM');
+
+          // Jika error karena ID tidak valid, paksa Sign Out!
+          if (err.message === "INVALID_ID") {
+            setStatus('AKSES ILEGAL DIBLOKIR');
+            await supabase.auth.signOut();
+          } else {
+            setStatus('GAGAL SISTEM');
+          }
+
           setIsLoading(false);
         }
       }

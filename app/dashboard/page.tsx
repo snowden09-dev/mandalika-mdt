@@ -106,7 +106,7 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
 
                         <button onClick={handleLogout} className="flex items-center gap-3 p-3 hover:bg-red-500 hover:text-white rounded-xl border-2 border-transparent hover:border-black transition-all group">
                             <div className="bg-red-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-white group-hover:text-red-600"><LogOut size={16} /></div>
-                            <span className="font-black text-xs uppercase italic text-black group-hover:text-white">Cabut Kabel</span>
+                            <span className="font-black text-xs uppercase italic text-black group-hover:text-white">Logout</span>
                         </button>
                     </motion.div>
                 )}

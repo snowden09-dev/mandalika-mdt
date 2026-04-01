@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toPng } from 'html-to-image';
+import QRCode from "react-qr-code";
 import {
     Receipt, Wallet, Zap, User, Send, Download,
     ChevronLeft, ChevronRight, ShieldCheck, Activity,
     AlertTriangle, FileText, Lock, Fingerprint, X,
-    AlertOctagon, Info, CheckCircle
+    AlertOctagon, Info, CheckCircle, Shield, MapPin, Loader2
 } from 'lucide-react';
 import {
     format, startOfMonth, endOfMonth, startOfWeek,
     endOfWeek, addDays, isSameDay, isWithinInterval,
-    addMonths, subMonths, subDays, startOfDay, isBefore
+    addMonths, subMonths, subDays, startOfDay, isBefore, parseISO
 } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { supabase } from "@/lib/supabase";
@@ -19,12 +21,17 @@ import { supabase } from "@/lib/supabase";
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
 export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
+    const slipRef = useRef<HTMLDivElement>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
     const [history, setHistory] = useState<any[]>([]);
     const [isVerifying, setIsVerifying] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 4;
+
+    // --- DOWNLOAD STATE ---
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [selectedSlip, setSelectedSlip] = useState<any>(null);
 
     const [notif, setNotif] = useState<{ show: boolean, title: string, message: string, type: 'ERROR' | 'SUCCESS' | 'INFO' }>({
         show: false, title: '', message: '', type: 'INFO'
@@ -126,12 +133,11 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            // FIX: TAMBAHKAN DIVISI DARI REALTIMEDATA KE INSERT DATABASE
             const { error } = await supabase.from('pengajuan_gaji').insert([{
                 user_id_discord: discordId,
                 nama_panggilan: nickname,
                 pangkat: realtimeData?.pangkat || "RECRUIT",
-                divisi: realtimeData?.divisi || "SABHARA", // Logika tambahan divisi
+                divisi: realtimeData?.divisi || "SABHARA",
                 jumlah_gaji: baseSalary,
                 tanggal_mulai: startStr,
                 tanggal_selesai: endStr,
@@ -145,6 +151,38 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         } catch (err: any) {
             showNotif("SISTEM ERROR", err.message, "ERROR");
         } finally { setIsVerifying(false); }
+    };
+
+    // 🚀 LOGIKA DOWNLOAD SLIP GAJI
+    const handleDownloadSlip = async (log: any) => {
+        setDownloadingId(log.id);
+        setSelectedSlip(log);
+
+        // Jeda waktu agar React me-render div tersembunyi terlebih dahulu
+        setTimeout(async () => {
+            if (slipRef.current) {
+                try {
+                    const dataUrl = await toPng(slipRef.current, {
+                        cacheBust: true,
+                        pixelRatio: 3,
+                        backgroundColor: '#ffffff'
+                    });
+
+                    // Trigger unduhan
+                    const link = document.createElement('a');
+                    link.download = `MPD_Payslip_${log.nama_panggilan}_${format(new Date(log.tanggal_mulai), 'MMM_yyyy')}.png`;
+                    link.href = dataUrl;
+                    link.click();
+
+                    showNotif("UNDUHAN SUKSES", "Payslip resmi berhasil diunduh ke perangkat Anda.", "SUCCESS");
+                } catch (error) {
+                    showNotif("ERROR", "Sistem gagal memproses dan mengekstrak foto slip.", "ERROR");
+                } finally {
+                    setDownloadingId(null);
+                    setSelectedSlip(null);
+                }
+            }
+        }, 500); // 500ms delay for safe rendering
     };
 
     const currentLogs = history.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -228,7 +266,13 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                         <p className="text-[10px] font-black opacity-40 italic mt-1 uppercase">Period: {format(new Date(log.tanggal_mulai), 'dd MMM')} - {format(new Date(log.tanggal_selesai), 'dd MMM')}</p>
                                         <div className={cn("text-[8px] font-[1000] px-2 py-1 mt-2 inline-block italic border border-black shadow-[2px_2px_0_0_#000]", log.status === 'PAID' ? 'bg-[#00E676]' : 'bg-[#FFD100]')}>{log.status === 'PAID' ? 'SUCCESS PAID' : 'PENDING APPROVAL'}</div>
                                     </div>
-                                    <button disabled={log.status !== 'PAID'} className={cn("p-4 border-4 border-black shadow-[4px_4px_0_0_#000] active:shadow-none transition-all", log.status === 'PAID' ? 'bg-[#00E676] hover:bg-[#3B82F6]' : 'bg-slate-200 opacity-50 cursor-not-allowed')}>{log.status === 'PAID' ? <Download size={24} /> : <Lock size={24} />}</button>
+                                    <button
+                                        disabled={log.status !== 'PAID' || downloadingId === log.id}
+                                        onClick={() => handleDownloadSlip(log)}
+                                        className={cn("w-14 h-14 border-4 border-black shadow-[4px_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center", log.status === 'PAID' ? 'bg-[#00E676] hover:bg-[#3B82F6]' : 'bg-slate-200 opacity-50 cursor-not-allowed')}
+                                    >
+                                        {downloadingId === log.id ? <Loader2 className="animate-spin text-black" size={24} /> : log.status === 'PAID' ? <Download size={24} /> : <Lock size={24} />}
+                                    </button>
                                 </div>
                             ))}
                         </motion.div>
@@ -242,6 +286,52 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     </div>
                 </div>
             </div>
+
+            {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATE SLIP (SAMA PERSIS DENGAN ADMIN) --- */}
+            {selectedSlip && (
+                <div style={{ position: 'absolute', top: '-4000px', left: '-4000px', zIndex: -100 }}>
+                    <div ref={slipRef} className="bg-white w-[600px] border-[10px] border-black p-12 space-y-10 text-slate-950 font-mono">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-[8px] border-black pb-8">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-blue-600 mb-2 font-black italic text-sm tracking-[0.3em]"><Shield size={24} /> MPD HQ</div>
+                                <h2 className="text-5xl font-[1000] italic tracking-tighter leading-none text-slate-950">OFFICIAL PAYSLIP</h2>
+                                <p className="text-xs font-black uppercase opacity-40 italic text-slate-900"><MapPin size={12} className="inline mr-1" /> HQ Mandalika • Central District</p>
+                            </div>
+                            <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{selectedSlip.id.substring(0, 6).toUpperCase()}</div>
+                        </div>
+
+                        {/* DETAIL LENGKAP */}
+                        <div className="grid grid-cols-2 gap-10">
+                            <div className="space-y-6">
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Lengkap</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{selectedSlip.nama_panggilan}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Divisi</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{selectedSlip.pangkat} / {selectedSlip.divisi || 'UNIT'}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Periode Gaji</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(selectedSlip.tanggal_mulai), 'dd MMM')} - {format(new Date(selectedSlip.tanggal_selesai), 'dd MMM yyyy')}</p></div>
+                            </div>
+                            <div className="space-y-6">
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pengajuan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(parseISO(selectedSlip.created_at), 'dd MMMM yyyy', { locale: id })}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(), 'dd MMMM yyyy', { locale: id })}</p></div>
+                                <div className="bg-slate-50 border-4 border-dashed border-black p-4 rounded-xl text-center">
+                                    <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
+                                    <p className="text-[11px] font-black uppercase leading-none">{selectedSlip.keterangan_admin?.replace('AUTH BY ', '') || 'HIGH COMMAND'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Payout & QR */}
+                        <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676]">
+                            <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(selectedSlip.jumlah_gaji).toLocaleString()}</h3></div>
+                            <div className="bg-white p-2 border-4 border-black">
+                                <QRCode size={85} value={`AUTH:${selectedSlip.id}`} viewBox={`0 0 256 256`} />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-center opacity-10 pt-4">
+                            <p className="text-[9px] font-black uppercase tracking-[1em]">Mandalika Police Department • Official Audit</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL NOTIFIKASI NEO-BRUTALISM */}
             <AnimatePresence>

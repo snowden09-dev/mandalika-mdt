@@ -115,7 +115,7 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
     );
 }
 
-// ---------------------------------------------------------
+// ----------------------------------------------------
 
 export default function PortalPage() {
     const router = useRouter();

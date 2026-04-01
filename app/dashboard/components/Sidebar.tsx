@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, Banknote, ShieldAlert, Radar, History, Trophy } from 'lucide-react';
+import { Home, Banknote, ShieldAlert, Radar, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: { isOpen: boolean, activeTab: string, setActiveTab: (tab: string) => void, dbStatus: any }) {
@@ -14,8 +14,6 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
         { id: 'home', label: 'DASHBOARD', icon: <Home size={20} />, color: '#FFD100' },
         { id: 'log', label: 'ACTIVITY LOG', icon: <History size={20} />, color: '#FF90E8' },
         { id: 'payroll', label: 'SALARY SYSTEM', icon: <Banknote size={20} />, color: '#00E676' },
-        // --- 🚀 NEW MENU: HALL OF FAME ---
-        { id: 'halloffame', label: 'HALL OF FAME', icon: <Trophy size={20} />, color: '#FF9800' },
     ];
 
     return (
@@ -56,7 +54,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
                         <motion.button
                             whileHover={{ scale: 1.02 }}
                             onClick={() => router.push('/admin')}
-                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-[4px] bg-[#A78BFA] border-black shadow-[6px_6px_0px_#000] hover:translate-y-[-2px] active:shadow-none mt-8`}
+                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-[4px] bg-[#A78BFA] border-black shadow-[6px_6px_0px_#000] hover:translate-y-[-2px] active:shadow-none`}
                         >
                             <ShieldAlert size={20} strokeWidth={3} />
                             <span>ADMIN PANEL</span>
@@ -66,7 +64,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
 
                 {/* mt-auto ditambahkan di sini agar teks footer tetap berada di paling bawah */}
                 <div className="mt-auto pt-6 text-center text-[8px] font-black uppercase opacity-30 italic">
-                    Mandalika Security Protocol v3.5
+                    Mandalika Security Protocol v2.0
                 </div>
 
             </div>

@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Menu, User, ChevronLeft, Home, Banknote, LogOut, ShieldAlert, History,
-    BookOpen, FileText, Scale, Info, Trophy
+    BookOpen, FileText, Scale, Info
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import NextImage from 'next/image';
@@ -14,7 +14,6 @@ import Sidebar from "./components/Sidebar";
 import SectionHome from "./components/SectionHome";
 import SectionSalary from "./components/SectionSalary";
 import SectionLog from "./components/SectionLog";
-import SectionHallOfFame from "./components/SectionHallOfFame"; // 🚀 IMPORT SECTION BARU
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -59,7 +58,7 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
                     {image ? (
                         <NextImage src={image} alt="Profile" width={56} height={56} className="object-cover w-full h-full" />
                     ) : (
-                        <User size={28} className="m-auto mt-2 text-black" />
+                        <User size={28} className="m-auto mt-2" />
                     )}
                     {/* Indikator Online */}
                     <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#00E676] border-2 border-black rounded-full shadow-[2px_2px_0_0_#000]"></span>
@@ -177,12 +176,10 @@ export default function PortalPage() {
                             {activeTab === 'home' && 'Personnel Terminal'}
                             {activeTab === 'payroll' && 'Financial Gateway'}
                             {activeTab === 'log' && 'Activity Log'}
-                            {/* 🚀 TAMBAHKAN JUDUL UNTUK HALL OF FAME */}
-                            {activeTab === 'halloffame' && 'Hall Of Fame'}
                         </h2>
                     </div>
 
-                    {/* DROPDOWN PROFIL */}
+                    {/* 🚀 DROPDOWN PROFIL */}
                     <ProfileDropdownMenu
                         nickname={nickname}
                         pangkat={realtimeData.pangkat}
@@ -195,37 +192,29 @@ export default function PortalPage() {
                         {activeTab === 'home' && <SectionHome key="home" nickname={nickname} realtimeData={realtimeData} />}
                         {activeTab === 'log' && <SectionLog key="log" />}
                         {activeTab === 'payroll' && <SectionSalary key="salary" realtimeData={realtimeData} nickname={nickname} />}
-                        {/* 🚀 RENDER SECTION HALL OF FAME */}
-                        {activeTab === 'halloffame' && <SectionHallOfFame key="halloffame" />}
                     </AnimatePresence>
                 </main>
 
                 {/* BOTTOM NAVIGATION (MOBILE) */}
                 <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[#FFD100] border-t-[6px] border-black flex justify-around items-center py-4 pb-8 z-[60] shadow-[0_-6px_0_0_rgba(0,0,0,1)]">
                     <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'scale-110' : 'opacity-40'}`}>
-                        <Home size={24} strokeWidth={2.5} />
+                        <Home size={26} strokeWidth={2.5} />
                         <span className="text-[10px] font-black uppercase italic block text-center">Home</span>
                     </button>
 
                     <button onClick={() => setActiveTab('log')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'log' ? 'scale-110' : 'opacity-40'}`}>
-                        <History size={24} strokeWidth={2.5} />
+                        <History size={26} strokeWidth={2.5} />
                         <span className="text-[10px] font-black uppercase italic block text-center">Log</span>
                     </button>
 
-                    {/* 🚀 TOMBOL HALL OF FAME DI MOBILE (Bintang/Trophy) */}
-                    <button onClick={() => setActiveTab('halloffame')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'halloffame' ? 'scale-110 text-[#FF9800]' : 'opacity-40'}`}>
-                        <Trophy size={24} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase italic block text-center">Top</span>
-                    </button>
-
                     <button onClick={() => setActiveTab('payroll')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'payroll' ? 'scale-110' : 'opacity-40'}`}>
-                        <Banknote size={24} strokeWidth={2.5} />
+                        <Banknote size={26} strokeWidth={2.5} />
                         <span className="text-[10px] font-black uppercase italic block text-center">Gaji</span>
                     </button>
 
                     {dbStatus.is_admin && (
                         <button onClick={() => router.push('/admin')} className="flex flex-col items-center gap-1 text-[#FF4D4D] transition-all scale-110">
-                            <ShieldAlert size={24} strokeWidth={2.5} />
+                            <ShieldAlert size={26} strokeWidth={2.5} />
                             <span className="text-[10px] font-black uppercase italic block text-center">Admin</span>
                         </button>
                     )}

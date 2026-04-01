@@ -1,14 +1,8 @@
 "use client";
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, Banknote, LogOut, ShieldAlert, Radar, History } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { Home, Banknote, ShieldAlert, Radar, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: { isOpen: boolean, activeTab: string, setActiveTab: (tab: string) => void, dbStatus: any }) {
     const router = useRouter();
@@ -21,12 +15,6 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
         { id: 'log', label: 'ACTIVITY LOG', icon: <History size={20} />, color: '#FF90E8' },
         { id: 'payroll', label: 'SALARY SYSTEM', icon: <Banknote size={20} />, color: '#00E676' },
     ];
-
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        localStorage.removeItem('police_session');
-        router.push('/');
-    };
 
     return (
         <motion.aside
@@ -74,15 +62,8 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
                     )}
                 </nav>
 
-                <button
-                    onClick={handleLogout}
-                    className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm text-black bg-[#FF4D4D] border-[4px] border-black shadow-[6px_6px_0px_#000] mt-auto hover:bg-[#ff3333] active:translate-y-[4px] active:shadow-none transition-all`}
-                >
-                    <LogOut size={20} strokeWidth={3} />
-                    <span>LOGOUT</span>
-                </button>
-
-                <div className="mt-6 text-center text-[8px] font-black uppercase opacity-30 italic">
+                {/* mt-auto ditambahkan di sini agar teks footer tetap berada di paling bawah */}
+                <div className="mt-auto pt-6 text-center text-[8px] font-black uppercase opacity-30 italic">
                     Mandalika Security Protocol v2.0
                 </div>
 

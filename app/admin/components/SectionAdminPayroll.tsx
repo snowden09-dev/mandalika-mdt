@@ -6,9 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Banknote, CheckCircle2, XCircle, Clock, Send, Trash2,
-    Eye, X, AlertOctagon, Zap, ShieldCheck, DollarSign,
-    Calendar, User, Shield, FileText, Check, Fingerprint, MapPin, QrCode, TrendingUp, Loader2, Database
+    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2
 } from 'lucide-react';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { id } from "date-fns/locale";
@@ -21,7 +19,7 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 export default function SectionAdminPayroll() {
     const slipRef = useRef<HTMLDivElement>(null);
     const [requests, setRequests] = useState<any[]>([]);
-    const [allPersonnel, setAllPersonnel] = useState<any[]>([]);
+    const [allPersonnel, setAllPersonnel] = useState<any[]>([]); // Masih disimpan kalau dibutuhkan
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT'>('PENDING');
     const [adminSession, setAdminSession] = useState<any>(null);
@@ -38,6 +36,7 @@ export default function SectionAdminPayroll() {
 
     const fetchData = async () => {
         setLoading(true);
+        // Mengambil seluruh data gaji untuk kalkulasi Forecast
         const { data: reqData } = await supabase.from('pengajuan_gaji').select('*').order('created_at', { ascending: false });
         if (reqData) setRequests(reqData);
 
@@ -56,43 +55,42 @@ export default function SectionAdminPayroll() {
         }
     }, []);
 
-    // --- BENTO STATS LOGIC ---
+    // --- 🚀 BENTO STATS LOGIC (UPDATED FORECAST) ---
     const financialStats = useMemo(() => {
+        if (!requests || requests.length === 0) return { weeklyPaid: 0, totalPending: 0, forecast: 0 };
+
         const now = new Date();
         const start = startOfWeek(now, { weekStartsOn: 1 });
         const end = endOfWeek(now, { weekStartsOn: 1 });
 
+        // 1. Hitung Weekly Paid
         const weeklyPaid = requests.filter(r => r.status === 'PAID' && isWithinInterval(new Date(r.created_at), { start, end }))
             .reduce((sum, r) => sum + Number(r.jumlah_gaji), 0);
 
+        // 2. Hitung Total Pending
         const totalPending = requests.filter(r => r.status === 'PENDING')
             .reduce((sum, r) => sum + Number(r.jumlah_gaji), 0);
 
-        const getGaji = (pangkat: string) => {
-            const p = pangkat?.toUpperCase() || "";
-            if (p.includes("JENDRAL")) return 65000;
-            if (p.includes("KOMJEN")) return 64000;
-            if (p.includes("IRJEN")) return 62000;
-            if (p.includes("BRIGJEN")) return 57000;
-            if (p.includes("KOMBES")) return 56000;
-            if (p.includes("AKBP")) return 50000;
-            if (p.includes("KOMPOL")) return 47000;
-            if (p.includes("AKP")) return 45000;
-            if (p.includes("IPTU")) return 37000;
-            if (p.includes("IPDA")) return 36000;
-            if (p.includes("AIPTU")) return 35000;
-            if (p.includes("AIPDA")) return 34000;
-            if (p.includes("BRIPKA")) return 28000;
-            if (p.includes("BRIGPOL")) return 27000;
-            if (p.includes("BRIPTU")) return 26000;
-            if (p.includes("BRIPDA")) return 24000;
-            if (p.includes("BHARADA")) return 22000;
-            return 15000;
-        };
+        // 3. 🚀 Hitung Forecast Berdasarkan Gaji Terakhir Tiap Personil
+        // Kita menggunakan Map untuk memastikan hanya mengambil gaji paling baru dari setiap discord_id
+        const latestSalaries = new Map<string, number>();
 
-        const forecast = allPersonnel.reduce((sum, p) => sum + getGaji(p.pangkat), 0);
+        // Karena data requests sudah di-sort descending (terbaru di atas) dari Supabase,
+        // kita cukup memasukkan data pertama yang kita temui untuk setiap user.
+        requests.forEach(req => {
+            if (req.user_id_discord && req.status === 'PAID' && !latestSalaries.has(req.user_id_discord)) {
+                latestSalaries.set(req.user_id_discord, Number(req.jumlah_gaji));
+            }
+        });
+
+        // Jumlahkan semua nilai gaji terbaru
+        let forecast = 0;
+        latestSalaries.forEach((gaji) => {
+            forecast += gaji;
+        });
+
         return { weeklyPaid, totalPending, forecast };
-    }, [requests, allPersonnel]);
+    }, [requests]);
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return requests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
@@ -207,7 +205,7 @@ export default function SectionAdminPayroll() {
             {/* 🚀 BENTO STATS (MOBILE COMPACT GRID) */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
                 <div className={`col-span-2 md:col-span-1 bg-[#3B82F6] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl text-white`}>
-                    <p className="text-[10px] font-black uppercase opacity-80">System Forecast</p>
+                    <p className="text-[10px] font-black uppercase opacity-80">System Forecast (Based on Previous Data)</p>
                     <h3 className="text-3xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.forecast.toLocaleString()}</h3>
                 </div>
                 <div className={`bg-[#FFD100] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl`}>
@@ -260,7 +258,7 @@ export default function SectionAdminPayroll() {
                             <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
                                 <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="absolute top-2 right-2 z-20 bg-white/10 hover:bg-red-500 hover:text-white p-1.5 rounded-lg border-2 border-black opacity-0 group-hover:opacity-100 transition-all text-slate-950"><X size={14} /></button>
 
-                                {/* Header Card lebih compact di mobile */}
+                                {/* Header Card */}
                                 <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-center border-b-4 border-black">
                                     <div className="overflow-hidden mr-2">
                                         <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-base">{req.nama_panggilan}</h4>

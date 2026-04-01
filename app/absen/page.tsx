@@ -5,27 +5,26 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, Camera, Clock, Calendar as CalendarIcon,
-    X, ShieldAlert, Zap, Briefcase, FileSearch, Send, CheckCircle2, AlertTriangle
+    X, ShieldAlert, Zap, FileSearch, Send, CheckCircle2, AlertTriangle
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { format, addDays } from "date-fns";
-import { id } from "date-fns/locale";
 import { toast, Toaster } from "sonner";
-import TacticalTransition from '@/app/dashboard/components/TacticalTransition'; // 🚀 IMPORT TRANSISI
+import TacticalTransition from '@/app/dashboard/components/TacticalTransition';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
-const boxBorder = "border-[3.5px] border-slate-950";
-const cardShadow = "shadow-[8px_8px_0px_#000]";
-const tabShadow = "shadow-[4px_4px_0px_#000]";
-const inputStyle = `w-full bg-[#f1f5f9] ${boxBorder} rounded-xl px-4 py-3 text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[4px_4px_0px_#000]`;
-const labelStyle = "text-[10px] font-black uppercase tracking-[0.2em] text-slate-950 ml-2 mb-2 flex items-center gap-2 italic";
+// 🚀 UI COMPACT UNTUK MOBILE
+const boxBorder = "border-[2px] border-slate-950";
+const cardShadow = "shadow-[4px_4px_0px_#000]";
+const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-lg px-3 py-2 text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000]`;
+const labelStyle = "text-[9px] font-black uppercase tracking-widest text-slate-950 ml-1 mb-1.5 flex items-center gap-1.5 italic";
 
 export default function AbsenPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'DUTY' | 'CUTI'>('DUTY');
     const [loading, setLoading] = useState(false);
-    const [isNavigating, setIsNavigating] = useState(false); // 🚀 STATE UNTUK LOADING SCREEN
+    const [isNavigating, setIsNavigating] = useState(false);
     const [identity, setIdentity] = useState({ nama: 'MENDETEKSI...', pangkat: '...', divisi: '...', discordId: '' });
 
     const [tanggalDuty, setTanggalDuty] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -36,11 +35,9 @@ export default function AbsenPage() {
     const [keterangan, setKeterangan] = useState('');
     const [images, setImages] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // FIX: PERHITUNGAN TANGGAL BATAS (HARI INI & H-3)
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd'); // Mundur 3 hari
+    const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
 
     useEffect(() => {
         async function getActiveUser() {
@@ -56,27 +53,20 @@ export default function AbsenPage() {
         getActiveUser();
     }, []);
 
-    // 🚀 FUNGSI NAVIGASI KHUSUS DENGAN ANIMASI
     const handleNavigation = (path: string) => {
         setIsNavigating(true);
-        setTimeout(() => {
-            router.push(path);
-        }, 3000); // Durasi animasi bintang Lottie
+        setTimeout(() => router.push(path), 3000);
     };
 
     const showErrorToast = (pesan: string) => {
         toast.custom((t) => (
-            <div className="bg-[#FF4D4D] border-[3.5px] border-slate-950 shadow-[6px_6px_0px_#000] rounded-2xl p-4 flex gap-4 font-mono items-center w-full max-w-[340px] relative">
-                <div className="bg-slate-950 text-[#FF4D4D] p-2.5 rounded-xl shrink-0">
-                    <AlertTriangle size={24} />
-                </div>
+            <div className="bg-[#FF4D4D] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
+                <div className="bg-slate-950 text-[#FF4D4D] p-2 rounded-lg shrink-0"><AlertTriangle size={20} /></div>
                 <div>
-                    <h1 className="font-black uppercase text-sm italic tracking-wider text-slate-950 leading-none">LAPORAN DITOLAK</h1>
-                    <p className="text-[10px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
+                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">DITOLAK</h1>
+                    <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
                 </div>
-                <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100 transition-opacity">
-                    <X size={14} className="text-slate-950" />
-                </button>
+                <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100"><X size={12} className="text-slate-950" /></button>
             </div>
         ), { duration: 4000 });
     };
@@ -91,38 +81,29 @@ export default function AbsenPage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // --- VALIDASI DUTY ---
         if (activeTab === 'DUTY') {
             const selectedDutyDate = new Date(tanggalDuty);
             selectedDutyDate.setHours(0, 0, 0, 0);
             const diffDutyDays = Math.round((today.getTime() - selectedDutyDate.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen Duty untuk masa depan (H+1)!");
-            if (diffDutyDays > 3) return showErrorToast("Batas maksimal absen Duty mundur hanya 3 hari!");
-            if (images.length === 0) return toast.error("Lampirkan minimal 1 foto bukti!");
+            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen untuk besok!");
+            if (diffDutyDays > 3) return showErrorToast("Batas absen mundur 3 hari!");
+            if (images.length === 0) return toast.error("Lampirkan 1 foto bukti!");
         }
 
-        // --- VALIDASI CUTI ---
         if (activeTab === 'CUTI') {
             if (!mulaiCuti || !selesaiCuti) return toast.error("Lengkapi tanggal cuti!");
+            const selectedMulaiCuti = new Date(mulaiCuti); selectedMulaiCuti.setHours(0, 0, 0, 0);
+            const selectedSelesaiCuti = new Date(selesaiCuti); selectedSelesaiCuti.setHours(0, 0, 0, 0);
 
-            const selectedMulaiCuti = new Date(mulaiCuti);
-            selectedMulaiCuti.setHours(0, 0, 0, 0);
-            const selectedSelesaiCuti = new Date(selesaiCuti);
-            selectedSelesaiCuti.setHours(0, 0, 0, 0);
-
-            if (selectedSelesaiCuti < selectedMulaiCuti) {
-                return showErrorToast("Tanggal selesai tidak boleh lebih cepat dari tanggal mulai!");
-            }
-
+            if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Tanggal selesai salah!");
             const diffMulaiDays = Math.round((today.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
-
-            if (diffMulaiDays < 0) return showErrorToast("Mulai cuti tidak bisa melebihi hari ini (H+1)!");
-            if (diffMulaiDays > 3) return showErrorToast("Pengajuan cuti mundur maksimal hanya H-3 dari hari ini!");
+            if (diffMulaiDays < 0) return showErrorToast("Mulai cuti max hari ini!");
+            if (diffMulaiDays > 3) return showErrorToast("Cuti mundur max H-3!");
         }
 
         setLoading(true);
-        const tId = toast.loading("Processing transmission...");
+        const tId = toast.loading("Transmitting...");
 
         try {
             if (activeTab === 'DUTY') {
@@ -137,15 +118,12 @@ export default function AbsenPage() {
 
                 let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
                 let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
-
                 if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
 
-                // 🛠️ FIX: Logika Perhitungan Presisi
                 let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
                 const durasiJam = parseFloat(diff.toFixed(2));
                 const durasiMenitBulat = Math.round(durasiJam * 60);
 
-                // 1. Insert ke Log Presensi
                 const { error: insErr } = await supabase.from('presensi_duty').insert([{
                     user_id_discord: identity.discordId,
                     nama_panggilan: identity.nama,
@@ -158,53 +136,24 @@ export default function AbsenPage() {
                     catatan_duty: keterangan,
                     bukti_foto: photoUrls
                 }]);
-
                 if (insErr) throw insErr;
 
-                // 2. 🛠️ FIX TOTAL JAM KERJA (AKUMULASI)
-                // Ambil data total jam saat ini terlebih dahulu untuk diakumulasi
-                const { data: currentUserData, error: fetchUserErr } = await supabase
-                    .from('users')
-                    .select('total_jam_duty')
-                    .eq('discord_id', identity.discordId)
-                    .maybeSingle();
-
-                if (fetchUserErr) {
-                    console.error("Gagal sinkronisasi data user:", fetchUserErr);
-                    throw new Error("Gagal mengambil data user terbaru.");
-                }
-
-                // Kalkulasi Penambahan: (Data Lama + Data Baru)
+                const { data: currentUserData } = await supabase.from('users').select('total_jam_duty').eq('discord_id', identity.discordId).maybeSingle();
                 const currentTotal = Number(currentUserData?.total_jam_duty || 0);
                 const additionalHours = Number((durasiMenitBulat / 60).toFixed(2));
                 const newTotalHours = Number((currentTotal + additionalHours).toFixed(2));
 
-                // Update kembali ke tabel users
-                const { error: updUserErr } = await supabase
-                    .from('users')
-                    .update({ total_jam_duty: newTotalHours })
-                    .eq('discord_id', identity.discordId);
+                await supabase.from('users').update({ total_jam_duty: newTotalHours }).eq('discord_id', identity.discordId);
 
-                if (updUserErr) {
-                    console.error("Gagal update jam duty ke users:", updUserErr);
-                    throw new Error("Presensi tercatat, namun gagal memperbarui statistik jam di profil.");
-                }
-
-                // FIX NOTIF: Timpa toast langsung tanpa dismiss!
                 toast.custom((t) => (
-                    <div className="bg-[#A3E635] border-[3.5px] border-slate-950 shadow-[6px_6px_0px_#000] rounded-2xl p-4 flex gap-4 font-mono items-center w-full max-w-[340px] relative">
-                        <div className="bg-slate-950 text-[#A3E635] p-2.5 rounded-xl shrink-0">
-                            <CheckCircle2 size={24} />
-                        </div>
+                    <div className="bg-[#A3E635] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
+                        <div className="bg-slate-950 text-[#A3E635] p-2 rounded-lg shrink-0"><CheckCircle2 size={20} /></div>
                         <div>
-                            <h1 className="font-black uppercase text-sm italic tracking-wider text-slate-950 leading-none">TRANSMISI SUKSES</h1>
-                            <p className="text-[10px] font-bold uppercase text-slate-900 mt-1 leading-tight">Presensi dikirim. Jam diupdate.</p>
+                            <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">SUKSES</h1>
+                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Presensi dikirim.</p>
                         </div>
-                        <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100 transition-opacity">
-                            <X size={14} className="text-slate-950" />
-                        </button>
                     </div>
-                ), { id: tId, duration: 4000 });
+                ), { id: tId, duration: 3000 });
 
             } else {
                 const { error: cutiErr } = await supabase.from('pengajuan_cuti').insert([{
@@ -219,149 +168,121 @@ export default function AbsenPage() {
                 }]);
                 if (cutiErr) throw cutiErr;
 
-                // FIX NOTIF: Timpa toast langsung tanpa dismiss!
                 toast.custom((t) => (
-                    <div className="bg-[#FFD100] border-[3.5px] border-slate-950 shadow-[6px_6px_0px_#000] rounded-2xl p-4 flex gap-4 font-mono items-center w-full max-w-[340px] relative">
-                        <div className="bg-slate-950 text-[#FFD100] p-2.5 rounded-xl shrink-0">
-                            <Clock size={24} />
-                        </div>
+                    <div className="bg-[#FFD100] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
+                        <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>
                         <div>
-                            <h1 className="font-black uppercase text-sm italic tracking-wider text-slate-950 leading-none">PENGAJUAN CUTI</h1>
-                            <p className="text-[10px] font-bold uppercase text-slate-900 mt-1 leading-tight">Cuti dikirim. Menunggu approved HC.</p>
+                            <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">CUTI TERKIRIM</h1>
+                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Menunggu ACC.</p>
                         </div>
-                        <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100 transition-opacity">
-                            <X size={14} className="text-slate-950" />
-                        </button>
                     </div>
-                ), { id: tId, duration: 4000 });
+                ), { id: tId, duration: 3000 });
             }
 
-            // 🚀 SETELAH SUKSES MENGIRIM DATA, MUNCULKAN LOADING SCREEN MENUJU DASHBOARD
-            setTimeout(() => {
-                handleNavigation('/dashboard');
-            }, 2500); // Biarkan anggota membaca notifikasi "SUKSES" selama 2.5 detik dulu
+            setTimeout(() => handleNavigation('/dashboard'), 2000);
 
         } catch (err: any) {
-            console.error("DEBUG ERROR:", JSON.stringify(err, null, 2));
             toast.error(`ERROR: ${err.message}`, { id: tId });
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-[#e2e8f0] text-slate-950 font-mono p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
-
-            {/* 🚀 RENDER KOMPONEN TRANSISI DI SINI */}
+        <div className="min-h-screen bg-[#e2e8f0] text-slate-950 font-mono p-4 flex flex-col items-center overflow-x-hidden relative">
             <TacticalTransition isVisible={isNavigating} />
-
             <Toaster position="top-center" />
 
-            <div className="mb-10 text-center mt-6">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                    <ShieldAlert className="text-blue-600 animate-pulse" size={20} />
-                    <span className="text-[10px] font-black tracking-[0.3em] uppercase opacity-40 italic">Mandalika Tactical System</span>
+            {/* 🚀 COMPACT HEADER DENGAN TOMBOL KEMBALI */}
+            <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
+                <button onClick={() => handleNavigation('/dashboard')} className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all">
+                    <ArrowLeft size={18} />
+                </button>
+                <div className="text-right">
+                    <div className="flex items-center justify-end gap-1.5 mb-1">
+                        <ShieldAlert className="text-blue-600 animate-pulse" size={14} />
+                        <span className="text-[8px] font-black tracking-widest uppercase opacity-50 italic">Mandalika PD</span>
+                    </div>
+                    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">Reporting</h1>
                 </div>
-                <h1 className="text-3xl font-black italic uppercase tracking-tighter">Unit Reporting</h1>
             </div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`w-full max-w-md bg-white ${boxBorder} rounded-[40px] ${cardShadow} p-6 md:p-10`}>
-                <div className="grid grid-cols-2 gap-3 mb-8">
-                    <div className="relative">
-                        <span className={`absolute -top-3 -left-1 bg-slate-950 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase italic ${tabShadow}`}>Personnel</span>
-                        <div className={cn(inputStyle, "pt-6 bg-slate-100 truncate")}>{identity.nama}</div>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
+
+                {/* 🚀 COMPACT IDENTITY BADGE */}
+                <div className="flex justify-between items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner">
+                    <div className="truncate">
+                        <p className="text-[8px] font-black text-slate-400 uppercase italic">Personnel</p>
+                        <p className="text-xs font-black uppercase truncate">{identity.nama}</p>
                     </div>
-                    <div className="relative">
-                        <span className={`absolute -top-3 -left-1 bg-blue-600 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase italic ${tabShadow}`}>Rank</span>
-                        <div className={cn(inputStyle, "pt-6 bg-slate-100 text-blue-700 truncate")}>{identity.pangkat}</div>
+                    <div className="text-right shrink-0 ml-3">
+                        <p className="text-[8px] font-black text-slate-400 uppercase italic">Rank</p>
+                        <p className="text-xs font-black uppercase text-blue-600">{identity.pangkat}</p>
                     </div>
                 </div>
 
-                <div className="space-y-3 mb-8">
-                    <label className={labelStyle}><Zap size={14} /> Operational Status</label>
-                    <div className="grid grid-cols-2 gap-3 p-1 bg-slate-950 rounded-2xl">
-                        <button type="button" onClick={() => setActiveTab('DUTY')} className={cn("py-3 rounded-xl font-black uppercase italic text-[10px] transition-all", activeTab === 'DUTY' ? 'bg-[#A3E635] text-black shadow-inner' : 'text-white opacity-40')}>Duty Log</button>
-                        <button type="button" onClick={() => setActiveTab('CUTI')} className={cn("py-3 rounded-xl font-black uppercase italic text-[10px] transition-all", activeTab === 'CUTI' ? 'bg-[#FF4D4D] text-white shadow-inner' : 'text-white opacity-40')}>Izin Cuti</button>
-                    </div>
+                {/* 🚀 COMPACT TAB SWITCHER */}
+                <div className="flex bg-slate-950 p-1 rounded-xl mb-5 gap-1">
+                    <button type="button" onClick={() => setActiveTab('DUTY')} className={cn("flex-1 py-2 rounded-lg font-black uppercase italic text-[10px] transition-all", activeTab === 'DUTY' ? 'bg-[#A3E635] text-black' : 'text-white opacity-40')}>Duty Log</button>
+                    <button type="button" onClick={() => setActiveTab('CUTI')} className={cn("flex-1 py-2 rounded-lg font-black uppercase italic text-[10px] transition-all", activeTab === 'CUTI' ? 'bg-[#FF4D4D] text-white' : 'text-white opacity-40')}>Izin Cuti</button>
                 </div>
 
-                <form onSubmit={handleTransmit} className="space-y-6">
+                <form onSubmit={handleTransmit} className="space-y-4">
                     <AnimatePresence mode="wait">
                         {activeTab === 'DUTY' ? (
-                            <motion.div key="duty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div className="space-y-1">
-                                        <p className={labelStyle}><CalendarIcon size={14} /> Operation Date</p>
-                                        <input
-                                            type="date"
-                                            value={tanggalDuty}
-                                            min={hMin3Str} // Pagar UI: Maksimal H-3
-                                            max={todayStr} // Pagar UI: Maksimal Hari Ini
-                                            onChange={e => setTanggalDuty(e.target.value)}
-                                            className={inputStyle}
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1"><p className={labelStyle}>Start</p><input type="time" value={jamAwal} onChange={e => setJamAwal(e.target.value)} className={inputStyle} /></div>
-                                        <div className="space-y-1"><p className={labelStyle}>End</p><input type="time" value={jamAkhir} onChange={e => setJamAkhir(e.target.value)} className={inputStyle} /></div>
-                                    </div>
+                            <motion.div key="duty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                                <div className="space-y-1">
+                                    <p className={labelStyle}><CalendarIcon size={12} /> Date</p>
+                                    <input type="date" value={tanggalDuty} min={hMin3Str} max={todayStr} onChange={e => setTanggalDuty(e.target.value)} className={inputStyle} />
                                 </div>
-                                <div className="space-y-3">
-                                    <p className={labelStyle}><Camera size={14} /> Evidence</p>
-                                    <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1"><p className={labelStyle}><Clock size={12} /> Start</p><input type="time" value={jamAwal} onChange={e => setJamAwal(e.target.value)} className={inputStyle} /></div>
+                                    <div className="space-y-1"><p className={labelStyle}><Clock size={12} /> End</p><input type="time" value={jamAkhir} onChange={e => setJamAkhir(e.target.value)} className={inputStyle} /></div>
+                                </div>
+
+                                {/* 🚀 HORIZONTAL SCROLL EVIDENCE */}
+                                <div className="space-y-1">
+                                    <p className={labelStyle}><Camera size={12} /> Evidence</p>
+                                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                                         {previews.map((src, idx) => (
-                                            <div key={idx} className={`relative aspect-square ${boxBorder} rounded-xl overflow-hidden shadow-[3px_3px_0px_#000]`}>
+                                            <div key={idx} className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>
                                                 <img src={src} className="w-full h-full object-cover" />
-                                                <button type="button" onClick={() => { setImages(images.filter((_, i) => i !== idx)); setPreviews(previews.filter((_, i) => i !== idx)); }} className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-lg border-2 border-black active:scale-90"><X size={12} /></button>
+                                                <button type="button" onClick={() => { setImages(images.filter((_, i) => i !== idx)); setPreviews(previews.filter((_, i) => i !== idx)); }} className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90"><X size={10} /></button>
                                             </div>
                                         ))}
-                                        {images.length < 3 && <label className={`aspect-square ${boxBorder} border-dashed rounded-xl bg-slate-50 flex items-center justify-center cursor-pointer shadow-[3px_3px_0px_#000]`}><Camera size={18} className="text-slate-300" /><input type="file" accept="image/*" multiple className="hidden" onChange={e => { const f = Array.from(e.target.files || []); setImages([...images, ...f]); setPreviews([...previews, ...f.map(file => URL.createObjectURL(file))]); }} /></label>}
+                                        {images.length < 3 && (
+                                            <label className={`w-16 h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000]`}>
+                                                <Camera size={16} className="text-slate-300" />
+                                                <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const f = Array.from(e.target.files || []); setImages([...images, ...f]); setPreviews([...previews, ...f.map(file => URL.createObjectURL(file))]); }} />
+                                            </label>
+                                        )}
                                     </div>
                                 </div>
                             </motion.div>
                         ) : (
-                            <motion.div key="cuti" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+                            <motion.div key="cuti" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <p className={labelStyle}>Mulai</p>
-                                        <input
-                                            type="date"
-                                            value={mulaiCuti}
-                                            min={hMin3Str} // Pagar UI: Maksimal mundur H-3
-                                            max={todayStr} // Pagar UI: Gabisa mulai di hari besok (H+1)
-                                            onChange={e => setMulaiCuti(e.target.value)}
-                                            className={inputStyle}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className={labelStyle}>Selesai</p>
-                                        <input
-                                            type="date"
-                                            value={selesaiCuti}
-                                            min={mulaiCuti || hMin3Str} // Selesai gabisa sblm Mulai
-                                            onChange={e => setSelesaiCuti(e.target.value)}
-                                            className={inputStyle}
-                                        />
-                                    </div>
+                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Mulai</p><input type="date" value={mulaiCuti} min={hMin3Str} max={todayStr} onChange={e => setMulaiCuti(e.target.value)} className={inputStyle} /></div>
+                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Selesai</p><input type="date" value={selesaiCuti} min={mulaiCuti || hMin3Str} onChange={e => setSelesaiCuti(e.target.value)} className={inputStyle} /></div>
                                 </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
 
                     <div className="space-y-1">
-                        <p className={labelStyle}><FileSearch size={14} /> Details</p>
-                        <textarea rows={3} className={cn(inputStyle, "resize-none h-24")} value={keterangan} onChange={e => setKeterangan(e.target.value)} />
+                        <p className={labelStyle}><FileSearch size={12} /> Remarks</p>
+                        <textarea rows={2} className={cn(inputStyle, "resize-none h-16")} value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Tulis keterangan tugas / alasan cuti..." />
                     </div>
 
-                    <button type="submit" disabled={loading} className={cn("w-full py-5 rounded-[25px] font-black uppercase tracking-[0.2em] text-white transition-all flex items-center justify-center gap-3", boxBorder, cardShadow, "active:translate-y-1 shadow-none disabled:opacity-50", activeTab === 'DUTY' ? 'bg-slate-950' : 'bg-red-600')}>
-                        {loading ? "TRANSMITTING..." : <><Send size={18} /> TRANSMIT DATA</>}
+                    <button type="submit" disabled={loading} className={cn("w-full py-4 mt-2 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2", boxBorder, cardShadow, "active:translate-y-1 shadow-none disabled:opacity-50", activeTab === 'DUTY' ? 'bg-slate-950' : 'bg-red-600')}>
+                        {loading ? "TRANSMITTING..." : <><Send size={16} /> TRANSMIT</>}
                     </button>
                 </form>
             </motion.div>
 
-            {/* 🚀 TOMBOL BACK JUGA MENGGUNAKAN FUNGSI handleNavigation */}
-            <button onClick={() => handleNavigation('/dashboard')} className="mt-8 mb-10 flex items-center gap-2 bg-white border-[3px] border-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all">
-                <ArrowLeft size={16} /> Kembali ke Dashboard
-            </button>
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+            `}</style>
         </div>
     );
 }

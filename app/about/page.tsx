@@ -121,7 +121,7 @@ export default function AboutPage() {
                                     SNOWDEN <span className="text-xl md:text-2xl opacity-50">a.k.a</span> OWEN DININGRAT
                                 </h3>
                                 <p className="text-sm font-bold text-slate-800 leading-relaxed max-w-xl">
-                                    MDT Mandalika dibangun dan dikembangkan sepenuhnya dari nol oleh Snowden (Owen Diningrat) untuk mendigitalisasi seluruh administrasi kepolisian, meminimalisir *human error*, dan membawa Mandalika Police Department ke era teknologi modern.
+                                    MDT Mandalika dibangun dan dikembangkan sepenuhnya dari nol oleh Snowden (Owen Diningrat) untuk mendigitalisasi seluruh administrasi kepolisian, meminimalisir human error, dan membawa Mandalika Police Department ke era teknologi modern.
                                 </p>
                             </div>
                         </div>

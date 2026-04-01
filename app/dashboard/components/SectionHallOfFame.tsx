@@ -18,44 +18,52 @@ export default function SectionHallOfFame() {
 
     const fetchLeaderboard = async () => {
         setLoading(true);
-        const now = new Date();
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString();
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 }).toISOString();
+        try {
+            const now = new Date();
+            const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString();
+            const weekEnd = endOfWeek(now, { weekStartsOn: 1 }).toISOString();
 
-        // 1. Tarik semua anggota
-        const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi, avatar_url');
+            // 1. Tarik semua anggota
+            const { data: users, error: errUsers } = await supabase.from('users').select('discord_id, name, pangkat, divisi, avatar_url');
 
-        // 2. Tarik duty minggu ini
-        const { data: duties } = await supabase.from('presensi_duty')
-            .select('*')
-            .gte('start_time', weekStart)
-            .lte('start_time', weekEnd);
+            // 2. Tarik duty minggu ini
+            const { data: duties, error: errDuties } = await supabase.from('presensi_duty')
+                .select('*')
+                .gte('start_time', weekStart)
+                .lte('start_time', weekEnd);
 
-        // 3. Tarik cuti minggu ini (untuk filter Wall of Shame)
-        const { data: cutis } = await supabase.from('pengajuan_cuti')
-            .select('*')
-            .eq('status', 'APPROVED');
+            // 3. 🚀 OPTIMASI: Tarik cuti HANYA yang masih berlaku/selesai di minggu ini ke atas
+            const { data: cutis, error: errCutis } = await supabase.from('pengajuan_cuti')
+                .select('*')
+                .eq('status', 'APPROVED')
+                .gte('tanggal_selesai', weekStart);
 
-        if (users && duties) {
-            const processedData = users.map(user => {
-                const userDuties = duties.filter(d => d.user_id_discord === user.discord_id);
-                const totalMinutes = userDuties.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
+            if (errUsers || errDuties || errCutis) throw new Error("Database fetch error");
 
-                const isCuti = cutis?.some(c =>
-                    c.user_id_discord === user.discord_id &&
-                    new Date(c.tanggal_selesai) >= new Date(weekStart)
-                );
+            if (users && duties) {
+                const processedData = users.map(user => {
+                    const userDuties = duties.filter(d => d.user_id_discord === user.discord_id);
+                    const totalMinutes = userDuties.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
 
-                return {
-                    ...user,
-                    cleanName: user.name?.split('|').pop()?.trim() || 'UNKNOWN',
-                    totalMinutes,
-                    isCuti
-                };
-            });
-            setPersonnelData(processedData);
+                    const isCuti = cutis?.some(c =>
+                        c.user_id_discord === user.discord_id &&
+                        new Date(c.tanggal_selesai) >= new Date(weekStart)
+                    );
+
+                    return {
+                        ...user,
+                        cleanName: user.name?.split('|').pop()?.trim() || 'UNKNOWN',
+                        totalMinutes,
+                        isCuti
+                    };
+                });
+                setPersonnelData(processedData);
+            }
+        } catch (error) {
+            console.error("Gagal memuat Leaderboard:", error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     useEffect(() => { fetchLeaderboard(); }, []);
@@ -70,9 +78,12 @@ export default function SectionHallOfFame() {
 
     // --- LOGIKA WALL OF SHAME (0 Menit Duty & Tidak Sedang Cuti) ---
     const wallOfShame = useMemo(() => {
+        // 🚀 FIX: Menambahkan Optional Chaining (?.) untuk mencegah crash jika pangkat null/kosong
+        const immuneRanks = ['JENDRAL', 'KOMJEN', 'WAKAPOLRI', 'KAPOLDA', 'HIGH ADMIN'];
+
         return personnelData
-            .filter(p => p.totalMinutes === 0 && !p.isCuti && !['JENDRAL', 'KOMJEN'].includes(p.pangkat.toUpperCase())) // Petinggi kebal Wall of Shame (Opsional)
-            .slice(0, 6); // Tampilkan maksimal 6 orang agar UI tidak terlalu panjang
+            .filter(p => p.totalMinutes === 0 && !p.isCuti && !immuneRanks.includes(p.pangkat?.toUpperCase() || ''))
+            .slice(0, 6);
     }, [personnelData]);
 
     const getAvatar = (name: string, url?: string) => {
@@ -115,12 +126,12 @@ export default function SectionHallOfFame() {
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-[1000] text-lg uppercase italic leading-none">{p.cleanName}</span>
+                                            <span className="font-[1000] text-lg uppercase italic leading-none truncate max-w-[150px]">{p.cleanName}</span>
                                             {index === 0 && <span className="bg-black text-[#FFD100] text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest animate-pulse">MVP</span>}
                                         </div>
-                                        <p className="text-[10px] font-bold mt-1 uppercase opacity-70">{p.pangkat} • {p.divisi || 'UNIT'}</p>
+                                        <p className="text-[10px] font-bold mt-1 uppercase opacity-70">{p.pangkat || 'RECRUIT'} • {p.divisi || 'UNIT'}</p>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right shrink-0">
                                         <p className="text-[9px] font-black uppercase opacity-40 mb-1">Total Duty</p>
                                         <div className="flex items-center gap-1 bg-white border-2 border-black px-2 py-1 rounded-lg shadow-inner">
                                             <Clock size={12} className={index === 0 ? "text-orange-500" : ""} />

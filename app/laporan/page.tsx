@@ -1,75 +1,33 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from "@/lib/supabase";
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldAlert, Target, Zap, Search,
     Camera, Clock, Calendar as CalendarIcon, ArrowLeft,
-    ChevronLeft, ChevronRight, Fingerprint, Activity, ShieldCheck, X
+    ShieldCheck, X
 } from 'lucide-react';
-import { format } from "date-fns";
-import { id } from "date-fns/locale";
-import { DayPicker } from "react-day-picker";
+import { format, parseISO } from "date-fns";
 import { toast, Toaster } from "sonner";
-import TacticalTransition from '@/app/dashboard/components/TacticalTransition'; // 🚀 IMPORT TRANSISI
+import TacticalTransition from '@/app/dashboard/components/TacticalTransition';
 
-// --- UTILS ---
+// --- UTILS (MOBILE SCALED) ---
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
-const boxBorder = "border-[3.5px] border-slate-950";
-const hardShadow = "shadow-[5px_5px_0px_#000]";
-const cardShadow = "shadow-[12px_12px_0px_#000]";
+const boxBorder = "border-[2px] border-slate-950";
+const cardShadow = "shadow-[4px_4px_0px_#000]";
 const fontBlack = "font-mono font-black italic uppercase tracking-tighter";
 
-const inputStyle = `w-full bg-white ${boxBorder} rounded-2xl px-6 py-4 text-xs font-bold focus:bg-[#f0f9ff] focus:border-blue-600 outline-none text-slate-900 transition-all ${hardShadow}`;
-const labelStyle = `text-[10px] md:text-[11px] ${fontBlack} text-slate-500 ml-2 mb-2 flex items-center gap-2 tracking-widest`;
-
-// --- COMPONENT: NEOBRUTALISM CALENDAR ---
-function Calendar({ className, ...props }: any) {
-    return (
-        <DayPicker
-            locale={id}
-            className={cn("rounded-xl border-[3.5px] border-slate-950 bg-[#A3E635] p-3 font-mono shadow-[8px_8px_0px_#000]", className)}
-            classNames={{
-                caption: "flex justify-center pt-1 relative items-center w-full text-slate-950",
-                caption_label: "text-sm font-black uppercase italic",
-                nav_button: "size-7 bg-white border-2 border-slate-950 rounded-md flex items-center justify-center hover:bg-black hover:text-white transition-all",
-                day: "size-9 p-0 font-bold border-2 border-transparent hover:border-black transition-all aria-selected:bg-black! aria-selected:text-white rounded-md",
-                day_today: "bg-white text-black border-black",
-            }}
-            components={{
-                IconLeft: () => <ChevronLeft className="size-4" />,
-                IconRight: () => <ChevronRight className="size-4" />,
-            }}
-            {...props}
-        />
-    );
-}
-
-// --- COMPONENT: POPOVER ---
-function BrutalPopover({ trigger, children, isOpen, setIsOpen }: any) {
-    const popoverRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        function handleClick(e: any) { if (popoverRef.current && !popoverRef.current.contains(e.target)) setIsOpen(false); }
-        if (isOpen) document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [isOpen]);
-    return (
-        <div className="relative w-full" ref={popoverRef}>
-            <div onClick={() => setIsOpen(!isOpen)}>{trigger}</div>
-            <AnimatePresence>{isOpen && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-[100] mt-2 left-0 w-full md:w-auto">{children}</motion.div>}</AnimatePresence>
-        </div>
-    );
-}
+const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-lg px-3 py-2.5 text-[11px] font-bold outline-none focus:bg-white focus:border-blue-600 transition-all shadow-[2px_2px_0px_#000]`;
+const labelStyle = `text-[9px] ${fontBlack} text-slate-500 mb-1 flex items-center gap-1.5 tracking-wider`;
 
 export default function LaporanMultiForm() {
     const router = useRouter();
     const [step, setStep] = useState(0);
     const [tipe, setTipe] = useState("");
     const [loading, setLoading] = useState(false);
-    const [calOpen, setCalOpen] = useState(false);
-    const [isNavigating, setIsNavigating] = useState(false); // 🚀 STATE UNTUK LOADING SCREEN
+    const [isNavigating, setIsNavigating] = useState(false);
 
     const [formData, setFormData] = useState({
         nama_petugas: "", pangkat: "", tanggal: new Date(), waktu_shift: "",
@@ -82,7 +40,7 @@ export default function LaporanMultiForm() {
 
     const MENTION_ROLE = "<@&1393366590942085220>";
 
-    // --- CONFIG --- (Webhook/Thread di-handle di panel Admin)
+    // --- CONFIG --- (TETAP UTUH)
     const CONFIG: any = {
         tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
         kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
@@ -116,18 +74,15 @@ export default function LaporanMultiForm() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    // 🚀 FUNGSI NAVIGASI KHUSUS DENGAN ANIMASI KOMPUTER
     const handleNavigation = (path: string) => {
         setIsNavigating(true);
-        setTimeout(() => {
-            router.push(path);
-        }, 3000); // Durasi animasi Lottie
+        setTimeout(() => router.push(path), 3000);
     };
 
-    // --- LOGIKA SUBMIT TERBARU (DIKIRIM KE DATABASE SAJA) ---
+    // --- LOGIKA SUBMIT (TETAP UTUH) ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
-        if (!foto) return toast.error("FOTO BUKTI WAJIB!");
+        if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
 
         setLoading(true);
         const conf = CONFIG[tipe];
@@ -136,30 +91,15 @@ export default function LaporanMultiForm() {
         try {
             const tId = toast.loading("Mengamankan Data & Foto Bukti...");
 
-            // 1. UPLOAD KE STORAGE
             const fileExt = foto.name.split('.').pop();
             const fileName = `${sessionData.discord_id}-${Date.now()}.${fileExt}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('bukti_laporan')
-                .upload(fileName, foto, {
-                    cacheControl: '3600',
-                    upsert: false
-                });
+            const { error: uploadError } = await supabase.storage.from('bukti_laporan').upload(fileName, foto, { cacheControl: '3600', upsert: false });
+            if (uploadError) throw new Error("Gagal upload! Cek Bucket 'bukti_laporan'.");
 
-            if (uploadError) {
-                console.error("Storage Error:", uploadError);
-                throw new Error("Gagal upload! Cek apakah Bucket 'bukti_laporan' sudah PUBLIC & ada Policy INSERT.");
-            }
-
-            // 2. AMBIL URL PUBLIK
-            const { data: publicUrlData } = supabase.storage
-                .from('bukti_laporan')
-                .getPublicUrl(fileName);
-
+            const { data: publicUrlData } = supabase.storage.from('bukti_laporan').getPublicUrl(fileName);
             const fotoUrl = publicUrlData.publicUrl;
 
-            // 3. SIMPAN KE DATABASE (PASTIKAN NAMA KOLOM SESUAI)
             const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
@@ -168,16 +108,10 @@ export default function LaporanMultiForm() {
                 bukti_foto: fotoUrl,
                 status: 'PENDING'
             }]);
-
             if (insertError) throw insertError;
 
             toast.success("TRANSMISI BERHASIL!", { id: tId });
-
-            // 🚀 JEDA 1.5 DETIK AGAR TOAST TERBACA, LALU MUNCULKAN LOADING KOMPUTER MENUJU DASHBOARD
-            setTimeout(() => {
-                handleNavigation('/dashboard');
-            }, 1500);
-
+            setTimeout(() => handleNavigation('/dashboard'), 1500);
         } catch (err: any) {
             toast.error("ERROR", { description: err.message });
         } finally {
@@ -186,90 +120,129 @@ export default function LaporanMultiForm() {
     };
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-mono p-4 md:p-10 relative overflow-hidden">
-
-            {/* 🚀 RENDER KOMPONEN TRANSISI DI SINI (MODE COMPUTER) */}
+        <div className="min-h-screen bg-[#e2e8f0] text-slate-900 font-mono p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
             <TacticalTransition isVisible={isNavigating} type="COMPUTER" />
-
             <Toaster position="top-center" richColors />
-            <div className="max-w-[800px] mx-auto relative z-10">
 
-                <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    // 🚀 GANTI KE FUNGSI handleNavigation SAAT KEMBALI DARI STEP 0
+            {/* 🚀 COMPACT HEADER (SAMA SEPERTI ABSEN) */}
+            <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
+                <button
                     onClick={() => step === 0 ? handleNavigation('/dashboard') : setStep(0)}
-                    className={`mb-10 flex items-center gap-3 bg-white ${boxBorder} px-6 py-3 rounded-2xl ${fontBlack} text-[10px] ${hardShadow}`}
+                    className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all"
                 >
-                    <ArrowLeft size={16} /> {step === 0 ? "KEMBALI" : "GANTI TIPE"}
-                </motion.button>
+                    <ArrowLeft size={18} />
+                </button>
+                <div className="text-right">
+                    <div className="flex items-center justify-end gap-1.5 mb-1">
+                        <ShieldCheck className="text-blue-600 animate-pulse" size={14} />
+                        <span className="text-[8px] font-black tracking-widest uppercase opacity-50 italic">Mandalika PD</span>
+                    </div>
+                    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">
+                        {step === 0 ? "Laporan Ops" : CONFIG[tipe]?.label}
+                    </h1>
+                </div>
+            </div>
 
+            <div className="w-full max-w-md relative z-10">
                 <AnimatePresence mode="wait">
                     {step === 0 ? (
-                        <motion.div key="s0" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-10">
-                            <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter leading-none">LAPORAN<br /><span className="text-blue-600 underline underline-offset-8">OPERASIONAL</span></h1>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                {Object.entries(CONFIG).map(([id, conf]: any) => (
-                                    <button key={id} onClick={() => { setTipe(id); setStep(1); }} className={`bg-white ${boxBorder} p-8 rounded-[35px] ${cardShadow} flex items-center justify-between hover:bg-slate-50 transition-all`}>
-                                        <div className="flex items-center gap-5">
-                                            <div className="p-4 rounded-2xl border-2 border-black" style={{ color: conf.color }}><conf.icon size={28} /></div>
-                                            <div><p className={`${fontBlack} text-lg leading-none mb-1`}>{conf.label}</p><p className="text-[10px] font-bold text-slate-400">KLIK UNTUK MELAPOR</p></div>
-                                        </div>
-                                        <div className="bg-slate-950 text-white px-3 py-1 rounded-xl text-[9px] font-black">+{conf.poin} PRP</div>
-                                    </button>
-                                ))}
-                            </div>
+                        <motion.div key="s0" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="grid grid-cols-2 gap-3">
+                            {Object.entries(CONFIG).map(([id, conf]: any) => (
+                                <button key={id} onClick={() => { setTipe(id); setStep(1); }} className={`bg-white ${boxBorder} p-4 rounded-2xl ${cardShadow} flex flex-col items-center justify-center gap-3 hover:bg-slate-50 active:translate-y-1 active:shadow-none transition-all`}>
+                                    <div className="p-3 rounded-xl border-2 border-black bg-slate-50" style={{ color: conf.color }}><conf.icon size={24} /></div>
+                                    <div className="text-center">
+                                        <p className={`${fontBlack} text-xs leading-none mb-1`}>{conf.label}</p>
+                                        <span className="bg-slate-950 text-white px-2 py-0.5 rounded-md text-[8px] font-black">+{conf.poin} PRP</span>
+                                    </div>
+                                </button>
+                            ))}
                         </motion.div>
                     ) : (
-                        <motion.div key="s1" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-[45px] ${cardShadow} p-8 md:p-12`}>
-                            <form onSubmit={submitLaporan} className="space-y-8">
-                                {/* INFO PETUGAS */}
-                                <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 p-8 bg-slate-50 ${boxBorder} rounded-[30px]`}>
-                                    <div className="space-y-2"><label className={labelStyle}>Nama IC</label><input className={`${inputStyle} opacity-50`} value={formData.nama_petugas} readOnly /></div>
-                                    <div className="space-y-2">
+                        <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
+
+                            {/* 🚀 COMPACT IDENTITY BADGE */}
+                            <div className="flex justify-between items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner">
+                                <div className="truncate flex-1">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Petugas Pelapor</p>
+                                    <p className="text-xs font-black uppercase truncate">{formData.nama_petugas}</p>
+                                </div>
+                                <div className="text-right shrink-0 ml-3">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Pangkat</p>
+                                    <p className="text-xs font-black uppercase text-blue-600">{formData.pangkat}</p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={submitLaporan} className="space-y-4">
+
+                                {/* 🚀 DATE & SHIFT GRID (NATIVE DATE PICKER) */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
                                         <label className={labelStyle}><CalendarIcon size={12} /> Tanggal</label>
-                                        <BrutalPopover isOpen={calOpen} setIsOpen={setCalOpen} trigger={<button type="button" className={inputStyle}>{format(formData.tanggal, "PPP", { locale: id })}</button>}>
-                                            <Calendar mode="single" selected={formData.tanggal} onSelect={(d: any) => { if (d) setFormData({ ...formData, tanggal: d }); setCalOpen(false); }} />
-                                        </BrutalPopover>
+                                        <input
+                                            type="date"
+                                            value={format(formData.tanggal, 'yyyy-MM-dd')}
+                                            onChange={(e) => setFormData({ ...formData, tanggal: new Date(e.target.value || new Date()) })}
+                                            className={inputStyle}
+                                            required
+                                        />
                                     </div>
-                                    <div className="space-y-2"><label className={labelStyle}>Pangkat</label><input className={`${inputStyle} opacity-50`} value={formData.pangkat} readOnly /></div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1">
                                         <label className={labelStyle}><Clock size={12} /> Shift</label>
                                         <select name="waktu_shift" required value={formData.waktu_shift} onChange={handleInputChange} className={inputStyle}>
-                                            <option value="">PILIH SHIFT</option>
+                                            <option value="">-- PILIH --</option>
                                             <option value="Pagi">PAGI</option><option value="Siang">SIANG</option>
                                             <option value="Sore">SORE</option><option value="Malam">MALAM</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                {/* DYNAMIC FIELDS */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {tipe === 'tangkap' && (
-                                        <><div className="space-y-2"><label className={labelStyle}>Pelaku</label><input name="nama_pelaku" required onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-2"><label className={labelStyle}>KTP</label><input name="ktp_pelaku" required onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-2"><label className={labelStyle}>Pasal</label><input name="pasal" required onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-2"><label className={labelStyle}>Denda</label><input name="total_denda" type="number" required onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="md:col-span-2"><label className={labelStyle}>Hukuman</label><input name="hukuman" required onChange={handleInputChange} className={inputStyle} /></div></>
-                                    )}
-                                    {(tipe === 'kasus' || tipe === 'patroli' || tipe === 'backup') && (
-                                        <><div className="md:col-span-2"><label className={labelStyle}>Lokasi / Area</label><input name="lokasi" required onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="md:col-span-2"><label className={labelStyle}>Laporan Detail</label><textarea name="keterangan" required onChange={handleInputChange} className={`${inputStyle} min-h-[150px]`} /></div></>
-                                    )}
-                                </div>
-
-                                {/* UPLOAD BUKTI */}
-                                <div className="space-y-4">
-                                    <label className={labelStyle}><Camera size={12} /> BUKTI FOTO (WAJIB)</label>
-                                    <label className="cursor-pointer block">
-                                        <div className={`w-full ${boxBorder} border-dashed rounded-[30px] p-12 bg-slate-50 flex flex-col items-center gap-4 hover:bg-blue-50 transition-all`}>
-                                            {preview ? <img src={preview} className="max-w-[300px] rounded-xl border-4 border-black" /> : <><Camera size={40} className="text-slate-300" /><p className="text-[10px] font-black italic">KLIK UNTUK UNGGAH FOTO BUKTI</p></>}
+                                {/* 🚀 DYNAMIC FIELDS (COMPACT GRID) */}
+                                {tipe === 'tangkap' && (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1"><label className={labelStyle}>Tersangka</label><input name="nama_pelaku" placeholder="Nama..." required onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>No. KTP</label><input name="ktp_pelaku" placeholder="KTP..." required onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
-                                        <input type="file" accept="image/*" required onChange={(e: any) => { const f = e.target.files[0]; if (f) { setFoto(f); setPreview(URL.createObjectURL(f)); } }} className="hidden" />
-                                    </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1"><label className={labelStyle}>Pasal</label><input name="pasal" placeholder="Pasal..." required onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Denda (Rp)</label><input name="total_denda" type="number" placeholder="Nominal..." required onChange={handleInputChange} className={inputStyle} /></div>
+                                        </div>
+                                        <div className="space-y-1"><label className={labelStyle}>Vonis Hukuman</label><input name="hukuman" placeholder="Lama Kurungan..." required onChange={handleInputChange} className={inputStyle} /></div>
+                                    </>
+                                )}
+
+                                {(tipe === 'kasus' || tipe === 'patroli' || tipe === 'backup') && (
+                                    <>
+                                        {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Jenis Kasus</label><input name="jenis_kasus" placeholder="Misal: Perampokan..." required onChange={handleInputChange} className={inputStyle} /></div>}
+                                        <div className="space-y-1"><label className={labelStyle}>Lokasi Kejadian</label><input name="lokasi" placeholder="Area / Nama Jalan..." required onChange={handleInputChange} className={inputStyle} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Kronologi / Laporan</label><textarea name="keterangan" placeholder="Ceritakan detail operasi..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-[100px] resize-none")} /></div>
+                                        {(tipe === 'kasus' || tipe === 'backup') && <div className="space-y-1"><label className={labelStyle}>Hasil Akhir</label><input name="hasil_akhir" placeholder="Status pelaku/situasi..." required onChange={handleInputChange} className={inputStyle} /></div>}
+                                        {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Barang Bukti Sitaan</label><input name="barang_bukti" placeholder="Senjata, Uang..." required onChange={handleInputChange} className={inputStyle} /></div>}
+                                    </>
+                                )}
+
+                                {/* 🚀 COMPACT UPLOAD BUKTI */}
+                                <div className="space-y-1 pt-2">
+                                    <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL</label>
+                                    <div className="flex gap-2 items-center">
+                                        {preview && (
+                                            <div className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>
+                                                <img src={preview} className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => { setFoto(null); setPreview(null); }} className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90"><X size={10} /></button>
+                                            </div>
+                                        )}
+                                        {!preview && (
+                                            <label className={`w-full h-16 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center gap-2 cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-100 transition-colors`}>
+                                                <Camera size={16} className="text-slate-400" />
+                                                <span className="text-[10px] font-black italic text-slate-400 uppercase">Lampirkan Foto</span>
+                                                <input type="file" accept="image/*" required onChange={(e: any) => { const f = e.target.files[0]; if (f) { setFoto(f); setPreview(URL.createObjectURL(f)); } }} className="hidden" />
+                                            </label>
+                                        )}
+                                    </div>
                                 </div>
 
-                                <button disabled={loading} type="submit" className={`w-full bg-slate-900 text-white py-8 rounded-[30px] ${fontBlack} text-xl tracking-[0.4em] ${boxBorder} ${cardShadow} hover:bg-blue-600 disabled:opacity-50`}>
-                                    {loading ? "MENGAMANKAN DATA..." : "KIRIM LAPORAN (PENDING)"}
+                                <button disabled={loading} type="submit" className={cn("w-full py-4 mt-4 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2", boxBorder, cardShadow, "bg-slate-950 active:translate-y-1 shadow-none disabled:opacity-50")}>
+                                    {loading ? "TRANSMITTING..." : "KIRIM LAPORAN"}
                                 </button>
                             </form>
                         </motion.div>

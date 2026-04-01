@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+// 🚀 CLEAN IMPORT: Ikon tidak terpakai sudah dibersihkan untuk menghindari ESLint Error
 import {
     Clock, CalendarDays, History, ShieldAlert,
     CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronRight,
-    FileText, Zap, Receipt, ArrowRight
+    Zap, Receipt
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { format, parseISO } from "date-fns";
@@ -71,11 +72,17 @@ export default function SectionLog() {
     // Reset halaman ke 1 kalau ganti tab
     useEffect(() => { setPage(1); }, [activeTab]);
 
-    // Helper Status Bages
-    const getStatusBadge = (status: string) => {
+    // 🚀 FIX: Helper Status Badges (Duty Otomatis ACC/Valid)
+    const getStatusBadge = (status: string, currentTab: string) => {
+        // Jika Tab Duty, paksa menjadi hijau (Valid/Hadir)
+        if (currentTab === 'DUTY') {
+            return { color: 'bg-[#A3E635]', text: 'VALID', icon: <CheckCircle2 size={12} /> };
+        }
+
         switch (status?.toUpperCase()) {
             case 'APPROVED':
             case 'PAID':
+            case 'SUCCESS':
                 return { color: 'bg-[#A3E635]', text: 'APPROVED', icon: <CheckCircle2 size={12} /> };
             case 'REJECTED':
             case 'DENIED':
@@ -153,7 +160,7 @@ export default function SectionLog() {
                             <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {currentLogs.map((log) => {
-                                        const badge = getStatusBadge(log.status);
+                                        const badge = getStatusBadge(log.status, activeTab); // 🚀 FIX: Mengirimkan info Tab yang sedang aktif
                                         return (
                                             <div key={log.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] overflow-hidden flex flex-col h-full group`}>
 

@@ -7,7 +7,8 @@ import {
     CalendarDays, Trash2, ChevronLeft, ChevronRight,
     Image as ImageIcon, Clock, AlertTriangle, CheckCircle2, X,
     Skull, Bomb, AlertOctagon, Lock, UserX, Send, ShieldAlert, XCircle,
-    LayoutDashboard, Activity, UserCheck, UserMinus, HelpCircle, PieChart, Database, ScanLine
+    LayoutDashboard, Activity, UserCheck, UserMinus, HelpCircle, PieChart,
+    Database, ScanLine, Eye, Power, FileText, Loader2, ShieldCheck
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";
@@ -25,9 +26,14 @@ export default function SectionAdminSystem() {
     const [personnel, setPersonnel] = useState<any[]>([]);
     const [duties, setDuties] = useState<any[]>([]);
     const [cutis, setCutis] = useState<any[]>([]);
-    const [isHighAdmin, setIsHighAdmin] = useState(false); // 🚀 FIX: Ubah ke isHighAdmin
+    const [isHighAdmin, setIsHighAdmin] = useState(false);
     const [viewMode, setViewMode] = useState<'DETAIL' | 'ANALYSIS'>('DETAIL');
     const [currentDate, setCurrentDate] = useState(new Date());
+
+    // --- 🚀 RADAR AUTOMATION STATES ---
+    const [radarConfig, setRadarConfig] = useState({ auto_report: false });
+    const [isPreviewing, setIsPreviewing] = useState(false);
+    const [isTransmitting, setIsTransmitting] = useState(false);
 
     // --- MODAL STATES ---
     const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -52,10 +58,15 @@ export default function SectionAdminSystem() {
         }
 
         setIsAuthorized(true);
-        // 🚀 FIX: Set High Admin berdasarkan kolom is_highadmin atau pangkat JENDRAL
-        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
-        const { data: users } = await supabase.from('users').select('discord_id, name, pangkat').order('pangkat', { ascending: false });
+        // Cek Otoritas High Admin & Tarik Konfigurasi Radar
+        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) {
+            setIsHighAdmin(true);
+            const { data: config } = await supabase.from('system_config').select('*').eq('id', 'radar_inactivity').single();
+            if (config) setRadarConfig(config.settings);
+        }
+
+        const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi').order('pangkat', { ascending: false });
         if (users) setPersonnel(users);
 
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
@@ -68,6 +79,44 @@ export default function SectionAdminSystem() {
     };
 
     useEffect(() => { verifyAndFetch(); }, [currentDate]);
+
+    // --- 📡 LOGIKA RADAR (TOGGLE & TRANSMIT) ---
+    const toggleAutoRadar = async () => {
+        const newStatus = !radarConfig.auto_report;
+        const tId = toast.loading("Updating System Protocol...");
+
+        const { error } = await supabase.from('system_config').upsert({
+            id: 'radar_inactivity',
+            settings: { auto_report: newStatus },
+            updated_at: new Date().toISOString()
+        });
+
+        if (error) {
+            toast.error("Gagal update protokol!", { id: tId });
+        } else {
+            setRadarConfig({ auto_report: newStatus });
+            toast.success(`AUTO RADAR: ${newStatus ? 'ENABLED' : 'DISABLED'}`, { id: tId });
+        }
+    };
+
+    const handleManualTransmit = async () => {
+        setIsTransmitting(true);
+        const tId = toast.loading("SYSTEM: Initiating Manual Radar Scan...");
+
+        try {
+            const res = await fetch('/api/cron/inactive-radar');
+            if (res.ok) {
+                toast.success("SURAT LAPORAN TERKIRIM KE DISCORD!", { id: tId });
+                setIsPreviewing(false); // Tutup preview setelah sukses
+            } else {
+                throw new Error("Discord API Response Error");
+            }
+        } catch (err: any) {
+            toast.error("Gagal Kirim: " + err.message, { id: tId });
+        } finally {
+            setIsTransmitting(false);
+        }
+    };
 
     // --- 🛠️ LOGIKA PEMBERSIHAN (PURGE & STORAGE) ---
     const executePurgeOperation = async () => {
@@ -193,6 +242,26 @@ export default function SectionAdminSystem() {
                 </div>
 
                 <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+                    {/* 🚀 RADAR CONTROLS (HIGH ADMIN ONLY) */}
+                    {isHighAdmin && (
+                        <div className="flex bg-slate-100 p-1.5 rounded-xl border-2 border-black w-full md:w-auto justify-center">
+                            <button
+                                onClick={toggleAutoRadar}
+                                className={cn("px-4 py-2 rounded-lg text-[9px] font-black uppercase italic flex items-center gap-2 transition-all",
+                                    radarConfig.auto_report ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "bg-white opacity-50 hover:opacity-100"
+                                )}
+                            >
+                                <Power size={14} /> Auto Radar: {radarConfig.auto_report ? 'ON' : 'OFF'}
+                            </button>
+                            <button
+                                onClick={() => setIsPreviewing(true)}
+                                className="px-4 py-2 text-[9px] font-black uppercase italic flex items-center gap-2 hover:bg-black/5 transition-all opacity-60 hover:opacity-100"
+                            >
+                                <Eye size={14} /> Preview Surat
+                            </button>
+                        </div>
+                    )}
+
                     <div className="flex bg-slate-100 p-1.5 rounded-xl border-2 border-black w-full md:w-auto justify-center">
                         <button onClick={() => setViewMode('DETAIL')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'DETAIL' ? "bg-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>Rekap Detail</button>
                         <button onClick={() => setViewMode('ANALYSIS')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'ANALYSIS' ? "bg-[#3B82F6] text-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>Analisis Singkat</button>
@@ -205,7 +274,6 @@ export default function SectionAdminSystem() {
                         <ScanLine size={16} /> Radar Inactive
                     </button>
 
-                    {/* 🚀 FIX: Ubah variabel ke isHighAdmin */}
                     {isHighAdmin && (
                         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t-2 md:border-t-0 border-black/10 md:pl-2 md:border-l-2">
                             <button
@@ -312,6 +380,62 @@ export default function SectionAdminSystem() {
                     </table>
                 </div>
             </div>
+
+            {/* --- 🛑 MODAL PREVIEW SURAT LAPORAN (HIGH ADMIN ONLY) 🛑 --- */}
+            <AnimatePresence>
+                {isPreviewing && (
+                    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 text-slate-950 backdrop-blur-md">
+                        <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[35px] p-8 w-full max-w-2xl flex flex-col max-h-[90vh]`}>
+                            <div className="flex justify-between items-start border-b-[4px] border-black pb-4 mb-6 shrink-0">
+                                <div>
+                                    <h3 className="font-[1000] italic uppercase text-2xl flex items-center gap-2"><FileText size={28} /> Preview Official Report</h3>
+                                    <p className="text-[10px] font-black uppercase opacity-50 mt-1">Format Surat Yang Akan Terkirim Ke Discord HQ</p>
+                                </div>
+                                <button onClick={() => setIsPreviewing(false)} className="hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all border-2 border-black shadow-[2px_2px_0px_#000] active:shadow-none active:translate-y-px"><X /></button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 bg-slate-50 border-4 border-dashed border-slate-300 rounded-3xl p-6 font-mono text-[11px] leading-relaxed">
+                                <div className="text-center border-b-2 border-black pb-4 mb-4">
+                                    <ShieldCheck size={40} className="mx-auto mb-2 text-blue-600" />
+                                    <h2 className="font-[1000] text-lg uppercase">Mandalika Police Department</h2>
+                                    <p className="font-black opacity-60">INTERNAL SECURITY DIVISION • RADAR SCAN</p>
+                                </div>
+                                <p>**Nomor:** SP/RADAR-INACTIVE/{format(new Date(), 'MM/yyyy')}</p>
+                                <p>**Perihal:** Laporan Otomatis Personel Inactive</p>
+                                <p className="mt-4">**SYSTEM** mendeteksi adanya ketidakhadiran aktivitas dinas pada radar pusat.</p>
+                                <p className="mt-2">Berikut adalah daftar anggota **INACTIVE** periode 7 hari terakhir:</p>
+
+                                <div className="bg-black text-[#00E676] p-4 rounded-xl my-4 text-[10px] shadow-inner">
+                                    <p className="border-b border-[#00E676]/30 pb-1 mb-1 tracking-widest">NO | NAMA | PANGKAT | DIVISI</p>
+                                    {inactivePersonnel.length === 0 ? (
+                                        <p className="opacity-50 italic py-2">System Clear. Seluruh personel aktif.</p>
+                                    ) : (
+                                        <>
+                                            {inactivePersonnel.slice(0, 10).map((u, i) => (
+                                                <p key={i}>{i + 1} | {u.name?.split('|').pop()} | {u.pangkat} | {u.divisi || 'UNIT'}</p>
+                                            ))}
+                                            {inactivePersonnel.length > 10 && <p className="mt-2 text-[#FFD100]">... Dan {inactivePersonnel.length - 10} personel lainnya.</p>}
+                                        </>
+                                    )}
+                                </div>
+
+                                <p className="font-black italic">**Harap segera ditindaklanjuti oleh Petinggi.**</p>
+                            </div>
+
+                            <div className="pt-6 flex gap-4 shrink-0">
+                                <button onClick={() => setIsPreviewing(false)} className="flex-1 bg-slate-200 border-2 border-black py-4 rounded-2xl font-black text-xs uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">Tutup Preview</button>
+                                <button
+                                    disabled={isTransmitting || inactivePersonnel.length === 0}
+                                    onClick={handleManualTransmit}
+                                    className="flex-1 bg-[#00E676] border-2 border-black py-4 px-4 rounded-2xl font-black text-xs uppercase shadow-[4px_4px_0px_#000] flex items-center justify-center gap-3 active:translate-y-1 active:shadow-none disabled:opacity-50 transition-all"
+                                >
+                                    {isTransmitting ? <Loader2 className="animate-spin" /> : <Send size={20} />} {isTransmitting ? "TRANSMITTING..." : "KIRIM MANUAL SEKARANG"}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* --- 🛑 MODAL RADAR INACTIVE (DAFTAR HITAM MINGGUAN) 🛑 --- */}
             <AnimatePresence>

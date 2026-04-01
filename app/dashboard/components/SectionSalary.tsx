@@ -228,7 +228,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                         <p className="text-[10px] font-black uppercase italic tracking-widest text-[#A3E635]">Mandatory Note</p>
                     </div>
                     <p className="text-[9px] font-black leading-tight uppercase">
-                        PILIH RANGE GAJI SEMINGGU. RADAR MDT AKAN MEMVERIFIKASI LOG DUTY. JANGAN OVER-CLAIM ATAU MAKSIMAL 2 MINGGU KEBELAKANG. PELANGGARAN = BLOKIR PAYROLL!
+                        PILIH RANGE GAJI SEMINGGU (SENIN-MINGGU). RADAR MDT AKAN MEMVERIFIKASI LOG DUTY. JANGAN OVER-CLAIM ATAU MAKSIMAL 2 MINGGU KEBELAKANG. PELANGGARAN = BLOKIR PAYROLL!
                     </p>
                 </div>
 

@@ -57,7 +57,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         if (p.includes("BRIPDA")) return 24000;
         if (p.includes("BHARATU")) return 23000;
         if (p.includes("BHARADA")) return 22000;
-        return 15000;
+        return 23000;
     };
 
     const baseSalary = useMemo(() => getGajiByRank(realtimeData?.pangkat), [realtimeData?.pangkat]);

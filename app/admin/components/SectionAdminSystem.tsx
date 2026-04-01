@@ -25,7 +25,7 @@ export default function SectionAdminSystem() {
     const [personnel, setPersonnel] = useState<any[]>([]);
     const [duties, setDuties] = useState<any[]>([]);
     const [cutis, setCutis] = useState<any[]>([]);
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+    const [isHighAdmin, setIsHighAdmin] = useState(false); // 🚀 FIX: Ubah ke isHighAdmin
     const [viewMode, setViewMode] = useState<'DETAIL' | 'ANALYSIS'>('DETAIL');
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -52,7 +52,8 @@ export default function SectionAdminSystem() {
         }
 
         setIsAuthorized(true);
-        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsSuperAdmin(true);
+        // 🚀 FIX: Set High Admin berdasarkan kolom is_highadmin atau pangkat JENDRAL
+        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
         const { data: users } = await supabase.from('users').select('discord_id, name, pangkat').order('pangkat', { ascending: false });
         if (users) setPersonnel(users);
@@ -96,7 +97,6 @@ export default function SectionAdminSystem() {
                     const { error: delError } = await supabase.storage.from('bukti-absen').remove(filePaths);
                     if (delError) throw delError;
 
-                    // 🚀 FIX FOTO HANTU: Kosongkan juga link foto di Database agar UI tidak menampilkan gambar lama!
                     const { error: dbUpdateError } = await supabase.from('presensi_duty').update({ bukti_foto: null }).not('bukti_foto', 'is', null);
                     if (dbUpdateError) console.warn("Gagal update DB", dbUpdateError);
 
@@ -182,7 +182,7 @@ export default function SectionAdminSystem() {
         <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-mono text-slate-950">
             <Toaster position="top-center" richColors />
 
-            {/* HEADER & SUPER ADMIN TOOLS */}
+            {/* HEADER & HIGH ADMIN TOOLS */}
             <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-2xl flex flex-col lg:flex-row gap-6 justify-between items-center`}>
                 <div className="flex items-center gap-4 w-full lg:w-auto">
                     <div className="p-3 bg-slate-950 text-white rounded-xl shadow-[3px_3px_0px_#A78BFA]"><Activity /></div>
@@ -205,7 +205,8 @@ export default function SectionAdminSystem() {
                         <ScanLine size={16} /> Radar Inactive
                     </button>
 
-                    {isSuperAdmin && (
+                    {/* 🚀 FIX: Ubah variabel ke isHighAdmin */}
+                    {isHighAdmin && (
                         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t-2 md:border-t-0 border-black/10 md:pl-2 md:border-l-2">
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
@@ -262,15 +263,27 @@ export default function SectionAdminSystem() {
                                                     // --- MODE DETAIL (KARTU BESAR) ---
                                                     <>
                                                         {status.type === 'DUTY' && (
-                                                            <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[120px] justify-between relative group/card">
+                                                            <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[130px] justify-between relative group/card">
                                                                 <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'presensi_duty' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
-                                                                <div className="font-[1000] text-[10px] uppercase italic border-b border-black/20 pb-1 flex justify-between"><span>{Math.floor(status.data.durasi_menit / 60)}H {status.data.durasi_menit % 60}M</span><Clock size={12} /></div>
-                                                                <p className="text-[9px] font-black italic leading-tight uppercase my-2 line-clamp-3">{status.data.catatan_duty}</p>
+
+                                                                <div className="border-b border-black/20 pb-1 flex flex-col items-center">
+                                                                    <div className="font-[1000] text-[11px] uppercase italic flex justify-between w-full">
+                                                                        <span>{Math.floor(status.data.durasi_menit / 60)}H {status.data.durasi_menit % 60}M</span>
+                                                                        <Clock size={12} />
+                                                                    </div>
+                                                                    {status.data.start_time && status.data.end_time && (
+                                                                        <div className="bg-black/10 text-black px-2 py-0.5 rounded font-black text-[8px] uppercase tracking-widest mt-1">
+                                                                            {format(new Date(status.data.start_time), 'HH:mm')} - {format(new Date(status.data.end_time), 'HH:mm')}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                <p className="text-[9px] font-black italic leading-tight uppercase my-1 line-clamp-3">{status.data.catatan_duty}</p>
                                                                 {status.data.bukti_foto?.[0] && <button onClick={() => setSelectedPhoto(status.data.bukti_foto[0])} className="bg-black text-white rounded-lg py-1.5 flex justify-center hover:bg-blue-600 active:scale-95 transition-all"><ImageIcon size={14} /></button>}
                                                             </div>
                                                         )}
                                                         {status.type === 'CUTI' && (
-                                                            <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[120px] justify-center items-center text-center relative group/card">
+                                                            <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[130px] justify-center items-center text-center relative group/card">
                                                                 <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
                                                                 <ShieldAlert size={20} className="mb-2" />
                                                                 <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>

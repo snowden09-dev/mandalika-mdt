@@ -162,12 +162,6 @@ export default function PortalPage() {
         checkUser();
     }, [router]);
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        localStorage.removeItem('police_session');
-        router.push('/');
-    };
-
     return (
         <div className="flex min-h-screen bg-[#E0E7FF] font-mono overflow-hidden text-black">
             <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} dbStatus={dbStatus} />
@@ -185,14 +179,12 @@ export default function PortalPage() {
                         </h2>
                     </div>
 
-                    {/* 🚀 MENGGANTI PROFIL LAMA DENGAN DROPDOWN BARU */}
-                    <div className="flex items-center gap-4">
-                        <ProfileDropdownMenu
-                            nickname={nickname}
-                            pangkat={realtimeData.pangkat}
-                            image={userData?.image || ""}
-                        />
-                    </div>
+                    {/* 🚀 DROPDOWN PROFIL */}
+                    <ProfileDropdownMenu
+                        nickname={nickname}
+                        pangkat={realtimeData.pangkat}
+                        image={userData?.image || ""}
+                    />
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-10 pb-32 bg-[#E0E7FF]">
@@ -226,11 +218,6 @@ export default function PortalPage() {
                             <span className="text-[10px] font-black uppercase italic block text-center">Admin</span>
                         </button>
                     )}
-
-                    <button onClick={handleLogout} className="flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-all">
-                        <LogOut size={26} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase italic block text-center">Exit</span>
-                    </button>
                 </nav>
             </div>
         </div>

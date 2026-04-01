@@ -68,6 +68,7 @@ export default function SectionAdminCuti() {
         });
     }, [cutiLogs, viewMode, statusFilter]);
 
+    // 🚀 FIX: OPTIMISTIC UPDATE APPLIED HERE
     const handleAction = async (id: string, status: 'APPROVED' | 'REJECTED') => {
         const tId = toast.loading(`Memproses status ${status}...`);
         const { error } = await supabase
@@ -79,7 +80,13 @@ export default function SectionAdminCuti() {
             toast.error("Gagal memproses!", { id: tId });
         } else {
             toast.success(`Cuti ${status}!`, { id: tId });
-            verifyAndFetch();
+
+            // Mengubah state lokal secara instan tanpa perlu reload data dari server
+            setCutiLogs(prevLogs =>
+                prevLogs.map(log =>
+                    log.id === id ? { ...log, status: status } : log
+                )
+            );
         }
     };
 

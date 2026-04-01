@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2
+    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send
 } from 'lucide-react';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { id } from "date-fns/locale";

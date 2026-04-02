@@ -234,9 +234,33 @@ export default function AbsenPage() {
                                     <p className={labelStyle}><CalendarIcon size={12} /> Date</p>
                                     <input type="date" value={tanggalDuty} min={hMin3Str} max={todayStr} onChange={e => setTanggalDuty(e.target.value)} className={inputStyle} />
                                 </div>
+
+                                {/* 🚀 24-HOUR CUSTOM DROPDOWNS (ANTI AM/PM) */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1"><p className={labelStyle}><Clock size={12} /> Start</p><input type="time" value={jamAwal} onChange={e => setJamAwal(e.target.value)} className={inputStyle} /></div>
-                                    <div className="space-y-1"><p className={labelStyle}><Clock size={12} /> End</p><input type="time" value={jamAkhir} onChange={e => setJamAkhir(e.target.value)} className={inputStyle} /></div>
+                                    <div className="space-y-1">
+                                        <p className={labelStyle}><Clock size={12} /> Start</p>
+                                        <div className="flex items-center gap-1">
+                                            <select value={jamAwal.split(':')[0]} onChange={e => setJamAwal(`${e.target.value}:${jamAwal.split(':')[1]}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
+                                                {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
+                                            </select>
+                                            <span className="font-black text-slate-950">:</span>
+                                            <select value={jamAwal.split(':')[1]} onChange={e => setJamAwal(`${jamAwal.split(':')[0]}:${e.target.value}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
+                                                {Array.from({ length: 60 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className={labelStyle}><Clock size={12} /> End</p>
+                                        <div className="flex items-center gap-1">
+                                            <select value={jamAkhir.split(':')[0]} onChange={e => setJamAkhir(`${e.target.value}:${jamAkhir.split(':')[1]}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
+                                                {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
+                                            </select>
+                                            <span className="font-black text-slate-950">:</span>
+                                            <select value={jamAkhir.split(':')[1]} onChange={e => setJamAkhir(`${jamAkhir.split(':')[0]}:${e.target.value}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
+                                                {Array.from({ length: 60 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* 🚀 HORIZONTAL SCROLL EVIDENCE */}

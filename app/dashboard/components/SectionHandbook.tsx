@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     BookOpen, ShieldAlert, AlertOctagon, Car, Crosshair,
-    FileText, Radio, CheckCircle2, AlertTriangle, Users, Target, Siren, Construction
+    FileText, Radio, CheckCircle2, AlertTriangle, Users, Target, Siren, Construction, ChevronRight
 } from 'lucide-react';
 
 interface SectionHandbookProps {
@@ -19,7 +19,7 @@ export default function SectionHandbook({ divisi }: SectionHandbookProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="w-full max-w-5xl mx-auto space-y-6"
+            className="w-full max-w-6xl mx-auto space-y-6"
         >
             {/* HEADER HANDBOOK */}
             <div className="bg-white border-[6px] border-black p-6 shadow-[8px_8px_0_0_#000] flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -57,10 +57,328 @@ export default function SectionHandbook({ divisi }: SectionHandbookProps) {
 }
 
 // ============================================================================
+// 🚦 KOMPONEN HANDBOOK SATLANTAS (DENGAN TABS NEO-BRUTALISM)
+// ============================================================================
+function HandbookSatlantas() {
+    const [activeTab, setActiveTab] = useState(0);
+
+    const tabs = [
+        { id: 0, title: "Tugas Utama", icon: <Siren size={20} />, color: "#FF9000" },
+        { id: 1, title: "Pelayanan Administrasi", icon: <FileText size={20} />, color: "#3B82F6" },
+        { id: 2, title: "Penggunaan Unit Dinas", icon: <Car size={20} />, color: "#00E676" },
+        { id: 3, title: "Kode Etik & Disiplin", icon: <ShieldAlert size={20} />, color: "#A78BFA" },
+        { id: 4, title: "Radio & Callsign", icon: <Radio size={20} />, color: "#FF90E8" },
+        { id: 5, title: "SOP Impound", icon: <Target size={20} />, color: "#FF4D4D" },
+        { id: 6, title: "Pola Patroli", icon: <Crosshair size={20} />, color: "#CCFF00" },
+    ];
+
+    return (
+        <div className="flex flex-col md:flex-row gap-6 pb-10">
+            {/* SIDEBAR TABS MENU */}
+            <div className="w-full md:w-1/3 shrink-0 flex flex-col gap-3">
+                {tabs.map((tab, index) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(index)}
+                        className={`flex items-center justify-between p-4 border-[4px] border-black transition-all font-black uppercase italic tracking-tight text-left ${activeTab === index
+                                ? 'bg-black text-white shadow-[6px_6px_0_0_#000] translate-x-[-2px] translate-y-[-2px]'
+                                : 'bg-white hover:bg-slate-100'
+                            }`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <span style={{ color: activeTab === index ? tab.color : '#000' }}>{tab.icon}</span>
+                            <span>{tab.title}</span>
+                        </div>
+                        {activeTab === index && <ChevronRight size={20} style={{ color: tab.color }} />}
+                    </button>
+                ))}
+            </div>
+
+            {/* CONTENT AREA */}
+            <div className="w-full md:w-2/3 bg-white border-[6px] border-black shadow-[8px_8px_0_0_#000] min-h-[500px] flex flex-col">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex-1"
+                    >
+                        {/* HEADER KONTEN */}
+                        <div
+                            className="border-b-[5px] border-black p-4 flex items-center gap-3"
+                            style={{ backgroundColor: tabs[activeTab].color }}
+                        >
+                            <span className="text-black">{tabs[activeTab].icon}</span>
+                            <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black">
+                                {indexToRoman(activeTab + 1)}. {tabs[activeTab].title}
+                            </h2>
+                        </div>
+
+                        {/* ISI KONTEN */}
+                        <div className="p-6 font-sans text-sm text-slate-800 h-full">
+                            {activeTab === 0 && <SatlantasTab1 />}
+                            {activeTab === 1 && <SatlantasTab2 />}
+                            {activeTab === 2 && <SatlantasTab3 />}
+                            {activeTab === 3 && <SatlantasTab4 />}
+                            {activeTab === 4 && <SatlantasTab5 />}
+                            {activeTab === 5 && <SatlantasTab6 />}
+                            {activeTab === 6 && <SatlantasTab7 />}
+                        </div>
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+        </div>
+    );
+}
+
+// Helper untuk penomoran Romawi di header konten
+function indexToRoman(num: number) {
+    const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    return roman[num - 1] || num;
+}
+
+// --- ISI MATERI SATLANTAS ---
+
+function SatlantasTab1() {
+    return (
+        <div className="space-y-4 font-bold">
+            <p className="bg-slate-100 p-3 border-2 border-black italic">Satlantas bertugas mengatur, mengawasi, dan menegakkan hukum lalu lintas secara profesional untuk mewujudkan Kamseltibcarlantas yang Kondusif di Kota Mandalika.</p>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-2">I. TUGAS UTAMA</h3>
+            <ul className="list-disc pl-5 space-y-1">
+                <li><span className="text-black">Patroli:</span> Meliputi area dalam dan luar kota.</li>
+                <li><span className="text-black">Gatur & Wal:</span> Pengaturan arus, penjagaan, dan pengawalan.</li>
+                <li><span className="text-black">Dakgar:</span> Penindakan pelanggaran lalu lintas.</li>
+                <li><span className="text-black">Laka Lantas:</span> Penanganan kecelakaan dan edukasi masyarakat.</li>
+            </ul>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-2">II. PENINDAKAN & LAKA LANTAS</h3>
+            <p>Dalam menangani kecelakaan, anggota <span className="text-red-600">WAJIB</span>:</p>
+            <ol className="list-decimal pl-5 space-y-1">
+                <li>Mengamankan TKP dan mengatur arus lalu lintas di sekitar.</li>
+                <li>Memberikan pertolongan pertama kepada korban.</li>
+                <li>Melakukan penilangan sesuai pasal yang dilanggar.</li>
+                <li>Menyusun laporan kejadian secara lengkap dan akurat.</li>
+            </ol>
+
+            <h3 className="font-black bg-[#CCFF00] inline-block px-2 border-2 border-black mt-2">III. PENANGANAN KASUS KRIMINAL (BANTUAN)</h3>
+            <p>Satlantas dapat membantu penanganan suspect apabila jumlah suspect ≥ Personel Sabhara/Brimob di lapangan, atau personel di TKP dinilai tidak mencukupi.</p>
+            <div className="bg-yellow-50 p-3 border-l-4 border-yellow-500 text-xs mt-2">
+                <span className="font-black text-black">KETENTUAN:</span> Wajib koordinasi radio, fokus pengamanan area/arus lalin, dan <span className="text-red-600">DILARANG</span> menangani kasus kriminal jika TIDAK ADA Sabhara/Brimob di TKP.
+            </div>
+
+            <h3 className="font-black bg-[#FF4D4D] text-white inline-block px-2 border-2 border-black mt-2">IV. CASE PERAMPOKAN (WARUNG/BANK)</h3>
+            <ul className="list-disc pl-5 space-y-1 text-xs">
+                <li>Prioritas Utama penanganan wajib dipegang oleh Brimob/Sabhara.</li>
+                <li>Satlantas DILARANG mengambil alih/intervensi jika jumlah Brimob/Sabhara mencukupi.</li>
+                <li>Peran Satlantas: Menutup akses jalan (blokade) dan sterilisasi area luar.</li>
+            </ul>
+        </div>
+    );
+}
+
+function SatlantasTab2() {
+    return (
+        <div className="space-y-4 font-bold">
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black">I. PROSEDUR PENERBITAN SIM</h3>
+            <p className="text-xs italic">Wajib dilakukan secara humanis dan sesuai prosedur administratif.</p>
+            <ul className="list-disc pl-5 space-y-1 text-xs">
+                <li><span className="text-black">Identitas:</span> Wajib KTP sah.</li>
+                <li><span className="text-black">Klasifikasi:</span> SIM A (Mobil), SIM B (Truk/Bus), SIM C (Motor).</li>
+                <li><span className="text-black">Pembayaran:</span> Gunakan invoice (Cek harga terbaru di channel Discord).</li>
+            </ul>
+            <div className="bg-slate-900 text-white p-2 border-2 border-black font-mono text-xs inline-block mt-1">/givelic [ID_PLAYER]</div>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">II. PROSEDUR PEMASANGAN PLATE</h3>
+            <ul className="list-disc pl-5 space-y-1 text-xs">
+                <li><span className="text-black">Verifikasi:</span> Unit Mobil wajib SIM A, Unit Motor wajib SIM C.</li>
+                <li><span className="text-black">Kepemilikan:</span> Kendaraan wajib legal/pribadi.</li>
+            </ul>
+            <div className="bg-slate-900 text-white p-2 border-2 border-black font-mono text-xs inline-block mt-1">/makeplate [ID_KENDARAAN]</div>
+            <p className="text-xs text-red-500 italic mt-1">*Tanyakan kembali ke pemohon apakah plate sudah terpasang.</p>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">III. PENGAMBILAN KENDARAAN IMPOUND</h3>
+            <ol className="list-decimal pl-5 space-y-1 text-xs">
+                <li>Dekati titik penyimpanan impound (sebelah garasi Faction).</li>
+                <li>Tekan tombol [Y] dan masukkan ID Player pemilik.</li>
+                <li>Verifikasi: Jika belum waktunya, jelaskan humanis. Jika sudah, berikan Invoice.</li>
+                <li>Keluarkan kendaraan setelah pembayaran berhasil.</li>
+            </ol>
+
+            <div className="bg-red-50 p-3 border-2 border-red-500 mt-4 text-xs">
+                <span className="font-black text-red-700">⚠️ CATATAN PENTING:</span> Jangan proses jika tidak kooperatif/dokumen tidak lengkap. Pastikan uang diterima sebelum eksekusi CMD. Selalu awali dengan salam.
+            </div>
+        </div>
+    );
+}
+
+function SatlantasTab3() {
+    return (
+        <div className="space-y-4 font-bold">
+            <p className="bg-slate-100 p-3 border-2 border-black italic">OBJEKTIF: Menjamin keamanan, ketertiban, dan tanggung jawab penuh terhadap aset dinas kepolisian.</p>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-2">I. KETENTUAN UMUM</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li><span className="text-blue-600">DINAS ONLY:</span> Hanya untuk operasional resmi.</li>
+                <li><span className="text-blue-600">IDENTITAS:</span> Wajib gunakan Callsign aktif.</li>
+                <li><span className="text-blue-600">AKUNTABILITAS:</span> Tanggung jawab penuh pada pengambil unit.</li>
+            </ul>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">II. PROTOKOL PENGELUARAN</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li><span className="text-green-600">BUDDY SYSTEM:</span> Minimal 2 personel per unit.</li>
+                <li><span className="text-green-600">IZIN OPERASI:</span> Untuk patroli/penugasan atas izin atasan.</li>
+                <li><span className="text-green-600">STERILISASI:</span> Dilarang meminjamkan unit ke warga sipil.</li>
+            </ul>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">III. PROSEDUR PENYIMPANAN</h3>
+            <ol className="list-decimal pl-5 space-y-1 text-sm">
+                <li>Kembalikan ke lokasi parkir/garasi yang ditentukan.</li>
+                <li>Pastikan pintu terkunci & mesin mati.</li>
+                <li>Lapor jika ada kerusakan/kendala teknis.</li>
+            </ol>
+
+            <div className="bg-red-100 p-3 border-l-4 border-red-600 mt-4 text-xs">
+                <span className="font-black text-red-800">LARANGAN & SANKSI:</span> Mengalihkan kendali tanpa izin atau pemakaian di luar jam dinas akan disanksi (Teguran, Grounding, Demosi, PTDH).
+            </div>
+        </div>
+    );
+}
+
+function SatlantasTab4() {
+    return (
+        <div className="space-y-4 font-bold">
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black">I. SIKAP DAN PERILAKU</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li><span className="text-blue-600">Reputasi:</span> Menjaga nama baik institusi.</li>
+                <li><span className="text-blue-600">Etika:</span> Sopan, tegas, profesional ke masyarakat.</li>
+                <li><span className="text-blue-600">Respek:</span> Menghormati warga sipil & rekan.</li>
+                <li><span className="text-blue-600">Dual-Life:</span> Jaga etika In-Character (IC) maupun Out-of-Character (OOC).</li>
+            </ul>
+
+            <h3 className="font-black bg-red-200 inline-block px-2 border-2 border-black mt-4">II. INTEGRITAS (DILARANG KERAS!)</h3>
+            <ol className="list-decimal pl-5 space-y-1 text-sm text-red-700">
+                <li>Menerima suap atau gratifikasi.</li>
+                <li>Menyalahgunakan wewenang jabatan.</li>
+                <li>Memanipulasi laporan/data kepolisian.</li>
+                <li>Melindungi pelanggar hukum atau pelaku kriminal.</li>
+            </ol>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">III. DISIPLIN TUGAS</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li>Wajib mematuhi SOP operasional.</li>
+                <li>Aktif patroli wilayah.</li>
+                <li>Menjaga inventaris unit kendaraan.</li>
+                <li>Menggunakan Callsign resmi.</li>
+            </ul>
+        </div>
+    );
+}
+
+function SatlantasTab5() {
+    return (
+        <div className="space-y-4 font-bold">
+            <div className="bg-slate-900 text-white p-3 border-2 border-black font-mono text-xs">
+                Callsign digunakan untuk UNIT KENDARAAN, bukan untuk nama pribadi. Wajib digunakan saat komunikasi radio.
+            </div>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-2">I. CONTOH KOMUNIKASI</h3>
+            <ul className="list-none space-y-2 text-xs font-mono bg-slate-100 p-3 border-2 border-black">
+                <li>> "Mabes 00, unit PJR-01 izin lingkar-lingkar di area Los Santos."</li>
+                <li>> "Mabes 00, unit PJR-12 izin melakukan pengecekan di area ladang."</li>
+            </ul>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">II. KETENTUAN UNIT</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li>Patroli wajib unit Cruiser LSPD, LVPD, SFPD.</li>
+                <li>Anggota <span className="text-red-600">DILARANG</span> berpindah unit tanpa izin/darurat, wajib LAPORAN jika pindah.</li>
+            </ul>
+
+            <h3 className="font-black bg-[#CCFF00] inline-block px-2 border-2 border-black mt-4">III. SISTEM PENGOSONGAN CALLSIGN</h3>
+            <p className="text-xs">Jika anggota resign/diberhentikan, callsign DIKOSONGKAN. Penyesuaian dilakukan berurutan saat ada penambahan anggota baru.</p>
+            <div className="bg-slate-100 p-3 border-2 border-black text-xs mt-2">
+                <span className="font-black">Contoh Kasus:</span> PJR 06 resign.<br />
+                Anggota baru masuk &rarr; PJR 07 naik jadi PJR 06. PJR 08 naik jadi PJR 07. Seterusnya.
+            </div>
+        </div>
+    );
+}
+
+function SatlantasTab6() {
+    return (
+        <div className="space-y-4 font-bold">
+            <div className="bg-slate-100 p-3 border-2 border-black italic text-xs">
+                SOP Impound dilakukan secara On-Site (Di Tempat). Tidak ada kendaraan yang dibawa ke kantor polisi (No Towing).
+            </div>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-2">I. KRITERIA IMPOUND</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li>Menghalangi arus lalu lintas (Tengah jalan).</li>
+                <li>Parkir sembarangan (Trotoar, jalur hijau).</li>
+                <li>Ditinggal pemilik di area terlarang.</li>
+            </ul>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">II. PEMERIKSAAN WAJIB</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li><span className="text-blue-600">Cek Fisik:</span> Plat nomor & kondisi.</li>
+                <li><span className="text-blue-600">Penggeledahan:</span> Bagasi & Holster. Barang ilegal wajib disita. <span className="text-red-600">DILARANG</span> mengambil barang legal warga!</li>
+            </ul>
+
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">III. KLASIFIKASI & PELAKSANAAN</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li><span className="text-black">Wajib Asuransi:</span> Kendaraan Totalled, mogok, habis bensin.</li>
+                <li><span className="text-black">Impound Tempat:</span> Kendaraan layak jalan tapi melanggar.</li>
+            </ul>
+
+            <div className="bg-red-50 p-3 border-2 border-red-500 mt-4 text-xs">
+                <span className="font-black text-red-700">⚠️ DENDA & DURASI:</span> Mengacu pada regulasi resmi Discord. Anggota dilarang keras menentukan denda/durasi secara sepihak!
+            </div>
+        </div>
+    );
+}
+
+function SatlantasTab7() {
+    return (
+        <div className="space-y-4 font-bold">
+            <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black">I. BUDDY SYSTEM</h3>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li><span className="text-red-600">LARANGAN SOLO:</span> Tidak diperkenankan patroli mandiri (1 orang).</li>
+                <li>Minimal 2 personel per unit (1 Driver & 1 Co-Driver).</li>
+            </ul>
+
+            <h3 className="font-black bg-[#CCFF00] inline-block px-2 border-2 border-black mt-4">II. DISTRIBUSI WILAYAH</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 text-xs">
+                <div className="bg-slate-100 p-3 border-2 border-black">
+                    <span className="font-black uppercase text-blue-600 border-b border-black pb-1 mb-1 block">A. Urban (Perkotaan)</span>
+                    <p>Unit: Cruiser LSPD / Sultan</p>
+                    <p>Fokus: Pengaturan arus lalin & penindakan administrasi.</p>
+                </div>
+                <div className="bg-slate-100 p-3 border-2 border-black">
+                    <span className="font-black uppercase text-blue-600 border-b border-black pb-1 mb-1 block">B. Rural (Luar Kota)</span>
+                    <p>Unit: Cruiser LVPD / SFPD / Sultan</p>
+                    <p>Fokus: Pengawasan jalur vital & pencegahan kriminal.</p>
+                </div>
+            </div>
+
+            <h3 className="font-black bg-[#FF9000] inline-block px-2 border-2 border-black mt-4 text-black">III. UNIT KHUSUS: SPEED HUNTER (CHEETAH)</h3>
+            <p className="text-xs italic">Aset prioritas tinggi, bukan untuk patroli rutin!</p>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li>Digunakan saat Darurat (Perampokan).</li>
+                <li>Pengejaran Prioritas (Suspect High-Speed).</li>
+                <li>Operasi Khusus.</li>
+            </ul>
+            <p className="text-xs text-red-600 mt-1">*Wajib mendapat izin atasan & tetap minimal 2 personel.</p>
+        </div>
+    );
+}
+
+// ============================================================================
 // 🚓 KOMPONEN HANDBOOK SABHARA
 // ============================================================================
 function HandbookSabhara() {
-    const [imgError, setImgError] = useState(false); // 🚀 State aman untuk handle gambar error
+    const [imgError, setImgError] = useState(false);
 
     return (
         <div className="space-y-8 pb-10">
@@ -115,7 +433,6 @@ function HandbookSabhara() {
 
                     <div>
                         <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mb-2">- TATA CARA & SKEMA RADIO</h3>
-                        {/* 🚀 Menggunakan &rarr; pengganti -> agar JSX tidak error */}
                         <p className="font-bold">Apabila ditemukan aktivitas ilegal: Pengintaian singkat &rarr; Lapor Dispatch tunggu backup &rarr; Tangkap jika aman.</p>
                         <div className="bg-slate-900 text-white p-4 mt-2 border-2 border-black font-mono text-xs space-y-2">
                             <p><span className="text-[#CCFF00]">Berangkat:</span> "Izin, unit TANGGUH - 03 melakukan pengecekan di tempat ladang kanabis."</p>
@@ -209,7 +526,6 @@ function HandbookSabhara() {
                 </div>
                 <div className="p-6 text-center">
                     <div className="w-full max-w-lg mx-auto bg-slate-200 border-4 border-black aspect-video flex flex-col items-center justify-center relative overflow-hidden shadow-[4px_4px_0_0_#000] mb-4">
-                        {/* 🚀 Menggunakan sistem fallback state yang AMAN agar tidak error JSX */}
                         {imgError ? (
                             <div className="text-center p-4">
                                 <p className="font-black italic text-slate-500">GAMBAR SERAGAM BELUM TERSEDIA</p>
@@ -422,105 +738,6 @@ function HandbookBrimob() {
                 <p className="font-sans text-sm font-bold max-w-2xl mx-auto leading-relaxed text-slate-300">
                     Korps BRIMOB merupakan satuan elit yang memiliki peran strategis. Melalui SOP ini, personel dituntut memiliki kesiapsiagaan, integritas, dan tanggung jawab tinggi. Eksekusi cepat, terukur, dan mematikan (jika diperlukan) dengan tetap mengedepankan hierarki komando dan kehormatan institusi Kepolisian Mandalika.
                 </p>
-            </section>
-        </div>
-    );
-}
-
-// ============================================================================
-// 🚦 KOMPONEN HANDBOOK SATLANTAS
-// ============================================================================
-function HandbookSatlantas() {
-    return (
-        <div className="space-y-8 pb-10">
-            <section className="bg-white border-[5px] border-black shadow-[8px_8px_0_0_#000]">
-                <div className="bg-[#FF9000] border-b-[5px] border-black p-4 flex items-center gap-3">
-                    <Siren className="text-black" size={24} />
-                    <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black">1. Pengertian & Tugas Pokok</h2>
-                </div>
-                <div className="p-6 space-y-4 font-sans text-sm text-slate-800">
-                    <p className="font-bold">Satuan Lalu Lintas (SATLANTAS) adalah garda terdepan kepolisian dalam menjaga keamanan, keselamatan, ketertiban, dan kelancaran lalu lintas (Kamseltibcarlantas) di jalan raya Mandalika.</p>
-
-                    <div className="bg-slate-100 p-4 border-2 border-black">
-                        <h3 className="font-black bg-[#FF9000] text-black inline-block px-2 border-2 border-black mb-2 uppercase">Tugas Pokok</h3>
-                        <ul className="list-disc list-inside font-bold space-y-1">
-                            <li>Melaksanakan Pengaturan, Penjagaan, Pengawalan, dan Patroli (Turjawali) lalu lintas.</li>
-                            <li>Melakukan penindakan pelanggaran lalu lintas (Traffic Stop / Tilang).</li>
-                            <li>Penanganan dan olah Tempat Kejadian Perkara (TKP) kecelakaan lalu lintas.</li>
-                            <li>Memberikan pengawalan khusus (VVIP/VIP) atau membuka jalur darurat untuk Tim Medis (EMS).</li>
-                            <li>Mencegah terjadinya tindak kriminalitas pencurian kendaraan (Carstealing) di jalanan.</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-
-            <section className="bg-slate-900 text-white border-[5px] border-black shadow-[8px_8px_0_0_#000]">
-                <div className="border-b-[5px] border-black p-4 flex items-center gap-3">
-                    <AlertOctagon className="text-[#FF9000]" size={24} />
-                    <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-[#FF9000]">2. SOP Penindakan (Traffic Stop / 10-38)</h2>
-                </div>
-                <div className="p-6 space-y-4 font-sans text-sm">
-                    <p className="font-bold">Tindakan pemberhentian kendaraan bermotor yang terindikasi melakukan pelanggaran lalu lintas, kelengkapan berkendara, atau pengecekan identitas.</p>
-
-                    <ol className="list-decimal list-inside space-y-3 font-bold bg-slate-800 p-4 border-2 border-slate-700">
-                        <li><span className="text-[#CCFF00]">Pemberitahuan:</span> Nyalakan sirine dan berikan peringatan lisan melalui Megaphone untuk menepi di area yang aman.</li>
-                        <li><span className="text-[#CCFF00]">Posisi Kendaraan:</span> Parkir kendaraan dinas sedikit menyerong ke arah jalan di belakang kendaraan target untuk perlindungan.</li>
-                        <li><span className="text-[#CCFF00]">Pendekatan:</span> Petugas turun perlahan, perhatikan kaca spion dan pergerakan di dalam kendaraan target. Tangan siap di dekat sidearm (antisipasi).</li>
-                        <li><span className="text-[#CCFF00]">Pemeriksaan:</span> Minta pengendara mematikan mesin, menurunkan kaca, dan menunjukkan Surat Izin Mengemudi (SIM).</li>
-                        <li><span className="text-[#CCFF00]">Penindakan:</span> Jika melanggar, berikan surat tilang (Invoice Manual). Jika bersih, persilakan melanjutkan perjalanan.</li>
-                    </ol>
-                    <div className="bg-red-900 border-l-4 border-red-500 p-3 mt-3 font-bold text-xs">
-                        *Jika target melarikan diri, segera lapor ke radio (Code 10-57 Pursuit) dan sebutkan ciri-ciri kendaraan, pelat nomor, serta arah pelarian.
-                    </div>
-                </div>
-            </section>
-
-            <section className="bg-white border-[5px] border-black shadow-[8px_8px_0_0_#000]">
-                <div className="bg-[#3B82F6] border-b-[5px] border-black p-4 flex items-center gap-3">
-                    <Target className="text-black" size={24} />
-                    <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black">3. SOP Pengawalan (Escort)</h2>
-                </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-sm font-bold text-slate-800">
-                    <div className="bg-blue-50 p-4 border-2 border-black">
-                        <h3 className="font-black uppercase text-blue-800 border-b-2 border-black pb-1 mb-2">A. Pengawalan VVIP/VIP</h3>
-                        <p className="text-xs mb-2">Mengawal pejabat negara, konvoi penting, atau tamu khusus.</p>
-                        <ul className="list-disc list-inside text-xs space-y-1">
-                            <li>Formasi minimal: 1 Unit Lantas (Depan) sebagai Sweeper/Pembuka Jalan.</li>
-                            <li>Gunakan sirine dan isyarat lampu konvoi.</li>
-                            <li>Jaga jarak aman antara mobil polisi dan mobil VVIP.</li>
-                        </ul>
-                    </div>
-                    <div className="bg-red-50 p-4 border-2 border-black">
-                        <h3 className="font-black uppercase text-red-800 border-b-2 border-black pb-1 mb-2">B. Pengawalan Medis (EMS)</h3>
-                        <p className="text-xs mb-2">Membuka jalur untuk ambulans dalam kondisi darurat medis.</p>
-                        <ul className="list-disc list-inside text-xs space-y-1">
-                            <li>Lantas berada di depan ambulans untuk *clearance* persimpangan.</li>
-                            <li>Gunakan megaphone untuk meminta warga menepi.</li>
-                            <li>Tidak diperkenankan zig-zag berlebihan yang membahayakan ambulans.</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-
-            <section className="bg-white border-[5px] border-black shadow-[8px_8px_0_0_#000]">
-                <div className="bg-[#CCFF00] border-b-[5px] border-black p-4 flex items-center gap-3">
-                    <Car className="text-black" size={24} />
-                    <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black">4. Kendaraan Dinas Satlantas</h2>
-                </div>
-                <div className="p-6 space-y-4 font-sans text-sm text-slate-800">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-slate-100 p-3 border-2 border-black">
-                            <h3 className="font-black uppercase text-[#FF9000] border-b-2 border-black pb-1 mb-2">Roda Dua (Motor)</h3>
-                            <p className="font-bold text-xs mb-1">Unit: <span className="text-black">HPV-1000</span></p>
-                            <p className="font-bold text-[10px] text-slate-600">Digunakan untuk patroli lalin, respon cepat kemacetan, dan pengawalan VIP.</p>
-                        </div>
-                        <div className="bg-slate-100 p-3 border-2 border-black">
-                            <h3 className="font-black uppercase text-[#FF9000] border-b-2 border-black pb-1 mb-2">Roda Empat (Mobil)</h3>
-                            <p className="font-bold text-xs mb-1">Unit: <span className="text-black">LSPD, SFPD Patroli, Sultan</span></p>
-                            <p className="font-bold text-[10px] text-slate-600">Patroli jalan raya, Traffic Stop, dan Pengejaran (Pursuit). Max penggunaan Sultan: 4 Unit.</p>
-                        </div>
-                    </div>
-                </div>
             </section>
         </div>
     );

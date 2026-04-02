@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, Shield, BookOpen, AlertOctagon, Radio,
-    Car, Crosshair, Siren, CheckCircle2, Megaphone, Users, Target
+    Car, Crosshair, Siren, CheckCircle2, Megaphone, Users, Target, TerminalSquare
 } from 'lucide-react';
 
 export default function SOPPage() {
@@ -14,6 +14,7 @@ export default function SOPPage() {
 
     const tabs = [
         { id: 'HIERARKI', label: 'Hierarki & Aturan', icon: <Shield size={16} />, color: 'bg-[#3B82F6]' },
+        { id: 'CMD', label: 'Commands Polisi', icon: <TerminalSquare size={16} />, color: 'bg-[#FF90E8]' }, // TAB BARU
         { id: 'GOV', label: 'SOP Berita Langit', icon: <Megaphone size={16} />, color: 'bg-[#FFD100]' },
         { id: 'DIVISI', label: 'Divisi Kepolisian', icon: <Users size={16} />, color: 'bg-[#00E676]' },
         { id: 'SANDI', label: 'Sandi Radio', icon: <Radio size={16} />, color: 'bg-[#A78BFA]' },
@@ -45,8 +46,8 @@ export default function SOPPage() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2 font-[1000] text-xs uppercase italic whitespace-nowrap border-[3px] border-black transition-all ${activeTab === tab.id
-                                    ? `${tab.color} shadow-[4px_4px_0_0_#000] translate-y-0 text-black`
-                                    : 'bg-white shadow-[0px_0px_0_0_#000] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#000] text-slate-600'
+                                ? `${tab.color} shadow-[4px_4px_0_0_#000] translate-y-0 text-black`
+                                : 'bg-white shadow-[0px_0px_0_0_#000] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#000] text-slate-600'
                                 }`}
                         >
                             {tab.icon} {tab.label}
@@ -150,6 +151,78 @@ export default function SOPPage() {
                                             <span className="font-[1000] uppercase">Melakukan program ilegal / Breakrules</span>
                                             <span className="text-[#FF4D4D] font-black italic">Hukuman: SP 3 / PTDH (OOC)</span>
                                         </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </motion.div>
+                    )}
+
+                    {/* 🚀 TAB BARU: COMMANDS KEPOLISIAN */}
+                    {activeTab === 'CMD' && (
+                        <motion.div key="cmd" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+
+                            {/* Command Administrasi */}
+                            <section className="bg-white border-[5px] border-black shadow-[10px_10px_0_0_#000]">
+                                <div className="bg-[#FF90E8] border-b-[5px] border-black p-4 flex items-center gap-3">
+                                    <TerminalSquare className="text-black" size={24} />
+                                    <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black">Administrasi & Pelayanan</h2>
+                                </div>
+                                <div className="p-6 space-y-4 font-mono">
+                                    <div className="bg-slate-100 p-4 border-2 border-black shadow-[4px_4px_0_0_#000]">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Membuat SKCK:</p>
+                                        <p className="text-sm font-black text-blue-600 bg-white border-2 border-black px-2 py-1 inline-block mb-2">/makeskck [ID] [Expired_Hari] [Note]</p>
+                                        <p className="text-xs font-bold text-slate-700 italic">Contoh: /makeskck 1 14 BERSIH DARI CATATAN KRIMINAL</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black shadow-[4px_4px_0_0_#000]">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Membuat SIM:</p>
+                                        <p className="text-sm font-black text-blue-600 bg-white border-2 border-black px-2 py-1 inline-block mb-2">/givelic [ID]</p>
+                                        <p className="text-xs font-bold text-slate-700 italic">Lalu pilih jenis SIM yang akan dibuat pada dialog box.</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black shadow-[4px_4px_0_0_#000]">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Membuat Plat Nomor Kendaraan:</p>
+                                        <p className="text-sm font-black text-blue-600 bg-white border-2 border-black px-2 py-1 inline-block mb-2">/makeplate</p>
+                                        <p className="text-xs font-bold text-slate-700 italic">Lalu masukkan ID kendaraan pada dialog box (Tanyakan kepada pemilik kendaraan).</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black shadow-[4px_4px_0_0_#000]">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Memberikan Denda / Invoice:</p>
+                                        <p className="text-sm font-black text-red-600 bg-white border-2 border-black px-2 py-1 inline-block mb-2">Otot H - Faction Panel - Invoice Manual</p>
+                                        <p className="text-xs font-bold text-slate-700 italic">Masukkan keterangan pelanggaran dan nominal denda.</p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Command Tindakan & Lapangan */}
+                            <section className="bg-white border-[5px] border-black shadow-[10px_10px_0_0_#000]">
+                                <div className="bg-[#00E676] border-b-[5px] border-black p-4 flex items-center gap-3">
+                                    <Crosshair className="text-black" size={24} />
+                                    <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black">Tindakan Lapangan & Komunikasi</h2>
+                                </div>
+                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 font-mono">
+                                    <div className="bg-slate-100 p-4 border-2 border-black flex flex-col justify-center">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Akses MDT (Proses Suspect):</p>
+                                        <p className="text-sm font-black text-blue-600">/mdt</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black flex flex-col justify-center">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Impound Kendaraan:</p>
+                                        <p className="text-sm font-black text-amber-600">/pdm</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black flex flex-col justify-center">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Keluarkan / Simpan Taser:</p>
+                                        <p className="text-sm font-black text-indigo-600">/taser</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black flex flex-col justify-center">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Keluarkan / Simpan Beanbag:</p>
+                                        <p className="text-sm font-black text-purple-600">/bb</p>
+                                        <p className="text-[10px] italic text-slate-500 mt-1">*Peluru karet khusus</p>
+                                    </div>
+                                    <div className="bg-slate-100 p-4 border-2 border-black flex flex-col justify-center md:col-span-2">
+                                        <p className="font-bold text-xs text-slate-500 mb-1">Kunci / Lepas Roda Kendaraan:</p>
+                                        <p className="text-sm font-black text-slate-800">Kunci: <span className="text-red-600">/tirelock [ID]</span> | Lepas: <span className="text-green-600">/untirelock [ID]</span></p>
+                                    </div>
+                                    <div className="bg-slate-900 text-white p-4 border-2 border-black flex flex-col justify-center md:col-span-2">
+                                        <p className="font-bold text-xs text-[#CCFF00] mb-1">Komunikasi Radio:</p>
+                                        <p className="text-sm font-black mb-1">Radio OOC: <span className="text-[#FF90E8]">/ro [Pesan]</span></p>
+                                        <p className="text-sm font-black">Balas Faction Lain: <span className="text-blue-400">/d [Pesan]</span> atau <span className="text-blue-400">/rdo [Pesan]</span></p>
                                     </div>
                                 </div>
                             </section>

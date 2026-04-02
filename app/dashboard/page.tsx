@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Menu, User, ChevronLeft, Home, Banknote, LogOut, ShieldAlert, History,
-    BookOpen, FileText, Scale, Info
+    BookOpen, FileText, Scale, Info, Book // Book icon ditambahkan untuk Bottom Nav
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import NextImage from 'next/image';
@@ -14,6 +14,7 @@ import Sidebar from "./components/Sidebar";
 import SectionHome from "./components/SectionHome";
 import SectionSalary from "./components/SectionSalary";
 import SectionLog from "./components/SectionLog";
+import SectionHandbook from "./components/SectionHandbook"; // 🚀 Komponen baru untuk Handbook Divisi
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -153,7 +154,7 @@ export default function PortalPage() {
                     point_prp: data.point_prp,
                     total_jam_duty: data.total_jam_duty,
                     pangkat: data.pangkat,
-                    divisi: data.divisi
+                    divisi: data.divisi // 🚀 DIVISI DIAMBIL DARI SINI
                 });
             } else if (error) {
                 console.error(error);
@@ -176,6 +177,7 @@ export default function PortalPage() {
                             {activeTab === 'home' && 'Personnel Terminal'}
                             {activeTab === 'payroll' && 'Financial Gateway'}
                             {activeTab === 'log' && 'Activity Log'}
+                            {activeTab === 'handbook' && 'Divisional Handbook'} {/* Header untuk Tab Handbook */}
                         </h2>
                     </div>
 
@@ -192,6 +194,8 @@ export default function PortalPage() {
                         {activeTab === 'home' && <SectionHome key="home" nickname={nickname} realtimeData={realtimeData} />}
                         {activeTab === 'log' && <SectionLog key="log" />}
                         {activeTab === 'payroll' && <SectionSalary key="salary" realtimeData={realtimeData} nickname={nickname} />}
+                        {/* 🚀 Render Section Handbook dan lempar props divisi */}
+                        {activeTab === 'handbook' && <SectionHandbook key="handbook" divisi={realtimeData.divisi} />}
                     </AnimatePresence>
                 </main>
 
@@ -210,6 +214,12 @@ export default function PortalPage() {
                     <button onClick={() => setActiveTab('payroll')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'payroll' ? 'scale-110' : 'opacity-40'}`}>
                         <Banknote size={26} strokeWidth={2.5} />
                         <span className="text-[10px] font-black uppercase italic block text-center">Gaji</span>
+                    </button>
+
+                    {/* 🚀 Tombol Handbook di Mobile */}
+                    <button onClick={() => setActiveTab('handbook')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'handbook' ? 'scale-110' : 'opacity-40'}`}>
+                        <Book size={26} strokeWidth={2.5} />
+                        <span className="text-[10px] font-black uppercase italic block text-center">Buku</span>
                     </button>
 
                     {dbStatus.is_admin && (

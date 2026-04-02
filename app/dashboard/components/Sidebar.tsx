@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, Banknote, ShieldAlert, Radar, History } from 'lucide-react';
+import { Home, Banknote, ShieldAlert, Radar, History, BookOpen } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: { isOpen: boolean, activeTab: string, setActiveTab: (tab: string) => void, dbStatus: any }) {
@@ -14,6 +14,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
         { id: 'home', label: 'DASHBOARD', icon: <Home size={20} />, color: '#FFD100' },
         { id: 'log', label: 'ACTIVITY LOG', icon: <History size={20} />, color: '#FF90E8' },
         { id: 'payroll', label: 'SALARY SYSTEM', icon: <Banknote size={20} />, color: '#00E676' },
+        { id: 'handbook', label: 'HANDBOOK DIVISI', icon: <BookOpen size={20} />, color: '#3B82F6' }, // 🚀 MENU BARU DITAMBAHKAN
     ];
 
     return (
@@ -64,7 +65,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
 
                 {/* mt-auto ditambahkan di sini agar teks footer tetap berada di paling bawah */}
                 <div className="mt-auto pt-6 text-center text-[8px] font-black uppercase opacity-30 italic">
-                    Mandalika Security Protocol v2.0
+                    Mandalika Security Protocol v3.7
                 </div>
 
             </div>

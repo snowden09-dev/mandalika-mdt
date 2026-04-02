@@ -81,8 +81,8 @@ function HandbookSatlantas() {
                         key={tab.id}
                         onClick={() => setActiveTab(index)}
                         className={`flex items-center justify-between p-4 border-[4px] border-black transition-all font-black uppercase italic tracking-tight text-left ${activeTab === index
-                                ? 'bg-black text-white shadow-[6px_6px_0_0_#000] translate-x-[-2px] translate-y-[-2px]'
-                                : 'bg-white hover:bg-slate-100'
+                            ? 'bg-black text-white shadow-[6px_6px_0_0_#000] translate-x-[-2px] translate-y-[-2px]'
+                            : 'bg-white hover:bg-slate-100'
                             }`}
                     >
                         <div className="flex items-center gap-3">
@@ -286,8 +286,9 @@ function SatlantasTab5() {
 
             <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-2">I. CONTOH KOMUNIKASI</h3>
             <ul className="list-none space-y-2 text-xs font-mono bg-slate-100 p-3 border-2 border-black">
-                <li>> "Mabes 00, unit PJR-01 izin lingkar-lingkar di area Los Santos."</li>
-                <li>> "Mabes 00, unit PJR-12 izin melakukan pengecekan di area ladang."</li>
+                {/* 🚀 Simbol '>' diganti menjadi teks aman agar tidak error */}
+                <li>&gt; "Mabes 00, unit PJR-01 izin lingkar-lingkar di area Los Santos."</li>
+                <li>&gt; "Mabes 00, unit PJR-12 izin melakukan pengecekan di area ladang."</li>
             </ul>
 
             <h3 className="font-black bg-slate-200 inline-block px-2 border-2 border-black mt-4">II. KETENTUAN UNIT</h3>

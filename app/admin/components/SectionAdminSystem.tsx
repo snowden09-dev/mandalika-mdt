@@ -59,7 +59,6 @@ export default function SectionAdminSystem() {
 
         setIsAuthorized(true);
 
-        // Cek Otoritas High Admin & Tarik Konfigurasi Radar
         if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) {
             setIsHighAdmin(true);
             const { data: config } = await supabase.from('system_config').select('*').eq('id', 'radar_inactivity').single();
@@ -107,7 +106,7 @@ export default function SectionAdminSystem() {
             const res = await fetch('/api/cron/inactive-radar');
             if (res.ok) {
                 toast.success("SURAT LAPORAN TERKIRIM KE DISCORD!", { id: tId });
-                setIsPreviewing(false); // Tutup preview setelah sukses
+                setIsPreviewing(false);
             } else {
                 throw new Error("Discord API Response Error");
             }
@@ -203,14 +202,15 @@ export default function SectionAdminSystem() {
     const getDayStatus = (discordId: string, date: Date) => {
         const targetDate = format(date, 'yyyy-MM-dd');
 
-        const dutyToday = duties.find(d => {
+        // AMBIL SEMUA DUTY DI HARI TERSEBUT (MENGGUNAKAN FILTER, BUKAN FIND)
+        const dutiesToday = duties.filter(d => {
             if (d.user_id_discord !== discordId) return false;
             if (!d.start_time) return false;
             const dutyLocalDate = format(new Date(d.start_time), 'yyyy-MM-dd');
             return dutyLocalDate === targetDate;
         });
 
-        if (dutyToday) return { type: 'DUTY', data: dutyToday };
+        if (dutiesToday.length > 0) return { type: 'DUTY', data: dutiesToday };
 
         const cutiToday = cutis.find(c => {
             if (c.user_id_discord !== discordId) return false;
@@ -242,7 +242,6 @@ export default function SectionAdminSystem() {
                 </div>
 
                 <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
-                    {/* 🚀 RADAR CONTROLS (HIGH ADMIN ONLY) */}
                     {isHighAdmin && (
                         <div className="flex bg-slate-100 p-1.5 rounded-xl border-2 border-black w-full md:w-auto justify-center">
                             <button
@@ -304,7 +303,7 @@ export default function SectionAdminSystem() {
 
             {/* MAIN TABLE */}
             <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse min-w-[1200px]">
                         <thead>
                             <tr className="bg-slate-950 text-white">
@@ -326,36 +325,53 @@ export default function SectionAdminSystem() {
                                     {daysInWeek.map((day, idx) => {
                                         const status = getDayStatus(p.discord_id, day);
                                         return (
-                                            <td key={idx} className="p-3 border-r-2 border-slate-100 min-w-[150px] align-middle">
+                                            <td key={idx} className="p-3 border-r-2 border-slate-100 min-w-[150px] align-top">
                                                 {viewMode === 'DETAIL' ? (
                                                     // --- MODE DETAIL (KARTU BESAR) ---
                                                     <>
                                                         {status.type === 'DUTY' && (
-                                                            <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[130px] justify-between relative group/card">
-                                                                <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'presensi_duty' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
-
-                                                                <div className="border-b border-black/20 pb-1 flex flex-col items-center">
-                                                                    <div className="font-[1000] text-[11px] uppercase italic flex justify-between w-full">
-                                                                        <span>{Math.floor(status.data.durasi_menit / 60)}H {status.data.durasi_menit % 60}M</span>
-                                                                        <Clock size={12} />
+                                                            <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-start relative">
+                                                                <div className="border-b-2 border-black/20 pb-1 mb-2 flex flex-col items-center">
+                                                                    <div className="font-[1000] text-[11px] uppercase italic flex justify-between w-full text-slate-900">
+                                                                        <span>
+                                                                            {(() => {
+                                                                                const totalMinutes = status.data.reduce((acc: number, d: any) => acc + (d.durasi_menit || 0), 0);
+                                                                                return `${Math.floor(totalMinutes / 60)}H ${totalMinutes % 60}M`;
+                                                                            })()}
+                                                                        </span>
+                                                                        <Clock size={14} />
                                                                     </div>
-                                                                    {status.data.start_time && status.data.end_time && (
-                                                                        <div className="bg-black/10 text-black px-2 py-0.5 rounded font-black text-[8px] uppercase tracking-widest mt-1">
-                                                                            {format(new Date(status.data.start_time), 'HH:mm')} - {format(new Date(status.data.end_time), 'HH:mm')}
-                                                                        </div>
-                                                                    )}
                                                                 </div>
 
-                                                                <p className="text-[9px] font-black italic leading-tight uppercase my-1 line-clamp-3">{status.data.catatan_duty}</p>
-                                                                {status.data.bukti_foto?.[0] && <button onClick={() => setSelectedPhoto(status.data.bukti_foto[0])} className="bg-black text-white rounded-lg py-1.5 flex justify-center hover:bg-blue-600 active:scale-95 transition-all"><ImageIcon size={14} /></button>}
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    {status.data.map((duty: any) => (
+                                                                        <div key={duty.id} className="bg-black/10 border border-black/20 text-slate-900 px-2 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest flex justify-between items-center group/item relative">
+                                                                            <span>
+                                                                                {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
+                                                                            </span>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                {duty.bukti_foto?.[0] && (
+                                                                                    <button onClick={() => setSelectedPhoto(duty.bukti_foto[0])} className="text-blue-700 hover:text-blue-900 transition-colors">
+                                                                                        <ImageIcon size={14} />
+                                                                                    </button>
+                                                                                )}
+                                                                                <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-red-600 hover:text-red-800 transition-colors opacity-0 group-hover/item:opacity-100">
+                                                                                    <X size={14} />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
                                                             </div>
                                                         )}
                                                         {status.type === 'CUTI' && (
-                                                            <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col h-[130px] justify-center items-center text-center relative group/card">
+                                                            <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-center items-center text-center relative group/card">
                                                                 <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
                                                                 <ShieldAlert size={20} className="mb-2" />
                                                                 <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>
-                                                                <p className="text-[8px] font-bold opacity-50 uppercase mt-1 italic truncate w-full">{status.data.alasan}</p>
+                                                                <div className="w-full mt-2 bg-yellow-400/30 p-2 rounded border border-black/10">
+                                                                    <p className="text-[9px] font-bold opacity-80 uppercase italic whitespace-normal break-words leading-tight">{status.data.alasan}</p>
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </>

@@ -85,16 +85,31 @@ export default function SectionAdminLaporan() {
         } catch (err) { toast.error("Gagal update konfigurasi!"); }
     };
 
+    // --- 🛠️ FUNGSI FILTER URL GAMBAR ---
     const formatImageUrlForDiscord = (url: string) => {
         if (!url) return null;
         let finalUrl = url.trim();
-        if (finalUrl.includes('imgur.com') && !finalUrl.match(/\.(jpeg|jpg|gif|png)$/)) {
-            finalUrl = finalUrl.replace('imgur.com', 'i.imgur.com') + '.jpg';
+
+        // 1. Jika URL dari Supabase, biarkan saja karena ini sudah Direct URL
+        if (finalUrl.includes('supabase.co/storage')) {
+            return finalUrl;
+        }
+
+        // 2. Fix khusus untuk Imgur standard
+        if (finalUrl.includes('imgur.com') && !finalUrl.includes('i.imgur.com')) {
+            if (!finalUrl.includes('/a/') && !finalUrl.includes('/gallery/')) {
+                finalUrl = finalUrl.replace('imgur.com', 'i.imgur.com');
+                if (!finalUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                    finalUrl += '.jpg';
+                }
+            } else {
+                return null; // Return null jika format album agar webhook tidak error
+            }
         }
         return finalUrl;
     };
 
-    // --- 🛠️ LOGIKA FIX: PENAMBAHAN SYSTEM RADAR BUKTI (Mencegah Silent Fail) ---
+    // --- 🛠️ LOGIKA FIX: PENAMBAHAN SYSTEM RADAR BUKTI ---
     const handleAction = async (report: any, status: 'APPROVED' | 'REJECTED') => {
         const tId = toast.loading(`Processing ${status}...`);
         try {
@@ -104,7 +119,6 @@ export default function SectionAdminLaporan() {
                     const currentPoin = Number(userData?.point_prp) || 0;
                     const poinTambahan = Number(report.poin_estimasi) || 0;
 
-                    // Force Select Bukti PRP Nambah
                     const { data: prpCheck, error: prpErr } = await supabase.from('users').update({ point_prp: currentPoin + poinTambahan }).eq('discord_id', report.user_id_discord).select();
                     if (prpErr) throw prpErr;
                     if (!prpCheck || prpCheck.length === 0) throw new Error("Akses Database Ditolak (RLS Users Blokir)!");
@@ -128,9 +142,8 @@ export default function SectionAdminLaporan() {
                     })
                 });
 
-                if (!response.ok) throw new Error("Discord API Error!");
+                if (!response.ok) throw new Error("Discord API Error! Mungkin link gambar tidak valid.");
 
-                // Force Select Bukti Status Berubah
                 const { data: statusCheck, error } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED', is_sent_discord: true }).eq('id', report.id).select();
                 if (error) throw error;
                 if (!statusCheck || statusCheck.length === 0) throw new Error("Update Gagal: Database Supabase RLS Memblokir!");
@@ -139,7 +152,6 @@ export default function SectionAdminLaporan() {
                 toast.success(`Berhasil! Poin cair & terkirim ke Discord.`, { id: tId });
 
             } else {
-                // Force Select Bukti Status Berubah
                 const { data: statusCheck, error } = await supabase.from('laporan_aktivitas').update({ status: 'REJECTED' }).eq('id', report.id).select();
                 if (error) throw error;
                 if (!statusCheck || statusCheck.length === 0) throw new Error("Update Gagal: Database Supabase RLS Memblokir!");
@@ -175,7 +187,7 @@ export default function SectionAdminLaporan() {
                 })
             });
 
-            if (!response.ok) throw new Error("Discord Webhook Error!");
+            if (!response.ok) throw new Error("Discord Webhook Error! Periksa link URL Webhook atau Gambar.");
 
             const { data: transCheck, error } = await supabase.from('laporan_aktivitas').update({ is_sent_discord: true }).eq('id', report.id).select();
             if (error) throw error;
@@ -273,7 +285,6 @@ export default function SectionAdminLaporan() {
                 <div className="py-20 text-center animate-pulse font-black uppercase italic">Scanning Intelligence Data...</div>
             ) : (
                 filteredData.length === 0 ? (
-                    // --- 🚀 EMPTY STATE NEO-BRUTALISM ---
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
                         <div className="bg-slate-100 p-5 md:p-6 border-[3.5px] border-slate-900 rounded-3xl mb-4 shadow-[6px_6px_0_0_#000]">
                             <FileText size={56} className="text-slate-400" />

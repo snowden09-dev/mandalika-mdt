@@ -343,22 +343,28 @@ export default function SectionAdminSystem() {
                                                                     </div>
                                                                 </div>
 
-                                                                <div className="flex flex-col gap-1.5">
+                                                                <div className="flex flex-col gap-2">
                                                                     {status.data.map((duty: any) => (
-                                                                        <div key={duty.id} className="bg-black/10 border border-black/20 text-slate-900 px-2 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest flex justify-between items-center group/item relative">
-                                                                            <span>
-                                                                                {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
-                                                                            </span>
-                                                                            <div className="flex items-center gap-1.5">
-                                                                                {duty.bukti_foto?.[0] && (
-                                                                                    <button onClick={() => setSelectedPhoto(duty.bukti_foto[0])} className="text-blue-700 hover:text-blue-900 transition-colors">
-                                                                                        <ImageIcon size={14} />
+                                                                        <div key={duty.id} className="bg-black/10 border border-black/20 text-slate-900 p-2 rounded-lg flex flex-col gap-1.5 group/item relative">
+                                                                            <div className="flex justify-between items-center border-b border-black/10 pb-1 w-full">
+                                                                                <span className="font-black text-[9px] uppercase tracking-widest">
+                                                                                    {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
+                                                                                </span>
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {duty.bukti_foto?.[0] && (
+                                                                                        <button onClick={() => setSelectedPhoto(duty.bukti_foto[0])} className="text-blue-700 hover:text-blue-900 transition-colors">
+                                                                                            <ImageIcon size={14} />
+                                                                                        </button>
+                                                                                    )}
+                                                                                    <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-red-600 hover:text-red-800 transition-colors opacity-0 group-hover/item:opacity-100">
+                                                                                        <X size={14} />
                                                                                     </button>
-                                                                                )}
-                                                                                <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-red-600 hover:text-red-800 transition-colors opacity-0 group-hover/item:opacity-100">
-                                                                                    <X size={14} />
-                                                                                </button>
+                                                                                </div>
                                                                             </div>
+                                                                            {/* MENAMPILKAN CATATAN DUTY DI SINI */}
+                                                                            <p className="text-[8px] font-bold italic opacity-80 leading-tight whitespace-normal break-words line-clamp-3">
+                                                                                {duty.catatan_duty || "Tidak ada laporan"}
+                                                                            </p>
                                                                         </div>
                                                                     ))}
                                                                 </div>

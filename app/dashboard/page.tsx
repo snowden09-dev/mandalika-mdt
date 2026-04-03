@@ -195,7 +195,7 @@ export default function PortalPage() {
                         {activeTab === 'log' && <SectionLog key="log" />}
                         {activeTab === 'payroll' && <SectionSalary key="salary" realtimeData={realtimeData} nickname={nickname} />}
                         {/* 🚀 Render Section Handbook dan lempar props divisi */}
-                        {activeTab === 'handbook' && <SectionHandbook key="handbook" divisi={realtimeData.divisi} />}
+                        {activeTab === 'handbook' && <SectionHandbook key="handbook" divisi={realtimeData.divisi} isPetinggi={dbStatus.is_admin} />}
                     </AnimatePresence>
                 </main>
 

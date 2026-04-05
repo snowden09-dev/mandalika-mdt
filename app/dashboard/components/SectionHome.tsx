@@ -1,18 +1,21 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { motion, Variants } from 'framer-motion';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
 import {
     Zap, Clock, Calendar, FileText, Award,
     ChevronRight, Radar, Fingerprint, Target,
     Crosshair, Activity, ShieldAlert, TrendingUp,
-    UserCheck, HelpCircle, AlertTriangle, GraduationCap
+    UserCheck, HelpCircle, AlertTriangle, GraduationCap,
+    Camera, MapPin, BadgeCheck, Share2, MoreHorizontal, User,
+    Star
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import NextImage from 'next/image';
 import TacticalTransition from './TacticalTransition';
 
 const RANKS_DB = [
-    { name: "CASIS", prp: 0, hrs: 0 }, // 🎓 Entry level untuk anak didik baru
+    { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
     { name: "BHARATU", prp: 50, hrs: 10 }, { name: "BRIPDA", prp: 100, hrs: 20 },
     { name: "BRIPTU", prp: 150, hrs: 25 }, { name: "BRIGADIR", prp: 250, hrs: 35 },
@@ -25,10 +28,17 @@ const RANKS_DB = [
     { name: "JENDRAL", prp: 15000, hrs: 1500 },
 ];
 
-export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
+interface SectionHomeProps {
+    nickname: string;
+    realtimeData: any;
+    theme: 'NEO' | 'CLEAN';
+    userData?: any;
+}
+
+export default function SectionHome({ nickname, realtimeData, theme, userData }: SectionHomeProps) {
     const router = useRouter();
 
-    // 🚀 STATE NAVIGASI UNTUK LOADING SCREEN
+    // 🚀 LOGIK NAVIGASI & STATS (TETAP SAMA)
     const [navState, setNavState] = useState<{ active: boolean, type: 'STAR' | 'COMPUTER' }>({
         active: false,
         type: 'STAR'
@@ -73,16 +83,145 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     }, [realtimeData]);
 
     const isCasis = realtimeData.pangkat?.toUpperCase() === 'CASIS';
+    const totalLaporan = 12; // Mock data laporan
 
+    // ==========================================
+    // 🎨 RENDER MODE: CLEAN (TRAKTEER STYLE)
+    // ==========================================
+    if (theme === 'CLEAN') {
+        return (
+            <motion.div
+                variants={container} initial="hidden" animate="show"
+                className="w-full max-w-4xl mx-auto space-y-6 pb-32 p-4 font-sans"
+            >
+                <TacticalTransition isVisible={navState.active} type={navState.type} />
+
+                {/* HEADER CARD */}
+                <motion.div variants={item} className="bg-white rounded-[32px] overflow-hidden shadow-sm border border-slate-200">
+                    <div className="h-40 md:h-52 bg-slate-900 relative">
+                        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                        <button className="absolute bottom-4 right-4 bg-black/20 hover:bg-black/40 backdrop-blur-md p-2 rounded-full border border-white/20 text-white transition-all">
+                            <Camera size={18} />
+                        </button>
+                    </div>
+
+                    <div className="px-6 md:px-10 pb-8">
+                        <div className="relative flex flex-col md:flex-row md:items-end md:justify-between -mt-12 md:-mt-16">
+                            <div className="flex flex-col md:flex-row md:items-end gap-5">
+                                <div className="w-28 h-28 md:w-40 md:h-40 bg-white p-1.5 rounded-full shadow-md">
+                                    <div className="w-full h-full bg-slate-100 rounded-full overflow-hidden relative">
+                                        {userData?.image ? (
+                                            <NextImage src={userData.image} alt="Avatar" width={160} height={160} className="object-cover w-full h-full" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center"><User size={50} className="text-slate-300" /></div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="pb-2">
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{nickname}</h1>
+                                        <BadgeCheck size={22} className="text-blue-500 fill-blue-500/10" />
+                                    </div>
+                                    <p className="text-slate-500 font-medium tracking-tight">@{nickname.toLowerCase().replace(/\s/g, '_')}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-6 mt-6 md:mt-0 md:pb-4 border-t md:border-t-0 pt-4 md:pt-0">
+                                <div className="text-center md:text-right">
+                                    <p className="text-xl font-bold text-slate-900">{totalLaporan}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Laporan</p>
+                                </div>
+                                <div className="text-center md:text-right">
+                                    <p className="text-xl font-bold text-slate-900">{Math.floor(realtimeData.total_jam_duty)}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Jam Duty</p>
+                                </div>
+                                <div className="text-center md:text-right">
+                                    <p className="text-xl font-bold text-slate-900">{realtimeData.point_prp}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Point PRP</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="flex flex-wrap gap-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-100"><MapPin size={14} /> {realtimeData.divisi}</span>
+                                <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-100"><Star size={14} /> {realtimeData.pangkat}</span>
+                                <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-100"><Calendar size={14} /> Joined 2026</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleAction(isCasis ? '/absen-diklat' : '/absen', 'STAR')}
+                                    className="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-red-200 flex items-center justify-center gap-2"
+                                >
+                                    <Zap size={16} fill="white" /> {isCasis ? 'Absen Diklat' : 'Absensi'}
+                                </button>
+                                <button className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"><Share2 size={18} /></button>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+
+                {/* PROGRESS CARD */}
+                <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="font-bold text-slate-900">Next Rank: {progress.next}</h4>
+                            <Award size={20} className="text-blue-500" />
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex justify-between text-xs font-bold mb-1.5">
+                                    <span className="text-slate-500 uppercase">PRP Points</span>
+                                    <span className="text-blue-600">{progress.prpPct}%</span>
+                                </div>
+                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <motion.div initial={{ width: 0 }} animate={{ width: `${progress.prpPct}%` }} className="h-full bg-blue-500" />
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1.5 font-medium italic">Butuh {progress.prpNeed} point lagi</p>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-xs font-bold mb-1.5">
+                                    <span className="text-slate-500 uppercase">Duty Hours</span>
+                                    <span className="text-emerald-600">{progress.hrPct}%</span>
+                                </div>
+                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <motion.div initial={{ width: 0 }} animate={{ width: `${progress.hrPct}%` }} className="h-full bg-emerald-500" />
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1.5 font-medium italic">Butuh {progress.hrNeed} jam lagi</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <motion.button
+                        whileHover={{ y: -4 }}
+                        onClick={() => handleAction(isCasis ? '/izin-diklat' : '/laporan', 'COMPUTER')}
+                        className="bg-slate-900 p-6 rounded-3xl text-white flex flex-col justify-between group"
+                    >
+                        <div className="flex justify-between items-start">
+                            <div className="bg-white/10 p-3 rounded-2xl"><FileText size={24} /></div>
+                            <ChevronRight className="opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold leading-tight">{isCasis ? 'Form Izin/Sakit' : 'Kirim Laporan'}</p>
+                            <p className="text-slate-400 text-xs mt-1 font-medium italic">Klik untuk mengakses gateway terminal</p>
+                        </div>
+                    </motion.button>
+                </motion.div>
+            </motion.div>
+        );
+    }
+
+    // ==========================================
+    // 💥 RENDER MODE: NEO-BRUTALISM (GAYA LAMA)
+    // ==========================================
     return (
         <motion.div
             variants={container} initial="hidden" animate="show"
-            className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative"
+            className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative font-mono"
         >
-            {/* 🚀 LAYAR TRANSISI */}
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
-            {/* --- HERO SECTION --- */}
+            {/* HERO SECTION */}
             <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-8 ${boxBorder} ${hardShadow} relative overflow-hidden flex flex-col justify-end min-h-[220px] group`}>
                 <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500">
                     <Fingerprint size={160} className="text-black" />
@@ -101,7 +240,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 </div>
             </motion.div>
 
-            {/* --- BIG STATS: REP POINTS --- */}
+            {/* REP POINTS */}
             <motion.div variants={item} className={`bg-[#FFD100] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
                 <div className="absolute -right-2 -top-2 opacity-10 group-hover:rotate-45 transition-transform">
                     <Zap size={100} />
@@ -125,7 +264,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 </div>
             </motion.div>
 
-            {/* --- BIG STATS: DUTY HOURS --- */}
+            {/* DUTY HOURS */}
             <motion.div variants={item} className={`bg-[#00E676] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
                 <div className="absolute -right-2 -top-2 opacity-10 group-hover:scale-110 transition-transform">
                     <Activity size={100} />
@@ -149,7 +288,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 </div>
             </motion.div>
 
-            {/* --- PROMOTION PATHWAY --- */}
+            {/* PROMOTION PATHWAY */}
             <motion.div variants={item} className={`col-span-2 bg-white p-4 md:p-6 ${boxBorder} ${hardShadow} relative group overflow-hidden`}>
                 <div className="absolute -right-6 -top-6 opacity-5 group-hover:scale-125 transition-transform duration-1000">
                     <Target size={180} />
@@ -177,10 +316,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 </div>
             </motion.div>
 
-            {/* --- 🔥 CONDITIONAL ACTIONS: CASIS VS POLICE --- */}
+            {/* 🔥 ACTIONS CASIS VS POLICE */}
             {isCasis ? (
                 <>
-                    {/* MODUL KHUSUS CASIS */}
                     <motion.button
                         variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
                         onClick={() => handleAction('/absen-diklat', 'STAR')}
@@ -202,17 +340,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                         </div>
                         <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#FFD100]">Izin/Sakit</span>
                     </motion.button>
-
-                    <motion.div variants={item} className="col-span-2 bg-slate-950 text-white p-4 border-[3px] border-black rounded-xl flex items-center gap-3">
-                        <AlertTriangle className="text-yellow-400 shrink-0" />
-                        <p className="text-[10px] font-black uppercase italic leading-tight">
-                            Peringatan Siswa: Hanya diperbolehkan melakukan Presensi saat Pelatihan Resmi dimulai.
-                        </p>
-                    </motion.div>
                 </>
             ) : (
                 <>
-                    {/* MODUL STANDAR POLISI */}
                     <motion.button
                         variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
                         onClick={() => handleAction('/absen', 'STAR')}
@@ -244,7 +374,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 }
                 .animate-spin-slow { animation: spin-slow 8s linear infinite; }
             `}</style>
-
         </motion.div>
     );
 }

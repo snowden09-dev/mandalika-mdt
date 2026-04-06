@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import MaintenanceGuard from "./dashboard/components/MaintenanceGuard"; // <--- Import Penjaga
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,12 +13,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// --- UPDATE METADATA MANDALIKA ---
 export const metadata: Metadata = {
   title: "MANDALIKA - MDT",
   description: "Official Mobile Data Terminal Mandalika Police Department",
   icons: {
-    icon: "/logo-polisi.png", // <--- Arahkan ke file logo Jendral
+    icon: "/logo-polisi.png",
     shortcut: "/logo-polisi.png",
     apple: "/logo-polisi.png",
   },
@@ -30,11 +30,14 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="id" // Ganti ke Indonesia agar SEO lebih tajam
+      lang="id"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#E0E7FF]">
-        {children}
+        {/* Bungkus semua children dengan Guard agar pengecekan global */}
+        <MaintenanceGuard>
+          {children}
+        </MaintenanceGuard>
       </body>
     </html>
   );

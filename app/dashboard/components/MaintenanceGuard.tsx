@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import MaintenancePage from './MaintenancePage'; // <--- Dia manggil temennya
+import MaintenancePage from './MaintenancePage';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +17,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     });
 
     useEffect(() => {
+        // 1. FUNGSI CEK STATUS (Manual Check)
         const checkStatus = async () => {
             const sessionData = localStorage.getItem('police_session');
             let userIsAdmin = false;
@@ -44,11 +45,36 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
                 isAdmin: userIsAdmin
             });
         };
+
         checkStatus();
+
+        // 🚀 2. PASANG RADAR REALTIME (Listen for Changes)
+        const channel = supabase
+            .channel('public:global_settings') // Nama channel bebas
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'global_settings' },
+                (payload) => {
+                    // Jika ada baris maintenance_mode yang diubah
+                    if (payload.new.key === 'maintenance_mode') {
+                        setStatus(prev => ({
+                            ...prev,
+                            maintenance: payload.new.value_bool
+                        }));
+                    }
+                }
+            )
+            .subscribe();
+
+        // Bersihkan radar pas komponen gak kepakai
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     if (status.loading) return <div className="bg-[#E0E7FF] h-screen w-full" />;
 
+    // LOCKDOWN REALTIME: Jika Aktif & Bukan Admin -> Tendang ke layar Maintenance
     if (status.maintenance && !status.isAdmin) {
         return <MaintenancePage />;
     }

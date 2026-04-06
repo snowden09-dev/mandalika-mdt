@@ -19,7 +19,7 @@ export default function MaintenancePage() {
                     </div>
                     <h1 className="text-4xl md:text-6xl font-[1000] italic uppercase tracking-tighter leading-none mb-4">SYSTEM LOCKDOWN</h1>
                     <div className="h-2 bg-black w-full my-6" />
-                    <p className="text-sm md:text-lg font-black uppercase italic mb-8">KADIV PROPAM sedang melakukan kalibrasi sistem.</p>
+                    <p className="text-sm md:text-lg font-black uppercase italic mb-8">Developer sedang melakukan update sistem.</p>
                     <div className="flex items-center justify-center gap-3 bg-black text-[#CCFF00] py-3 px-6 border-4 border-black font-black uppercase italic animate-pulse">
                         <Clock size={20} /> STATUS: MAINTENANCE
                     </div>

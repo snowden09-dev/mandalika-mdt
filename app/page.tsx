@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
@@ -39,7 +40,7 @@ export default function LandingPageBrain() {
 
     fetchTheme();
 
-    // Opsional: Pasang Radar Realtime untuk ganti tema secara Live!
+    // Pasang Radar Realtime untuk ganti tema secara Live!
     const channel = supabase.channel('theme_listener').on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'global_settings', filter: "key=eq.theme_clean_active" },
       (payload) => {
@@ -63,7 +64,10 @@ export default function LandingPageBrain() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-        if (localStorage.getItem('police_session')) { router.replace('/dashboard'); return; }
+        if (localStorage.getItem('police_session')) {
+          router.replace('/dashboard');
+          return;
+        }
 
         setIsLoading(true);
         setStatus('Mengecek Akses...');
@@ -88,7 +92,10 @@ export default function LandingPageBrain() {
           if (result.isPolice === true) {
             setStatus('Sinkronisasi Data...');
             await supabase.from('users').upsert({
-              discord_id: discordId, name: discordName.toUpperCase(), pangkat: result.pangkat || 'BHARADA', divisi: result.divisi || 'SABHARA'
+              discord_id: discordId,
+              name: discordName.toUpperCase(),
+              pangkat: result.pangkat || 'BHARADA',
+              divisi: result.divisi || 'SABHARA'
             }, { onConflict: 'discord_id' });
 
             setStatus('Akses Diberikan!');
@@ -100,16 +107,22 @@ export default function LandingPageBrain() {
             localStorage.removeItem('police_session');
             router.push('/unauthorized');
           }
-        } catch (err) {
-          const errorObj = err as Error;
-          if (errorObj.message === "INVALID_ID") { setStatus('Akses Ilegal Diblokir'); await supabase.auth.signOut(); }
-          else { setStatus('Gagal Sistem'); }
+        } catch (err: unknown) { // 🚀 PATCH TERTINGGI: Pakai unknown agar linter diam
+          if (err instanceof Error && err.message === "INVALID_ID") {
+            setStatus('Akses Ilegal Diblokir');
+            await supabase.auth.signOut();
+          } else {
+            setStatus('Gagal Sistem');
+          }
           setIsLoading(false);
         }
       }
     });
 
-    return () => { clearInterval(timer); authListener.subscription.unsubscribe(); };
+    return () => {
+      clearInterval(timer);
+      authListener.subscription.unsubscribe();
+    };
   }, [router]);
 
   const handleLogin = async () => {

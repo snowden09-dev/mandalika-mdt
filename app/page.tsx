@@ -4,12 +4,6 @@ import { motion, Variants } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ShieldCheck, Zap } from 'lucide-react';
-
-// Impor font Quicksand
-import "@fontsource/quicksand/500.css";
-import "@fontsource/quicksand/700.css";
-import "@fontsource/quicksand/800.css";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -17,31 +11,28 @@ const supabase = createClient(
 );
 
 // --- ANIMASI ---
-const float: Variants = {
-  animate: {
-    y: [-10, 10, -10],
-    transition: { duration: 4, repeat: Infinity, ease: "easeInOut" }
+const dropIn: Variants = {
+  hidden: { opacity: 0, y: -100 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 120, damping: 12 }
   }
 };
 
-const popIn: Variants = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: { type: "spring", stiffness: 200, damping: 20 }
+const float: Variants = {
+  animate: {
+    y: [0, -10, 0],
+    transition: { duration: 3, repeat: Infinity, ease: "easeInOut" }
   }
 };
 
 export default function LandingPage() {
   const router = useRouter();
   const [time, setTime] = useState('');
-  const [status, setStatus] = useState('Standby');
+  const [status, setStatus] = useState('LOG MASUK');
   const [isLoading, setIsLoading] = useState(false);
 
-  // ==========================================
-  // 🛡️ LOGIKA SISTEM (TIDAK ADA YANG DIUBAH)
-  // ==========================================
   useEffect(() => {
     const timer = setInterval(() => {
       setTime(new Date().toLocaleTimeString());
@@ -66,12 +57,14 @@ export default function LandingPage() {
         }
 
         setIsLoading(true);
-        setStatus('Mengecek Akses...');
+        setStatus('MENGECEK AKSES...');
 
         try {
-          // 1. 🛡️ PATCH KEAMANAN: Ekstraksi ID Discord yang Valid
+          // 1. 🛡️ PATCH KEAMANAN: Ekstraksi ID Discord yang Valid & Tahan Banting
           const identities = session.user.identities || [];
           const discordIdentity = identities.find((id) => id.provider === 'discord');
+
+          // Cari ID dari berbagai sumber yang valid di Supabase
           const discordId = discordIdentity?.id || session.user.user_metadata?.sub;
 
           const discordName =
@@ -80,6 +73,7 @@ export default function LandingPage() {
             session.user.user_metadata?.name ||
             "UNKNOWN PERSONEL";
 
+          // 🚨 PEMBLOKIRAN INSTAN: Jika ID tetap kosong, langsung tendang!
           if (!discordId) {
             console.error("CRITICAL ERROR: Discord ID gagal didapatkan dari Session!");
             throw new Error("INVALID_ID");
@@ -89,17 +83,17 @@ export default function LandingPage() {
           const response = await fetch('/api/check-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: discordId }),
+            body: JSON.stringify({ userId: discordId }), // Sekarang dijamin ADA ISINYA
           });
 
           if (!response.ok) throw new Error("API_ERROR");
           const result = await response.json();
 
-          // 🚨 HARUS EXACTLY TRUE
+          // 🚨 HARUS EXACTLY TRUE (Mencegah Bypass jika API error & mengirim string/object aneh)
           if (result.isPolice === true) {
-            setStatus('Sinkronisasi Data...');
+            setStatus('SINKRONISASI DATA...');
 
-            // 3. Upsert Database Aman
+            // 3. Upsert Database Aman (ID terjamin tidak null)
             const { error: syncError } = await supabase
               .from('users')
               .upsert({
@@ -116,23 +110,28 @@ export default function LandingPage() {
               console.error("Sync Error Details:", syncError);
             }
 
-            setStatus('Akses Diberikan!');
+            setStatus('AKSES DIBERIKAN!');
             localStorage.setItem('police_session', JSON.stringify({ ...result, discord_id: discordId }));
+
             window.location.href = '/dashboard';
           } else {
-            setStatus('Akses Ditolak!');
+            // JIKA BUKAN POLISI, TENDANG KELUAR!
+            setStatus('AKSES DITOLAK!');
             await supabase.auth.signOut();
             localStorage.removeItem('police_session');
             router.push('/unauthorized');
           }
         } catch (err: any) {
           console.error("Gagal Verifikasi:", err);
+
+          // Jika error karena ID tidak valid, paksa Sign Out!
           if (err.message === "INVALID_ID") {
-            setStatus('Akses Ilegal Diblokir');
+            setStatus('AKSES ILEGAL DIBLOKIR');
             await supabase.auth.signOut();
           } else {
-            setStatus('Gagal Sistem');
+            setStatus('GAGAL SISTEM');
           }
+
           setIsLoading(false);
         }
       }
@@ -146,121 +145,95 @@ export default function LandingPage() {
 
   const handleLogin = async () => {
     if (isLoading) return;
-    setStatus('Menghubungkan...');
+    setStatus('MENGHUBUNGKAN...');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'discord',
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+      },
     });
 
     if (error) {
       console.error("Gagal Login:", error.message);
-      setStatus('Gagal Login');
+      setStatus('LOG MASUK');
     }
   };
 
-  // ==========================================
-  // 🎨 TAMPILAN BARU (TRAKTEER STYLE)
-  // ==========================================
   return (
-    <main className="min-h-screen bg-[#001D4C] text-white font-[Quicksand] flex flex-col relative overflow-hidden">
+    <main className="min-h-screen bg-[#E0E7FF] text-black flex items-center justify-center p-6 relative overflow-hidden font-sans">
 
-      {/* HEADER ALA TRAKTEER */}
-      <header className="absolute top-0 left-0 w-full p-4 md:p-6 z-20">
-        <div className="max-w-7xl mx-auto flex justify-between items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-6 py-3">
-          <div className="flex items-center gap-3">
-            <div className="bg-white p-1.5 rounded-full">
-              <img src="/logo-polisi.png" alt="Logo" className="w-6 h-6 md:w-8 md:h-8 object-contain" />
-            </div>
-            <span className="font-bold text-lg md:text-xl tracking-tight">mandalika</span>
-          </div>
+      {/* --- DEKORASI BACKGROUND --- */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-50">
+        <div className="absolute top-[10%] left-[5%] w-32 h-32 bg-[#FFD100] border-4 border-black rounded-full shadow-[8px_8px_0_0_#000] rotate-12 hidden lg:block" />
+        <div className="absolute bottom-[15%] right-[10%] w-48 h-48 bg-[#00E676] border-4 border-black shadow-[12px_12px_0_0_#000] -rotate-6 hidden lg:block" />
+        <div className="absolute top-[20%] right-[5%] w-24 h-24 bg-[#FF4D4D] border-b-[20px] border-black hidden lg:block" />
+      </div>
 
-          <div className="flex items-center gap-4">
-            <span className="hidden md:inline text-sm font-medium text-white/70">Waktu: {time || '00:00'} WIB</span>
-            <button
-              onClick={handleLogin}
-              disabled={isLoading}
-              className="bg-white text-[#001D4C] px-5 py-2 rounded-full font-bold text-sm hover:bg-slate-100 transition-colors flex items-center gap-2"
-            >
-              Login <ArrowRight size={16} />
-            </button>
-          </div>
+      {/* --- WIDGET KIRI: TIME --- */}
+      <motion.div
+        variants={float} animate="animate"
+        className="hidden lg:flex absolute left-12 top-24 w-64 bg-white border-4 border-black p-4 flex-col gap-2 shadow-[10px_10px_0px_0px_#3B82F6] rotate-[-2deg]"
+      >
+        <div className="bg-[#3B82F6] p-2 font-black text-center border-b-4 border-black uppercase italic">
+          Mandalika Time
         </div>
-      </header>
+        <p className="text-4xl font-black text-center py-4 tracking-tighter">{time || '00:00:00'}</p>
+        <p className="text-[10px] font-black bg-[#FFD100] p-1 text-center border-2 border-black uppercase">
+          RADAR_STATUS: ACTIVE
+        </p>
+      </motion.div>
 
-      {/* HERO SECTION */}
-      <div className="flex-1 flex flex-col lg:flex-row items-center justify-center max-w-7xl mx-auto px-6 pt-24 lg:pt-0 w-full z-10 gap-12">
+      {/* --- KARTU UTAMA --- */}
+      <motion.div
+        initial="hidden" animate="visible" variants={dropIn}
+        className="w-full max-w-sm bg-white border-[6px] border-black shadow-[20px_20px_0px_0px_rgba(0,0,0,1)] z-10 relative overflow-hidden"
+      >
+        <div className="bg-[#FFD100] border-b-4 border-black p-2 flex justify-between items-center px-4">
+          <span className="font-black text-[12px] italic uppercase tracking-widest">Official MDT v2.0</span>
+          <div className={`w-4 h-4 bg-[#FF4D4D] border-2 border-black rounded-full ${isLoading ? 'animate-ping' : 'animate-pulse'}`} />
+        </div>
 
-        {/* TEKS KIRI */}
-        <div className="flex-1 space-y-6 text-center lg:text-left mt-10 lg:mt-0">
-          <motion.h1
-            initial="hidden" animate="visible" variants={popIn}
-            className="text-5xl sm:text-6xl lg:text-7xl font-[800] tracking-tight leading-[1.1]"
+        <div className="p-8 flex flex-col items-center text-black">
+          <motion.div
+            whileHover={{ scale: 1.1, rotate: 5 }}
+            className="bg-[#A78BFA] border-4 border-black p-4 shadow-[8px_8px_0px_0px_#000] mb-8"
           >
-            Pusat Terminal <br />
-            <span className="text-[#FFD100]">Operasi Personel.</span>
-          </motion.h1>
+            <img src="/logo-polisi.png" alt="Logo" className="w-20 h-20 md:w-24 md:h-24 object-contain" />
+          </motion.div>
 
-          <p className="text-lg md:text-xl text-white/80 max-w-xl mx-auto lg:mx-0 font-medium leading-relaxed">
-            Akses Mobile Data Terminal Mandalika secara modern, efisien, dan aman. Semuanya di satu tempat. Gak ribet!
+          <h1 className="text-5xl font-[1000] text-center uppercase leading-none tracking-tighter mb-2 italic">
+            MANDALIKA<br />
+            <span className="text-[#3B82F6] underline decoration-black decoration-8 underline-offset-4 italic">POLICE</span>
+          </h1>
+          <p className="bg-black text-[#00E676] px-4 py-1 font-black text-sm uppercase mb-8 italic">
+            Mobile Data Terminal
           </p>
 
-          <div className="flex flex-col items-center lg:items-start gap-4 pt-4">
+          <div className="w-full space-y-4">
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
               onClick={handleLogin}
               disabled={isLoading}
-              className={`flex items-center gap-3 px-8 py-4 rounded-full font-bold text-lg shadow-lg transition-all ${isLoading
-                ? 'bg-slate-400 text-slate-800 cursor-not-allowed'
-                : 'bg-[#00E676] hover:bg-[#00c853] text-[#001D4C] shadow-green-500/30'
-                }`}
+              whileHover={{ x: 8, y: -8, boxShadow: "0px 0px 0px 0px #000" }}
+              whileTap={{ scale: 0.95 }}
+              className={`w-full ${isLoading ? 'bg-gray-400' : 'bg-[#5865F2]'} text-black font-[1000] text-2xl py-5 border-4 border-black shadow-[10px_10px_0px_0px_#000] flex items-center justify-center gap-4 transition-all`}
             >
-              <img src="/discord-login.png" alt="Discord" className="w-6 h-6 object-contain" />
-              {isLoading ? status : 'Login via Discord'} <ArrowRight size={20} />
+              <img src="/discord-login.png" alt="Discord" className="w-10 h-10" />
+              <span>{status}</span>
             </motion.button>
 
-            {/* Indikator Status Transparan */}
-            <div className="flex items-center gap-2 bg-black/20 px-4 py-2 rounded-full border border-white/10 text-sm font-medium">
-              <Zap size={16} className={isLoading ? 'animate-pulse text-[#FFD100]' : 'text-white/50'} />
-              Status Radar: <span className={isLoading ? 'text-[#FFD100]' : 'text-white'}>{status}</span>
+            <div className="bg-[#FF4D4D] border-4 border-black p-3 shadow-[6px_6px_0px_0px_#000]">
+              <p className="text-[10px] font-black text-center uppercase leading-tight italic">
+                PERINGATAN: AKSES TANPA IZIN AKAN DILACAK DAN DITINDAK TEGAS OLEH DIVISI PROPAM.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* GAMBAR HUSKY KANAN */}
-        <div className="flex-1 w-full relative flex justify-center lg:justify-end pb-20 lg:pb-0">
-          <motion.div variants={float} animate="animate" className="relative z-10 w-full max-w-md lg:max-w-lg">
-            <img
-              src="/logo-husky-polisi.png"
-              alt="Husky Police"
-              className="w-full h-auto object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
-            />
-
-            {/* Pop-up ala Trakteer */}
-            <motion.div
-              initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}
-              className="absolute bottom-10 -left-6 md:-left-12 bg-white text-slate-900 p-4 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-3 w-64"
-            >
-              <div className="bg-red-100 p-2 rounded-xl text-red-600">
-                <ShieldCheck size={24} />
-              </div>
-              <div>
-                <p className="font-bold text-sm leading-tight">Keamanan Propam</p>
-                <p className="text-[11px] text-slate-500 leading-tight">Akses tanpa izin akan dilacak & ditindak tegas.</p>
-              </div>
-            </motion.div>
-
-          </motion.div>
+        <div className="bg-black py-2 px-4 flex justify-between items-center font-black italic text-[10px]">
+          <span className="text-[#CCFF00] uppercase">Mandalika_Secure_Link</span>
+          <span className="text-white opacity-40">v2.0.4-LOCKED</span>
         </div>
-
-      </div>
-
-      {/* Background Patterns (Opsional biar ga sepi) */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/2 -left-20 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl"></div>
-      </div>
-
+      </motion.div>
     </main>
   );
 }

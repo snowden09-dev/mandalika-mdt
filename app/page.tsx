@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import Image from 'next/image'; // 🚀 TAMBAHAN: Import Next Image
 
 // Impor font Quicksand
 import "@fontsource/quicksand/500.css";
@@ -125,9 +126,10 @@ export default function LandingPage() {
             localStorage.removeItem('police_session');
             router.push('/unauthorized');
           }
-        } catch (err: any) {
+        } catch (err) { // 🚀 PATCH: Hapus tipe :any agar lolos ESLint
           console.error("Gagal Verifikasi:", err);
-          if (err.message === "INVALID_ID") {
+          const errorObj = err as Error; // 🚀 PATCH: Cast sebagai Error yang sah
+          if (errorObj.message === "INVALID_ID") {
             setStatus('Akses Ilegal Diblokir');
             await supabase.auth.signOut();
           } else {
@@ -169,7 +171,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-6 py-3">
           <div className="flex items-center gap-3">
             <div className="bg-white p-1.5 rounded-full">
-              <img src="/logo-polisi.png" alt="Logo" className="w-6 h-6 md:w-8 md:h-8 object-contain" />
+              {/* 🚀 PATCH: Menggunakan komponen Image bawaan Next.js */}
+              <Image src="/logo-polisi.png" alt="Logo" width={32} height={32} className="w-6 h-6 md:w-8 md:h-8 object-contain" />
             </div>
             <span className="font-bold text-lg md:text-xl tracking-tight">mandalika</span>
           </div>
@@ -215,7 +218,8 @@ export default function LandingPage() {
                 : 'bg-[#00E676] hover:bg-[#00c853] text-[#001D4C] shadow-green-500/30'
                 }`}
             >
-              <img src="/discord-login.png" alt="Discord" className="w-6 h-6 object-contain" />
+              {/* 🚀 PATCH: Menggunakan komponen Image */}
+              <Image src="/discord-login.png" alt="Discord" width={24} height={24} className="w-6 h-6 object-contain" />
               {isLoading ? status : 'Login via Discord'} <ArrowRight size={20} />
             </motion.button>
 
@@ -230,9 +234,13 @@ export default function LandingPage() {
         {/* GAMBAR HUSKY KANAN */}
         <div className="flex-1 w-full relative flex justify-center lg:justify-end pb-20 lg:pb-0">
           <motion.div variants={float} animate="animate" className="relative z-10 w-full max-w-md lg:max-w-lg">
-            <img
+            {/* 🚀 PATCH: Menggunakan komponen Image untuk Maskot Husky */}
+            <Image
               src="/logo-husky-polisi.png"
               alt="Husky Police"
+              width={500}
+              height={500}
+              priority
               className="w-full h-auto object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
             />
 
@@ -246,7 +254,8 @@ export default function LandingPage() {
               </div>
               <div>
                 <p className="font-bold text-sm leading-tight">Keamanan Propam</p>
-                <p className="text-[11px] text-slate-500 leading-tight">Akses tanpa izin akan dilacak & ditindak tegas.</p>
+                {/* 🚀 PATCH: Ampersand dibungkus agar aman dari ESLint */}
+                <p className="text-[11px] text-slate-500 leading-tight">Akses tanpa izin akan dilacak {'&'} ditindak tegas.</p>
               </div>
             </motion.div>
 

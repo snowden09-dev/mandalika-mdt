@@ -90,6 +90,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return rows;
     }, [currentMonth]);
 
+    // 🚀 INFO PERIODE MINGGU INI
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+
     const handleDateClick = (day: Date) => {
         if (!range.from || (range.from && range.to)) setRange({ from: day, to: null });
         else day < range.from ? setRange({ from: day, to: range.from }) : setRange({ from: range.from, to: day });
@@ -125,13 +129,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            const { data: duties } = await supabase.from('presensi_duty').select('id').eq('user_id_discord', discordId).gte('start_time', startStr).lte('start_time', endStr);
-            const { data: cutis } = await supabase.from('pengajuan_cuti').select('id').eq('user_id_discord', discordId).eq('status', 'APPROVED').gte('tanggal_mulai', startStr).lte('tanggal_selesai', endStr);
-
-            if ((!duties || duties.length === 0) && (!cutis || cutis.length === 0)) {
-                showNotif("TIDAK ADA AKTIVITAS", "Sistem tidak menemukan log Duty atau Cuti Approved pada range tanggal tersebut!", "ERROR");
-                setIsVerifying(false); return;
-            }
+            // 🚀 FITUR "MAKAN GAJI BUTA" - Pengecekan aktivitas Duty/Cuti dimatikan
+            // Anggota tetap bisa submit form gaji meskipun tidak ada record duty.
 
             const { error } = await supabase.from('pengajuan_gaji').insert([{
                 user_id_discord: discordId,
@@ -213,23 +212,33 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
             {/* CALENDAR BENTO */}
             <div className={`md:col-span-5 bg-[#FFD100] p-6 ${boxBorder} ${hardShadow} flex flex-col text-black`}>
-                <div className="flex justify-between items-center mb-6 border-b-4 border-black pb-4">
-                    <h3 className="font-[1000] italic uppercase flex items-center gap-2"><Receipt size={20} /> TANGGAL DUTY</h3>
-                    <div className="flex gap-2">
-                        <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 bg-white border-2 border-black hover:bg-black group transition-all"><ChevronLeft size={16} className="group-hover:text-white" /></button>
-                        <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 bg-white border-2 border-black hover:bg-black group transition-all"><ChevronRight size={16} className="group-hover:text-white" /></button>
+
+                {/* 🚀 HEADER KALENDER DIPERBARUI */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b-4 border-black pb-4 gap-3">
+                    <h3 className="font-[1000] italic uppercase flex items-center gap-2"><Receipt size={20} /> PERIODE</h3>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-[1000] uppercase tracking-widest bg-black text-[#FFD100] px-3 py-1 border-2 border-black">
+                            {format(currentMonth, 'MMMM yyyy', { locale: id })}
+                        </span>
+                        <div className="flex gap-1">
+                            <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1.5 bg-white border-2 border-black hover:bg-black group transition-all"><ChevronLeft size={16} className="group-hover:text-white" /></button>
+                            <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1.5 bg-white border-2 border-black hover:bg-black group transition-all"><ChevronRight size={16} className="group-hover:text-white" /></button>
+                        </div>
                     </div>
                 </div>
 
-                {/* MANDATORY NOTE */}
+                {/* 🚀 MANDATORY NOTE DIPERBARUI */}
                 <div className="bg-black text-[#A3E635] border-2 border-black p-3 mb-4 shadow-[4px_4px_0px_#FFF]">
-                    <div className="flex items-center gap-2 border-b border-[#A3E635]/30 pb-1 mb-1">
+                    <div className="flex items-center gap-2 border-b border-[#A3E635]/30 pb-1 mb-2">
                         <AlertTriangle size={14} />
-                        <p className="text-[10px] font-black uppercase italic tracking-widest text-[#A3E635]">Mandatory Note</p>
+                        <p className="text-[10px] font-black uppercase italic tracking-widest text-[#A3E635]">Info Pengajuan</p>
                     </div>
-                    <p className="text-[9px] font-black leading-tight uppercase">
-                        PILIH RANGE GAJI SEMINGGU (SENIN-MINGGU). RADAR MDT AKAN MEMVERIFIKASI LOG DUTY. JANGAN OVER-CLAIM ATAU MAKSIMAL 2 MINGGU KEBELAKANG. PELANGGARAN = BLOKIR PAYROLL!
+                    <p className="text-[9px] font-black leading-relaxed uppercase mb-2">
+                        Pilih rentang hari pada kalender. Anda tetap dapat mengajukan gaji mingguan meskipun tidak terdapat log duty. Maksimal mundur 2 minggu.
                     </p>
+                    <div className="bg-[#A3E635] text-black px-2 py-1 inline-block font-black text-[9px] uppercase italic border border-[#A3E635]">
+                        Periode Minggu Ini: {format(currentWeekStart, 'dd MMM yyyy', { locale: id })} - {format(currentWeekEnd, 'dd MMM yyyy', { locale: id })}
+                    </div>
                 </div>
 
                 <div className="bg-white border-4 border-black p-4 shadow-[6px_6px_0_0_#000] mb-6">

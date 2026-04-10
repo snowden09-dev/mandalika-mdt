@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -33,8 +33,10 @@ export default function AbsenPage() {
     const [mulaiCuti, setMulaiCuti] = useState('');
     const [selesaiCuti, setSelesaiCuti] = useState('');
     const [keterangan, setKeterangan] = useState('');
+
     const [images, setImages] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
+    const [previewModalInfo, setPreviewModalInfo] = useState<string | null>(null); // State untuk Preview Modal
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
@@ -60,13 +62,25 @@ export default function AbsenPage() {
 
     const showErrorToast = (pesan: string) => {
         toast.custom((t) => (
-            <div className="bg-[#FF4D4D] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
+            <div className="bg-[#FF4D4D] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative z-50">
                 <div className="bg-slate-950 text-[#FF4D4D] p-2 rounded-lg shrink-0"><AlertTriangle size={20} /></div>
                 <div>
                     <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">DITOLAK</h1>
                     <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
                 </div>
                 <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100"><X size={12} className="text-slate-950" /></button>
+            </div>
+        ), { duration: 4000 });
+    };
+
+    const showWarningToast = (pesan: string) => {
+        toast.custom((t) => (
+            <div className="bg-[#FFD100] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative z-50">
+                <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>
+                <div>
+                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">INFO MUNDUR</h1>
+                    <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
+                </div>
             </div>
         ), { duration: 4000 });
     };
@@ -81,14 +95,34 @@ export default function AbsenPage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        // 🚀 LOGIKA VALIDASI TANGGAL & DURASI
         if (activeTab === 'DUTY') {
             const selectedDutyDate = new Date(tanggalDuty);
             selectedDutyDate.setHours(0, 0, 0, 0);
             const diffDutyDays = Math.round((today.getTime() - selectedDutyDate.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen untuk besok!");
-            if (diffDutyDays > 3) return showErrorToast("Batas absen mundur 3 hari!");
+            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen untuk besok (H+1)!");
+            if (diffDutyDays > 3) return showErrorToast("Batas absen mundur maksimal 3 hari!");
             if (images.length === 0) return toast.error("Lampirkan 1 foto bukti!");
+
+            // Kalkulasi jam sebelum loading berjalan
+            let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
+            let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
+            if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
+
+            let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
+            const durasiJam = parseFloat(diff.toFixed(2));
+
+            // PERINGATAN DURASI > 7 JAM
+            if (durasiJam > 7) {
+                const yakin = window.confirm(`⚠️ PERINGATAN!\n\nDurasi duty Anda ${durasiJam} jam (Lebih dari 7 jam).\nSilakan cek kembali jam mulai dan selesai agar tidak salah.\n\nKlik "OK" jika Anda YAKIN jam ini sudah benar.`);
+                if (!yakin) return; // Jika user batal, proses berhenti disini
+            }
+
+            // Notifikasi absen mundur (Jika klik ok pada jam, tetap muncul notif ini)
+            if (diffDutyDays > 0 && diffDutyDays <= 3) {
+                showWarningToast(`Anda melakukan absen mundur (H-${diffDutyDays}).`);
+            }
         }
 
         if (activeTab === 'CUTI') {
@@ -192,6 +226,27 @@ export default function AbsenPage() {
             <TacticalTransition isVisible={isNavigating} />
             <Toaster position="top-center" />
 
+            {/* 🚀 MODAL PREVIEW GAMBAR FULLSCREEN */}
+            <AnimatePresence>
+                {previewModalInfo && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+                        onClick={() => setPreviewModalInfo(null)}
+                    >
+                        <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+                            <img src={previewModalInfo} alt="Preview" className={`max-w-full max-h-[80vh] rounded-xl ${boxBorder} ${cardShadow} object-contain bg-slate-100`} />
+                            <button
+                                onClick={() => setPreviewModalInfo(null)}
+                                className={`absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full ${boxBorder} ${cardShadow} hover:bg-red-700 active:scale-95 transition-all`}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* 🚀 COMPACT HEADER DENGAN TOMBOL KEMBALI */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button onClick={() => handleNavigation('/dashboard')} className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all">
@@ -235,7 +290,7 @@ export default function AbsenPage() {
                                     <input type="date" value={tanggalDuty} min={hMin3Str} max={todayStr} onChange={e => setTanggalDuty(e.target.value)} className={inputStyle} />
                                 </div>
 
-                                {/* 🚀 24-HOUR CUSTOM DROPDOWNS (ANTI AM/PM) */}
+                                {/* 🚀 24-HOUR CUSTOM DROPDOWNS */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <p className={labelStyle}><Clock size={12} /> Start</p>
@@ -263,20 +318,38 @@ export default function AbsenPage() {
                                     </div>
                                 </div>
 
-                                {/* 🚀 HORIZONTAL SCROLL EVIDENCE */}
+                                {/* 🚀 HORIZONTAL SCROLL EVIDENCE DENGAN PREVIEW & FIX MOBILE UPLOAD */}
                                 <div className="space-y-1">
                                     <p className={labelStyle}><Camera size={12} /> Evidence</p>
                                     <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                                         {previews.map((src, idx) => (
-                                            <div key={idx} className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>
-                                                <img src={src} className="w-full h-full object-cover" />
-                                                <button type="button" onClick={() => { setImages(images.filter((_, i) => i !== idx)); setPreviews(previews.filter((_, i) => i !== idx)); }} className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90"><X size={10} /></button>
+                                            <div key={idx} className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000] group`}>
+                                                <img
+                                                    src={src}
+                                                    className="w-full h-full object-cover cursor-pointer hover:brightness-75 transition-all"
+                                                    onClick={() => setPreviewModalInfo(src)}
+                                                    alt="Preview"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setImages(images.filter((_, i) => i !== idx)); setPreviews(previews.filter((_, i) => i !== idx)); }}
+                                                    className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90 z-10"
+                                                >
+                                                    <X size={10} />
+                                                </button>
                                             </div>
                                         ))}
                                         {images.length < 3 && (
-                                            <label className={`w-16 h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000]`}>
-                                                <Camera size={16} className="text-slate-300" />
-                                                <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const f = Array.from(e.target.files || []); setImages([...images, ...f]); setPreviews([...previews, ...f.map(file => URL.createObjectURL(file))]); }} />
+                                            <label className={`relative w-16 h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-200 transition-colors`}>
+                                                <Camera size={16} className="text-slate-400" />
+                                                {/* FIX MOBILE: Opacity-0 inset-0 agar full box bisa diklik */}
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    multiple
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                    onChange={e => { const f = Array.from(e.target.files || []); setImages([...images, ...f]); setPreviews([...previews, ...f.map(file => URL.createObjectURL(file))]); }}
+                                                />
                                             </label>
                                         )}
                                     </div>

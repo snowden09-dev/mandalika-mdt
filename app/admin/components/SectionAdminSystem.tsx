@@ -80,11 +80,8 @@ export default function SectionAdminSystem() {
 
     useEffect(() => { verifyAndFetch(); }, [currentDate]);
 
-    // --- 📡 LOGIKA LAPORAN INAKTIF (ALPHA) DINAMIS SESUAI KALENDER ---
+    // --- 📡 LOGIKA RADAR: DETEKSI RANTAI ALPHA 4 HARI BERUNTUN ---
     const inactiveStats = useMemo(() => {
-        // Ambil titik potong 4 hari sebelum akhir minggu yang dipilih
-        const past4Days = startOfDay(subDays(weekEnd, 4));
-
         // 1. FILTER PETINGGI: Hapus High Admin & Pangkat Atas dari Radar
         const regularPersonnel = personnel.filter(p => {
             const isHigh = p.is_highadmin === true;
@@ -92,39 +89,51 @@ export default function SectionAdminSystem() {
             return !isHigh && !isTopRank;
         });
 
-        // 2. ALPHA 7 HARI: Tidak ada duty/cuti sama sekali di minggu yang dipilih
-        const inactive7 = regularPersonnel.filter(p => {
-            const hasDuty = duties.some(d => d.user_id_discord === p.discord_id);
-            const hasCuti = cutis.some(c => {
-                if (c.status !== 'APPROVED' || c.user_id_discord !== p.discord_id) return false;
-                const start = startOfDay(new Date(c.tanggal_mulai));
-                const end = startOfDay(new Date(c.tanggal_selesai));
-                return (start <= weekEnd && end >= weekStart);
-            });
-            return !hasDuty && !hasCuti;
-        });
+        const inactive7: any[] = [];
+        const inactive4: any[] = [];
 
-        // 3. ALPHA 4-6 HARI: Ada duty di awal minggu, tapi kosong di 4 hari terakhir
-        const inactive4 = regularPersonnel.filter(p => {
-            if (inactive7.find(i => i.discord_id === p.discord_id)) return false; // Abaikan yang sudah masuk Alpha 7 Hari
-
-            const hasDutyLast4 = duties.some(d => {
-                if (d.user_id_discord !== p.discord_id) return false;
-                const dDate = startOfDay(new Date(d.start_time));
-                return dDate >= past4Days && dDate <= weekEnd;
+        regularPersonnel.forEach(p => {
+            // Mapping status kehadiran per hari (Senin-Minggu)
+            const attendanceMap = daysInWeek.map(day => {
+                const targetStr = format(day, 'yyyy-MM-dd');
+                const hasDuty = duties.some(d => d.user_id_discord === p.discord_id && format(new Date(d.start_time), 'yyyy-MM-dd') === targetStr);
+                const hasCuti = cutis.some(c => {
+                    if (c.status !== 'APPROVED' || c.user_id_discord !== p.discord_id) return false;
+                    const s = startOfDay(new Date(c.tanggal_mulai));
+                    const e = startOfDay(new Date(c.tanggal_selesai));
+                    const cur = startOfDay(day);
+                    return cur >= s && cur <= e;
+                });
+                return hasDuty || hasCuti; // true jika hadir/cuti, false jika Alpha
             });
 
-            const hasCutiLast4 = cutis.some(c => {
-                if (c.status !== 'APPROVED' || c.user_id_discord !== p.discord_id) return false;
-                const end = startOfDay(new Date(c.tanggal_selesai));
-                return end >= past4Days; // Cuti cover sampai 4 hari terakhir
+            const totalPresence = attendanceMap.filter(a => a === true).length;
+
+            // Kategori 1: ALPHA FULL (7 Hari tidak ada jejak)
+            if (totalPresence === 0) {
+                inactive7.push(p);
+                return;
+            }
+
+            // Kategori 2: TEGURAN (Cek apakah ada false/Alpha sebanyak 4x berurutan)
+            let maxStreak = 0;
+            let currentStreak = 0;
+            attendanceMap.forEach(isPresent => {
+                if (!isPresent) {
+                    currentStreak++;
+                    if (currentStreak > maxStreak) maxStreak = currentStreak;
+                } else {
+                    currentStreak = 0;
+                }
             });
 
-            return !hasDutyLast4 && !hasCutiLast4;
+            if (maxStreak >= 4) {
+                inactive4.push(p);
+            }
         });
 
         return { inactive7, inactive4 };
-    }, [personnel, duties, cutis, weekStart, weekEnd]);
+    }, [personnel, duties, cutis, weekStart, weekEnd, daysInWeek]);
 
     const handleGenerateReport = async () => {
         setIsPreviewing(true);
@@ -537,11 +546,11 @@ export default function SectionAdminSystem() {
                             </div>
                         </div>
 
-                        {/* List >= 4 Hari */}
+                        {/* List >= 4 Hari Berturut-turut */}
                         <div className="bg-yellow-50 border-[6px] border-yellow-500 p-8 rounded-3xl shadow-[8px_8px_0px_#EAB308]">
                             <div className="flex items-center gap-3 mb-6 border-b-4 border-yellow-200 pb-4">
                                 <AlertOctagon className="text-yellow-600" size={32} />
-                                <h2 className="text-3xl font-[1000] text-yellow-600 uppercase italic">Teguran (Alpha 4 - 6 Hari)</h2>
+                                <h2 className="text-3xl font-[1000] text-yellow-600 uppercase italic">Teguran (Alpha &ge; 4 Hari Beruntun)</h2>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {inactiveStats.inactive4.length > 0 ? (

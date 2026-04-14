@@ -18,6 +18,9 @@ const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
+// Daftar pangkat petinggi yang kebal radar absen
+const EXCLUDED_RANKS = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL', 'AKBP', 'KOMPOL'];
+
 export default function SectionAdminSystem() {
     const router = useRouter();
     const reportRef = useRef<HTMLDivElement>(null);
@@ -27,7 +30,6 @@ export default function SectionAdminSystem() {
     const [personnel, setPersonnel] = useState<any[]>([]);
     const [duties, setDuties] = useState<any[]>([]);
     const [cutis, setCutis] = useState<any[]>([]);
-    const [recentActivity, setRecentActivity] = useState<{ duties: any[], cutis: any[] }>({ duties: [], cutis: [] });
 
     const [isHighAdmin, setIsHighAdmin] = useState(false);
     const [viewMode, setViewMode] = useState<'DETAIL' | 'ANALYSIS'>('DETAIL');
@@ -62,48 +64,67 @@ export default function SectionAdminSystem() {
         setIsAuthorized(true);
         if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
-        const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi').order('pangkat', { ascending: false });
+        // 🚀 TAMBAHKAN is_highadmin DI QUERY AGAR BISA DIFILTER NANTI
+        const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi, is_highadmin').order('pangkat', { ascending: false });
         if (users) setPersonnel(users);
 
-        // Fetch untuk Tabel Rekap (Minggu yang dipilih)
+        // Fetch untuk Tabel Rekap (Berdasarkan Minggu yang dipilih)
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
         if (dutyData) setDuties(dutyData);
 
         const { data: cutiData } = await supabase.from('pengajuan_cuti').select('*');
         if (cutiData) setCutis(cutiData);
 
-        // Fetch khusus untuk Laporan Alpha (14 Hari ke belakang)
-        const fourteenDaysAgo = subDays(new Date(), 14).toISOString();
-        const { data: rDuties } = await supabase.from('presensi_duty').select('user_id_discord, start_time').gte('start_time', fourteenDaysAgo);
-        const { data: rCutis } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_selesai, status').eq('status', 'APPROVED').gte('tanggal_selesai', fourteenDaysAgo);
-        setRecentActivity({ duties: rDuties || [], cutis: rCutis || [] });
-
         setLoading(false);
     };
 
     useEffect(() => { verifyAndFetch(); }, [currentDate]);
 
-    // --- 📡 LOGIKA LAPORAN INAKTIF (ALPHA) ---
+    // --- 📡 LOGIKA LAPORAN INAKTIF (ALPHA) DINAMIS SESUAI KALENDER ---
     const inactiveStats = useMemo(() => {
-        const today = new Date();
-        const past7Days = startOfDay(subDays(today, 7));
-        const past4Days = startOfDay(subDays(today, 4));
+        // Ambil titik potong 4 hari sebelum akhir minggu yang dipilih
+        const past4Days = startOfDay(subDays(weekEnd, 4));
 
-        const inactive7 = personnel.filter(p => {
-            const hasDuty = recentActivity.duties.some(d => d.user_id_discord === p.discord_id && new Date(d.start_time) >= past7Days);
-            const hasCuti = recentActivity.cutis.some(c => c.user_id_discord === p.discord_id && new Date(c.tanggal_selesai) >= past7Days);
+        // 1. FILTER PETINGGI: Hapus High Admin & Pangkat Atas dari Radar
+        const regularPersonnel = personnel.filter(p => {
+            const isHigh = p.is_highadmin === true;
+            const isTopRank = EXCLUDED_RANKS.includes(p.pangkat?.toUpperCase());
+            return !isHigh && !isTopRank;
+        });
+
+        // 2. ALPHA 7 HARI: Tidak ada duty/cuti sama sekali di minggu yang dipilih
+        const inactive7 = regularPersonnel.filter(p => {
+            const hasDuty = duties.some(d => d.user_id_discord === p.discord_id);
+            const hasCuti = cutis.some(c => {
+                if (c.status !== 'APPROVED' || c.user_id_discord !== p.discord_id) return false;
+                const start = startOfDay(new Date(c.tanggal_mulai));
+                const end = startOfDay(new Date(c.tanggal_selesai));
+                return (start <= weekEnd && end >= weekStart);
+            });
             return !hasDuty && !hasCuti;
         });
 
-        const inactive4 = personnel.filter(p => {
-            if (inactive7.find(i => i.discord_id === p.discord_id)) return false; // Abaikan yang sudah masuk 7 hari
-            const hasDuty = recentActivity.duties.some(d => d.user_id_discord === p.discord_id && new Date(d.start_time) >= past4Days);
-            const hasCuti = recentActivity.cutis.some(c => c.user_id_discord === p.discord_id && new Date(c.tanggal_selesai) >= past4Days);
-            return !hasDuty && !hasCuti;
+        // 3. ALPHA 4-6 HARI: Ada duty di awal minggu, tapi kosong di 4 hari terakhir
+        const inactive4 = regularPersonnel.filter(p => {
+            if (inactive7.find(i => i.discord_id === p.discord_id)) return false; // Abaikan yang sudah masuk Alpha 7 Hari
+
+            const hasDutyLast4 = duties.some(d => {
+                if (d.user_id_discord !== p.discord_id) return false;
+                const dDate = startOfDay(new Date(d.start_time));
+                return dDate >= past4Days && dDate <= weekEnd;
+            });
+
+            const hasCutiLast4 = cutis.some(c => {
+                if (c.status !== 'APPROVED' || c.user_id_discord !== p.discord_id) return false;
+                const end = startOfDay(new Date(c.tanggal_selesai));
+                return end >= past4Days; // Cuti cover sampai 4 hari terakhir
+            });
+
+            return !hasDutyLast4 && !hasCutiLast4;
         });
 
         return { inactive7, inactive4 };
-    }, [personnel, recentActivity]);
+    }, [personnel, duties, cutis, weekStart, weekEnd]);
 
     const handleGenerateReport = async () => {
         setIsPreviewing(true);
@@ -463,7 +484,7 @@ export default function SectionAdminSystem() {
                                     onClick={() => {
                                         if (!generatedImage) return;
                                         const link = document.createElement('a');
-                                        link.download = `MPD_Laporan_Alpha_${format(new Date(), 'dd_MM_yyyy')}.png`;
+                                        link.download = `MPD_Laporan_Alpha_${format(weekStart, 'dd')}_${format(weekEnd, 'dd_MMM_yyyy')}.png`;
                                         link.href = generatedImage;
                                         link.click();
                                     }}
@@ -491,7 +512,7 @@ export default function SectionAdminSystem() {
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="font-[1000] text-3xl italic">{format(new Date(), 'dd/MM/yyyy')}</p>
+                                <p className="font-[1000] text-2xl italic">{format(weekStart, 'dd/MM')} - {format(weekEnd, 'dd/MM/yyyy')}</p>
                                 <p className="font-black text-sm bg-red-600 text-white px-3 py-1 inline-block mt-2 rounded-lg border-2 border-black">CONFIDENTIAL AUDIT</p>
                             </div>
                         </div>
@@ -500,7 +521,7 @@ export default function SectionAdminSystem() {
                         <div className="bg-red-50 border-[6px] border-red-600 p-8 rounded-3xl shadow-[8px_8px_0px_#DC2626]">
                             <div className="flex items-center gap-3 mb-6 border-b-4 border-red-200 pb-4">
                                 <Bomb className="text-red-600" size={32} />
-                                <h2 className="text-3xl font-[1000] text-red-600 uppercase italic">Tindakan Keras (Alpha &ge; 7 Hari)</h2>
+                                <h2 className="text-3xl font-[1000] text-red-600 uppercase italic">Tindakan Keras (Alpha 1 Minggu Full)</h2>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {inactiveStats.inactive7.length > 0 ? (

@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    CalendarDays, Trash2, ChevronLeft, ChevronRight,
-    Image as ImageIcon, Clock, AlertTriangle, CheckCircle2, X,
-    Skull, Bomb, AlertOctagon, Lock, UserX, Send, ShieldAlert, XCircle,
-    LayoutDashboard, Activity, UserCheck, UserMinus, HelpCircle, PieChart,
-    Database, ScanLine, Eye, Power, FileText, Loader2, ShieldCheck
+    ChevronLeft, ChevronRight, Image as ImageIcon, Clock,
+    AlertOctagon, X, Bomb, Activity, Database, ScanLine,
+    Eye, FileText, Loader2, ShieldCheck, Download
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay, subDays } from "date-fns";
 import { id } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { toPng } from 'html-to-image';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
@@ -21,23 +20,26 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 export default function SectionAdminSystem() {
     const router = useRouter();
+    const reportRef = useRef<HTMLDivElement>(null);
+
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [personnel, setPersonnel] = useState<any[]>([]);
     const [duties, setDuties] = useState<any[]>([]);
     const [cutis, setCutis] = useState<any[]>([]);
+    const [recentActivity, setRecentActivity] = useState<{ duties: any[], cutis: any[] }>({ duties: [], cutis: [] });
+
     const [isHighAdmin, setIsHighAdmin] = useState(false);
     const [viewMode, setViewMode] = useState<'DETAIL' | 'ANALYSIS'>('DETAIL');
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    // --- 🚀 RADAR AUTOMATION STATES ---
-    const [radarConfig, setRadarConfig] = useState({ auto_report: false });
+    // --- 🚀 REPORT GENERATOR STATES ---
     const [isPreviewing, setIsPreviewing] = useState(false);
-    const [isTransmitting, setIsTransmitting] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
     // --- MODAL STATES ---
-    const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-    const [showInactiveModal, setShowInactiveModal] = useState(false);
+    const [photoGallery, setPhotoGallery] = useState<{ photos: string[], index: number } | null>(null);
     const [confirmModal, setConfirmModal] = useState<{ show: boolean, type: 'SINGLE' | 'PURGE' | 'STORAGE_CLEAN', data?: any }>({ show: false, type: 'SINGLE' });
     const [purgeInput, setPurgeInput] = useState("");
 
@@ -58,63 +60,68 @@ export default function SectionAdminSystem() {
         }
 
         setIsAuthorized(true);
-
-        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) {
-            setIsHighAdmin(true);
-            const { data: config } = await supabase.from('system_config').select('*').eq('id', 'radar_inactivity').single();
-            if (config) setRadarConfig(config.settings);
-        }
+        if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
         const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi').order('pangkat', { ascending: false });
         if (users) setPersonnel(users);
 
+        // Fetch untuk Tabel Rekap (Minggu yang dipilih)
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
         if (dutyData) setDuties(dutyData);
 
         const { data: cutiData } = await supabase.from('pengajuan_cuti').select('*');
         if (cutiData) setCutis(cutiData);
 
+        // Fetch khusus untuk Laporan Alpha (14 Hari ke belakang)
+        const fourteenDaysAgo = subDays(new Date(), 14).toISOString();
+        const { data: rDuties } = await supabase.from('presensi_duty').select('user_id_discord, start_time').gte('start_time', fourteenDaysAgo);
+        const { data: rCutis } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_selesai, status').eq('status', 'APPROVED').gte('tanggal_selesai', fourteenDaysAgo);
+        setRecentActivity({ duties: rDuties || [], cutis: rCutis || [] });
+
         setLoading(false);
     };
 
     useEffect(() => { verifyAndFetch(); }, [currentDate]);
 
-    // --- 📡 LOGIKA RADAR (TOGGLE & TRANSMIT) ---
-    const toggleAutoRadar = async () => {
-        const newStatus = !radarConfig.auto_report;
-        const tId = toast.loading("Updating System Protocol...");
+    // --- 📡 LOGIKA LAPORAN INAKTIF (ALPHA) ---
+    const inactiveStats = useMemo(() => {
+        const today = new Date();
+        const past7Days = startOfDay(subDays(today, 7));
+        const past4Days = startOfDay(subDays(today, 4));
 
-        const { error } = await supabase.from('system_config').upsert({
-            id: 'radar_inactivity',
-            settings: { auto_report: newStatus },
-            updated_at: new Date().toISOString()
+        const inactive7 = personnel.filter(p => {
+            const hasDuty = recentActivity.duties.some(d => d.user_id_discord === p.discord_id && new Date(d.start_time) >= past7Days);
+            const hasCuti = recentActivity.cutis.some(c => c.user_id_discord === p.discord_id && new Date(c.tanggal_selesai) >= past7Days);
+            return !hasDuty && !hasCuti;
         });
 
-        if (error) {
-            toast.error("Gagal update protokol!", { id: tId });
-        } else {
-            setRadarConfig({ auto_report: newStatus });
-            toast.success(`AUTO RADAR: ${newStatus ? 'ENABLED' : 'DISABLED'}`, { id: tId });
-        }
-    };
+        const inactive4 = personnel.filter(p => {
+            if (inactive7.find(i => i.discord_id === p.discord_id)) return false; // Abaikan yang sudah masuk 7 hari
+            const hasDuty = recentActivity.duties.some(d => d.user_id_discord === p.discord_id && new Date(d.start_time) >= past4Days);
+            const hasCuti = recentActivity.cutis.some(c => c.user_id_discord === p.discord_id && new Date(c.tanggal_selesai) >= past4Days);
+            return !hasDuty && !hasCuti;
+        });
 
-    const handleManualTransmit = async () => {
-        setIsTransmitting(true);
-        const tId = toast.loading("SYSTEM: Initiating Manual Radar Scan...");
+        return { inactive7, inactive4 };
+    }, [personnel, recentActivity]);
 
-        try {
-            const res = await fetch('/api/cron/inactive-radar');
-            if (res.ok) {
-                toast.success("SURAT LAPORAN TERKIRIM KE DISCORD!", { id: tId });
-                setIsPreviewing(false);
-            } else {
-                throw new Error("Discord API Response Error");
+    const handleGenerateReport = async () => {
+        setIsPreviewing(true);
+        setIsGenerating(true);
+        setGeneratedImage(null);
+
+        setTimeout(async () => {
+            if (reportRef.current) {
+                try {
+                    const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 3, backgroundColor: '#ffffff' });
+                    setGeneratedImage(dataUrl);
+                } catch (err) {
+                    toast.error("Gagal menyusun gambar laporan!");
+                } finally {
+                    setIsGenerating(false);
+                }
             }
-        } catch (err: any) {
-            toast.error("Gagal Kirim: " + err.message, { id: tId });
-        } finally {
-            setIsTransmitting(false);
-        }
+        }, 800);
     };
 
     // --- 🛠️ LOGIKA PEMBERSIHAN (PURGE & STORAGE) ---
@@ -125,19 +132,16 @@ export default function SectionAdminSystem() {
         try {
             if (confirmModal.type === 'PURGE') {
                 const realWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString();
-
                 const { error: err1 } = await supabase.from('presensi_duty').delete().lt('created_at', realWeekStart).select();
                 const { error: err2 } = await supabase.from('pengajuan_cuti').delete().lt('created_at', realWeekStart).select();
 
                 if (err1) throw err1;
                 if (err2) throw err2;
-
                 toast.success("DATA LAMA TELAH DIMUSNAHKAN! (Sisa Minggu Ini)", { id: tId });
             }
 
             else if (confirmModal.type === 'STORAGE_CLEAN') {
                 const { data: files, error: listError } = await supabase.storage.from('bukti-absen').list('duty', { limit: 1000 });
-
                 if (listError) throw listError;
 
                 if (files && files.length > 0) {
@@ -145,9 +149,7 @@ export default function SectionAdminSystem() {
                     const { error: delError } = await supabase.storage.from('bukti-absen').remove(filePaths);
                     if (delError) throw delError;
 
-                    const { error: dbUpdateError } = await supabase.from('presensi_duty').update({ bukti_foto: null }).not('bukti_foto', 'is', null);
-                    if (dbUpdateError) console.warn("Gagal update DB", dbUpdateError);
-
+                    await supabase.from('presensi_duty').update({ bukti_foto: null }).not('bukti_foto', 'is', null);
                     toast.success(`${files.length} BUKTI FOTO & DB TELAH DIBERSIHKAN!`, { id: tId });
                 } else {
                     toast.info("Bucket Storage sudah kosong!", { id: tId });
@@ -166,48 +168,20 @@ export default function SectionAdminSystem() {
         const tId = toast.loading("Menghapus data spesifik...");
         const { data, error } = await supabase.from(confirmModal.data.table).delete().eq('id', confirmModal.data.id).select();
 
-        if (error) {
-            toast.error("Gagal: " + error.message, { id: tId });
-        } else if (!data || data.length === 0) {
-            toast.error("Gagal: RLS Database Memblokir Hapus Data!", { id: tId });
-        } else {
-            toast.success("DATA TERHAPUS", { id: tId });
-        }
+        if (error) { toast.error("Gagal: " + error.message, { id: tId }); }
+        else if (!data || data.length === 0) { toast.error("Gagal: RLS Database Memblokir Hapus Data!", { id: tId }); }
+        else { toast.success("DATA TERHAPUS", { id: tId }); }
 
         setConfirmModal({ show: false, type: 'SINGLE' });
         verifyAndFetch();
     };
 
-    const handleSendWarning = (user: any) => {
-        const tId = toast.loading(`Menyiapkan Surat Peringatan...`);
-        setTimeout(() => {
-            toast.success(`DISCORD WEBHOOK TERKIRIM UNTUK ${user?.name?.split('|').pop()?.trim() || 'PERSONEL'}!`, { id: tId });
-        }, 1500);
-    };
-
-    const inactivePersonnel = useMemo(() => {
-        return personnel.filter(p => {
-            const hasDuty = duties.some(d => d.user_id_discord === p.discord_id);
-            const hasCuti = cutis.some(c => {
-                if (c.status !== 'APPROVED') return false;
-                if (c.user_id_discord !== p.discord_id) return false;
-                const start = startOfDay(new Date(c.tanggal_mulai));
-                const end = startOfDay(new Date(c.tanggal_selesai));
-                return (start <= weekEnd && end >= weekStart);
-            });
-            return !hasDuty && !hasCuti;
-        });
-    }, [personnel, duties, cutis, weekStart, weekEnd]);
-
     const getDayStatus = (discordId: string, date: Date) => {
         const targetDate = format(date, 'yyyy-MM-dd');
 
-        // AMBIL SEMUA DUTY DI HARI TERSEBUT (MENGGUNAKAN FILTER, BUKAN FIND)
         const dutiesToday = duties.filter(d => {
-            if (d.user_id_discord !== discordId) return false;
-            if (!d.start_time) return false;
-            const dutyLocalDate = format(new Date(d.start_time), 'yyyy-MM-dd');
-            return dutyLocalDate === targetDate;
+            if (d.user_id_discord !== discordId || !d.start_time) return false;
+            return format(new Date(d.start_time), 'yyyy-MM-dd') === targetDate;
         });
 
         if (dutiesToday.length > 0) return { type: 'DUTY', data: dutiesToday };
@@ -221,7 +195,6 @@ export default function SectionAdminSystem() {
         });
 
         if (cutiToday) return { type: 'CUTI', data: cutiToday };
-
         return { type: 'NONE', data: null };
     };
 
@@ -242,39 +215,19 @@ export default function SectionAdminSystem() {
                 </div>
 
                 <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
-                    {isHighAdmin && (
-                        <div className="flex bg-slate-100 p-1.5 rounded-xl border-2 border-black w-full md:w-auto justify-center">
-                            <button
-                                onClick={toggleAutoRadar}
-                                className={cn("px-4 py-2 rounded-lg text-[9px] font-black uppercase italic flex items-center gap-2 transition-all",
-                                    radarConfig.auto_report ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "bg-white opacity-50 hover:opacity-100"
-                                )}
-                            >
-                                <Power size={14} /> Auto Radar: {radarConfig.auto_report ? 'ON' : 'OFF'}
-                            </button>
-                            <button
-                                onClick={() => setIsPreviewing(true)}
-                                className="px-4 py-2 text-[9px] font-black uppercase italic flex items-center gap-2 hover:bg-black/5 transition-all opacity-60 hover:opacity-100"
-                            >
-                                <Eye size={14} /> Preview Surat
-                            </button>
-                        </div>
-                    )}
-
                     <div className="flex bg-slate-100 p-1.5 rounded-xl border-2 border-black w-full md:w-auto justify-center">
                         <button onClick={() => setViewMode('DETAIL')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'DETAIL' ? "bg-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>Rekap Detail</button>
                         <button onClick={() => setViewMode('ANALYSIS')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'ANALYSIS' ? "bg-[#3B82F6] text-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>Analisis Singkat</button>
                     </div>
 
-                    <button
-                        onClick={() => setShowInactiveModal(true)}
-                        className="bg-slate-950 text-[#FFD100] border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#A3E635] hover:translate-y-px transition-all flex items-center justify-center gap-2 w-full md:w-auto"
-                    >
-                        <ScanLine size={16} /> Radar Inactive
-                    </button>
-
                     {isHighAdmin && (
                         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t-2 md:border-t-0 border-black/10 md:pl-2 md:border-l-2">
+                            <button
+                                onClick={handleGenerateReport}
+                                className="bg-[#FFD100] text-black border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
+                            >
+                                <ScanLine size={16} /> Generate Laporan Alpha
+                            </button>
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
                                 className="bg-orange-500 text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
@@ -327,7 +280,6 @@ export default function SectionAdminSystem() {
                                         return (
                                             <td key={idx} className="p-3 border-r-2 border-slate-100 min-w-[150px] align-top">
                                                 {viewMode === 'DETAIL' ? (
-                                                    // --- MODE DETAIL (KARTU BESAR) ---
                                                     <>
                                                         {status.type === 'DUTY' && (
                                                             <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-start relative">
@@ -351,8 +303,8 @@ export default function SectionAdminSystem() {
                                                                                     {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
                                                                                 </span>
                                                                                 <div className="flex items-center gap-1.5">
-                                                                                    {duty.bukti_foto?.[0] && (
-                                                                                        <button onClick={() => setSelectedPhoto(duty.bukti_foto[0])} className="text-blue-700 hover:text-blue-900 transition-colors">
+                                                                                    {duty.bukti_foto && duty.bukti_foto.length > 0 && (
+                                                                                        <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0 })} className="text-blue-700 hover:text-blue-900 transition-colors">
                                                                                             <ImageIcon size={14} />
                                                                                         </button>
                                                                                     )}
@@ -361,7 +313,6 @@ export default function SectionAdminSystem() {
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
-                                                                            {/* MENAMPILKAN CATATAN DUTY DI SINI */}
                                                                             <p className="text-[8px] font-bold italic opacity-80 leading-tight whitespace-normal break-words line-clamp-3">
                                                                                 {duty.catatan_duty || "Tidak ada laporan"}
                                                                             </p>
@@ -373,7 +324,6 @@ export default function SectionAdminSystem() {
                                                         {status.type === 'CUTI' && (
                                                             <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-center items-center text-center relative group/card">
                                                                 <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
-                                                                <ShieldAlert size={20} className="mb-2" />
                                                                 <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>
                                                                 <div className="w-full mt-2 bg-yellow-400/30 p-2 rounded border border-black/10">
                                                                     <p className="text-[9px] font-bold opacity-80 uppercase italic whitespace-normal break-words leading-tight">{status.data.alasan}</p>
@@ -382,7 +332,6 @@ export default function SectionAdminSystem() {
                                                         )}
                                                     </>
                                                 ) : (
-                                                    // --- MODE ANALISIS SINGKAT (BADGES) ---
                                                     <div className="flex justify-center items-center h-full">
                                                         {status.type === 'DUTY' ? (
                                                             <div className="bg-[#A3E635] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">DUTY</div>
@@ -402,109 +351,6 @@ export default function SectionAdminSystem() {
                     </table>
                 </div>
             </div>
-
-            {/* --- 🛑 MODAL PREVIEW SURAT LAPORAN (HIGH ADMIN ONLY) 🛑 --- */}
-            <AnimatePresence>
-                {isPreviewing && (
-                    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 text-slate-950 backdrop-blur-md">
-                        <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[35px] p-8 w-full max-w-2xl flex flex-col max-h-[90vh]`}>
-                            <div className="flex justify-between items-start border-b-[4px] border-black pb-4 mb-6 shrink-0">
-                                <div>
-                                    <h3 className="font-[1000] italic uppercase text-2xl flex items-center gap-2"><FileText size={28} /> Preview Official Report</h3>
-                                    <p className="text-[10px] font-black uppercase opacity-50 mt-1">Format Surat Yang Akan Terkirim Ke Discord HQ</p>
-                                </div>
-                                <button onClick={() => setIsPreviewing(false)} className="hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all border-2 border-black shadow-[2px_2px_0px_#000] active:shadow-none active:translate-y-px"><X /></button>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 bg-slate-50 border-4 border-dashed border-slate-300 rounded-3xl p-6 font-mono text-[11px] leading-relaxed">
-                                <div className="text-center border-b-2 border-black pb-4 mb-4">
-                                    <ShieldCheck size={40} className="mx-auto mb-2 text-blue-600" />
-                                    <h2 className="font-[1000] text-lg uppercase">Mandalika Police Department</h2>
-                                    <p className="font-black opacity-60">INTERNAL SECURITY DIVISION • RADAR SCAN</p>
-                                </div>
-                                <p>**Nomor:** SP/RADAR-INACTIVE/{format(new Date(), 'MM/yyyy')}</p>
-                                <p>**Perihal:** Laporan Otomatis Personel Inactive</p>
-                                <p className="mt-4">**SYSTEM** mendeteksi adanya ketidakhadiran aktivitas dinas pada radar pusat.</p>
-                                <p className="mt-2">Berikut adalah daftar anggota **INACTIVE** periode 7 hari terakhir:</p>
-
-                                <div className="bg-black text-[#00E676] p-4 rounded-xl my-4 text-[10px] shadow-inner">
-                                    <p className="border-b border-[#00E676]/30 pb-1 mb-1 tracking-widest">NO | NAMA | PANGKAT | DIVISI</p>
-                                    {inactivePersonnel.length === 0 ? (
-                                        <p className="opacity-50 italic py-2">System Clear. Seluruh personel aktif.</p>
-                                    ) : (
-                                        <>
-                                            {inactivePersonnel.slice(0, 10).map((u, i) => (
-                                                <p key={i}>{i + 1} | {u.name?.split('|').pop()} | {u.pangkat} | {u.divisi || 'UNIT'}</p>
-                                            ))}
-                                            {inactivePersonnel.length > 10 && <p className="mt-2 text-[#FFD100]">... Dan {inactivePersonnel.length - 10} personel lainnya.</p>}
-                                        </>
-                                    )}
-                                </div>
-
-                                <p className="font-black italic">**Harap segera ditindaklanjuti oleh Petinggi.**</p>
-                            </div>
-
-                            <div className="pt-6 flex gap-4 shrink-0">
-                                <button onClick={() => setIsPreviewing(false)} className="flex-1 bg-slate-200 border-2 border-black py-4 rounded-2xl font-black text-xs uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">Tutup Preview</button>
-                                <button
-                                    disabled={isTransmitting || inactivePersonnel.length === 0}
-                                    onClick={handleManualTransmit}
-                                    className="flex-1 bg-[#00E676] border-2 border-black py-4 px-4 rounded-2xl font-black text-xs uppercase shadow-[4px_4px_0px_#000] flex items-center justify-center gap-3 active:translate-y-1 active:shadow-none disabled:opacity-50 transition-all"
-                                >
-                                    {isTransmitting ? <Loader2 className="animate-spin" /> : <Send size={20} />} {isTransmitting ? "TRANSMITTING..." : "KIRIM MANUAL SEKARANG"}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* --- 🛑 MODAL RADAR INACTIVE (DAFTAR HITAM MINGGUAN) 🛑 --- */}
-            <AnimatePresence>
-                {showInactiveModal && (
-                    <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/95 text-slate-950 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-6 md:p-8 w-full max-w-2xl flex flex-col max-h-[85vh]`}>
-                            <div className="flex justify-between items-start border-b-[4px] border-black pb-4 mb-4 shrink-0">
-                                <div>
-                                    <h3 className="font-[1000] italic uppercase text-2xl text-red-600 flex items-center gap-2"><Skull size={28} /> Radar Inactive</h3>
-                                    <p className="text-[10px] font-black uppercase opacity-50 mt-1">Personel tanpa aktivitas (Alpha) dalam 7 hari terakhir.</p>
-                                </div>
-                                <button onClick={() => setShowInactiveModal(false)} className="bg-slate-200 hover:bg-red-500 hover:text-white border-2 border-black p-2 rounded-xl transition-all shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none"><X size={20} /></button>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
-                                {inactivePersonnel.length === 0 ? (
-                                    <div className="bg-slate-100 border-4 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center text-center">
-                                        <CheckCircle2 size={48} className="text-[#00E676] mb-3" />
-                                        <h4 className="font-[1000] text-xl italic uppercase">Kondisi Ideal</h4>
-                                        <p className="text-xs font-black opacity-50 uppercase mt-1">Seluruh personel terpantau aktif atau sedang cuti.</p>
-                                    </div>
-                                ) : (
-                                    inactivePersonnel.map((p) => (
-                                        <div key={p.discord_id} className="bg-slate-50 border-2 border-black p-4 rounded-[20px] flex justify-between items-center group hover:bg-slate-100 transition-colors">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-red-100 border-2 border-black rounded-xl flex items-center justify-center text-red-600 shadow-[2px_2px_0px_#000]"><UserX size={18} /></div>
-                                                <div>
-                                                    <h4 className="font-[1000] text-sm uppercase italic leading-none">{p.name?.split('|').pop()?.trim()}</h4>
-                                                    <p className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter mt-1">{p.pangkat} • {p.divisi}</p>
-                                                </div>
-                                            </div>
-                                            <button onClick={() => handleSendWarning(p)} className="bg-slate-950 text-white p-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_#FF4D4D] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2">
-                                                <Send size={14} className="text-red-400" /> <span className="hidden md:inline font-black text-[9px] uppercase italic tracking-widest">Tegur Personel</span>
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-
-                            <div className="pt-4 mt-4 border-t-[4px] border-black flex justify-between items-center shrink-0">
-                                <p className="text-[10px] font-black uppercase italic bg-red-100 text-red-600 px-3 py-1.5 border-2 border-red-600 rounded-lg">Total Alpha: {inactivePersonnel.length} Personel</p>
-                                <button onClick={() => setShowInactiveModal(false)} className="bg-slate-200 border-2 border-black px-6 py-2 rounded-xl font-black text-[10px] uppercase shadow-[2px_2px_0px_#000] active:translate-y-1 transition-all">Tutup Radar</button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
 
             {/* --- 🛑 MODAL KONFIRMASI PURGE / DELETE 🛑 --- */}
             <AnimatePresence>
@@ -544,19 +390,161 @@ export default function SectionAdminSystem() {
                 )}
             </AnimatePresence>
 
-            {/* IMAGE PREVIEW */}
+            {/* --- 📸 IMAGE GALLERY PREVIEW --- */}
             <AnimatePresence>
-                {selectedPhoto && (
-                    <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedPhoto(null)}>
-                        <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className={`bg-white p-2 ${boxBorder} rounded-3xl max-w-4xl w-full`}>
-                            <img src={selectedPhoto} className="w-full rounded-2xl border-2 border-black" alt="Evidence" />
+                {photoGallery && (
+                    <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-4" onClick={() => setPhotoGallery(null)}>
+                        <button className="absolute top-6 right-6 text-white hover:text-red-500 transition-colors z-[610]" onClick={() => setPhotoGallery(null)}>
+                            <X size={36} />
+                        </button>
+
+                        <div className="relative w-full max-w-4xl flex items-center justify-center gap-4" onClick={(e) => e.stopPropagation()}>
+                            {photoGallery.photos.length > 1 && (
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index - 1 + p.photos.length) % p.photos.length } : null)} className="bg-white/10 hover:bg-white text-white hover:text-black p-3 rounded-full border-2 border-transparent hover:border-black transition-all hidden md:block">
+                                    <ChevronLeft size={32} />
+                                </button>
+                            )}
+
+                            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} key={photoGallery.index} className={`bg-white p-2 ${boxBorder} rounded-3xl w-full max-w-2xl shadow-[10px_10px_0px_#A3E635]`}>
+                                <img src={photoGallery.photos[photoGallery.index]} className="w-full max-h-[75vh] object-contain rounded-2xl border-4 border-black" alt={`Evidence ${photoGallery.index + 1}`} />
+                                {photoGallery.photos.length > 1 && (
+                                    <div className="text-center font-black italic uppercase text-xs mt-3 mb-1 text-slate-900">
+                                        Foto {photoGallery.index + 1} dari {photoGallery.photos.length}
+                                    </div>
+                                )}
+                            </motion.div>
+
+                            {photoGallery.photos.length > 1 && (
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index + 1) % p.photos.length } : null)} className="bg-white/10 hover:bg-white text-white hover:text-black p-3 rounded-full border-2 border-transparent hover:border-black transition-all hidden md:block">
+                                    <ChevronRight size={32} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Mobile Controls */}
+                        {photoGallery.photos.length > 1 && (
+                            <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-6 md:hidden z-[610]" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index - 1 + p.photos.length) % p.photos.length } : null)} className="bg-white p-3 rounded-full border-4 border-black"><ChevronLeft size={24} /></button>
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index + 1) % p.photos.length } : null)} className="bg-white p-3 rounded-full border-4 border-black"><ChevronRight size={24} /></button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* --- 🛑 MODAL PREVIEW SURAT LAPORAN ALPHA 🛑 --- */}
+            <AnimatePresence>
+                {isPreviewing && (
+                    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 text-slate-950 backdrop-blur-md">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[35px] p-6 md:p-8 w-full max-w-2xl flex flex-col max-h-[90vh]`}>
+                            <div className="flex justify-between items-start border-b-[4px] border-black pb-4 mb-6 shrink-0">
+                                <div>
+                                    <h3 className="font-[1000] italic uppercase text-xl md:text-2xl flex items-center gap-2"><FileText size={28} /> Surat Peringatan Alpha</h3>
+                                    <p className="text-[10px] font-black uppercase opacity-50 mt-1">Sistem Otomatis Penindakan Internal MPD</p>
+                                </div>
+                                <button onClick={() => setIsPreviewing(false)} className="hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all border-2 border-black shadow-[2px_2px_0px_#000] active:shadow-none active:translate-y-px"><X /></button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 md:p-6 bg-slate-100 border-4 border-dashed border-slate-300 rounded-3xl flex justify-center items-center">
+                                {generatedImage ? (
+                                    <img src={generatedImage} alt="Laporan Alpha" className="w-full h-auto rounded-xl border-4 border-black shadow-[6px_6px_0px_#000]" />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-center p-10 opacity-50">
+                                        <Loader2 className="animate-spin mb-4" size={40} />
+                                        <p className="font-black italic uppercase">Menyusun Dokumen Resmi...</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-6 flex gap-4 shrink-0">
+                                <button onClick={() => setIsPreviewing(false)} className="flex-1 bg-slate-200 border-2 border-black py-3 md:py-4 rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">Tutup</button>
+                                <button
+                                    disabled={!generatedImage}
+                                    onClick={() => {
+                                        if (!generatedImage) return;
+                                        const link = document.createElement('a');
+                                        link.download = `MPD_Laporan_Alpha_${format(new Date(), 'dd_MM_yyyy')}.png`;
+                                        link.href = generatedImage;
+                                        link.click();
+                                    }}
+                                    className="flex-1 bg-[#00E676] border-2 border-black py-3 md:py-4 px-2 md:px-4 rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-[4px_4px_0px_#000] flex items-center justify-center gap-2 md:gap-3 active:translate-y-1 active:shadow-none disabled:opacity-50 transition-all"
+                                >
+                                    <Download size={18} /> Unduh Surat Gambar
+                                </button>
+                            </div>
                         </motion.div>
                     </div>
                 )}
             </AnimatePresence>
 
+            {/* --- HIDDEN ENGINE UNTUK GENERATOR GAMBAR (HTML-TO-IMAGE) --- */}
+            <div className="fixed top-[-9999px] left-[-9999px] opacity-0 pointer-events-none z-[-1000]">
+                <div ref={reportRef} className="w-[800px] bg-white border-[12px] border-slate-950 font-mono text-slate-950">
+                    <div className="p-12 space-y-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-white">
+                        {/* Header Surat */}
+                        <div className="flex justify-between items-center border-b-[8px] border-slate-950 pb-6 bg-white p-4 rounded-2xl border-4 shadow-[8px_8px_0px_#000]">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-slate-950 p-4 rounded-xl text-white"><ShieldCheck size={48} /></div>
+                                <div>
+                                    <h1 className="text-4xl font-[1000] uppercase italic tracking-tighter leading-none">Laporan Inaktif</h1>
+                                    <p className="font-black text-lg opacity-60 mt-1 uppercase tracking-widest">Mandalika Police Department</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-[1000] text-3xl italic">{format(new Date(), 'dd/MM/yyyy')}</p>
+                                <p className="font-black text-sm bg-red-600 text-white px-3 py-1 inline-block mt-2 rounded-lg border-2 border-black">CONFIDENTIAL AUDIT</p>
+                            </div>
+                        </div>
+
+                        {/* List >= 7 Hari */}
+                        <div className="bg-red-50 border-[6px] border-red-600 p-8 rounded-3xl shadow-[8px_8px_0px_#DC2626]">
+                            <div className="flex items-center gap-3 mb-6 border-b-4 border-red-200 pb-4">
+                                <Bomb className="text-red-600" size={32} />
+                                <h2 className="text-3xl font-[1000] text-red-600 uppercase italic">Tindakan Keras (Alpha &ge; 7 Hari)</h2>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                {inactiveStats.inactive7.length > 0 ? (
+                                    inactiveStats.inactive7.map((p, i) => (
+                                        <div key={i} className="bg-white border-4 border-red-300 p-4 rounded-xl flex items-center justify-between">
+                                            <span className="font-[1000] text-lg uppercase truncate">{p.name?.split('|').pop()}</span>
+                                            <span className="bg-red-600 text-white px-2 py-1 text-[10px] font-black rounded">{p.pangkat}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-2 text-center py-4 font-black italic opacity-40 text-red-800">Nihil. Seluruh personel aman.</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* List >= 4 Hari */}
+                        <div className="bg-yellow-50 border-[6px] border-yellow-500 p-8 rounded-3xl shadow-[8px_8px_0px_#EAB308]">
+                            <div className="flex items-center gap-3 mb-6 border-b-4 border-yellow-200 pb-4">
+                                <AlertOctagon className="text-yellow-600" size={32} />
+                                <h2 className="text-3xl font-[1000] text-yellow-600 uppercase italic">Teguran (Alpha 4 - 6 Hari)</h2>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                {inactiveStats.inactive4.length > 0 ? (
+                                    inactiveStats.inactive4.map((p, i) => (
+                                        <div key={i} className="bg-white border-4 border-yellow-300 p-4 rounded-xl flex items-center justify-between">
+                                            <span className="font-[1000] text-lg uppercase truncate">{p.name?.split('|').pop()}</span>
+                                            <span className="bg-yellow-500 text-slate-900 px-2 py-1 text-[10px] font-black rounded">{p.pangkat}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-2 text-center py-4 font-black italic opacity-40 text-yellow-800">Nihil. Seluruh personel aman.</div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="text-center pt-8 opacity-40 border-t-4 border-black/20">
+                            <p className="font-black text-xs uppercase tracking-[0.5em] italic">System Auto-Generated • Divisi Internal MPD</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
             `}</style>
         </div>

@@ -15,7 +15,7 @@ const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 }, // 🎓 Entry level untuk anak didik baru
     { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
     { name: "BHARATU", prp: 50, hrs: 10 }, { name: "BRIPDA", prp: 100, hrs: 20 },
-    { name: "BRIPTU", prp: 150, hrs: 25 }, { name: "BRIGADIR", prp: 250, hrs: 35 },
+    { name: "BRIPTU", prp: 150, hrs: 25 }, { name: "BRIGPOL", prp: 250, hrs: 35 },
     { name: "BRIPKA", prp: 350, hrs: 50 }, { name: "AIPDA", prp: 450, hrs: 65 },
     { name: "AIPTU", prp: 600, hrs: 80 }, { name: "IPDA", prp: 800, hrs: 100 },
     { name: "IPTU", prp: 1000, hrs: 120 }, { name: "AKP", prp: 1300, hrs: 150 },
@@ -68,7 +68,8 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             prpPct: Math.min((currentPRP / nextR.prp) * 100 || 100, 100).toFixed(0),
             hrPct: Math.min((currentHRS / nextR.hrs) * 100 || 100, 100).toFixed(0),
             prpNeed: Math.max(nextR.prp - currentPRP, 0),
-            hrNeed: Math.max(nextR.hrs - currentHRS, 0)
+            // 🔥 PERBAIKAN DESIMAL KEBANYAKAN: Dibulatkan max 1 angka di belakang koma
+            hrNeed: parseFloat(Math.max(nextR.hrs - currentHRS, 0).toFixed(1))
         };
     }, [realtimeData]);
 

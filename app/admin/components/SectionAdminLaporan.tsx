@@ -29,10 +29,10 @@ export default function SectionAdminLaporan() {
     const [previewData, setPreviewData] = useState<any>(null);
     const [showConfig, setShowConfig] = useState(false);
 
-    // --- STATE CONFIG ---
+    // --- STATE CONFIG (PENILANGAN DITAMBAHKAN) ---
     const [adminConfigs, setAdminConfigs] = useState({
-        webhook_penangkapan: "", webhook_kasus_besar: "", webhook_patroli: "", webhook_backup: "",
-        thread_penangkapan: "", thread_kasus_besar: "", thread_patroli: "", thread_backup: ""
+        webhook_penangkapan: "", webhook_kasus_besar: "", webhook_patroli: "", webhook_backup: "", webhook_penilangan: "",
+        thread_penangkapan: "", thread_kasus_besar: "", thread_patroli: "", thread_backup: "", thread_penilangan: ""
     });
 
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
@@ -257,8 +257,9 @@ export default function SectionAdminLaporan() {
                         <div className={`bg-[#FFD100] ${boxBorder} ${hardShadow} rounded-[25px] md:rounded-[35px] p-6 md:p-8 space-y-6 md:space-y-8`}>
                             <div className="flex items-center gap-3 text-slate-950"><Globe size={24} /><h3 className="font-[1000] italic uppercase tracking-tighter text-lg md:text-xl">Multi-Channel Transmit Control</h3></div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                                {['PENANGKAPAN', 'KASUS_BESAR', 'PATROLI', 'BACKUP'].map((type) => (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                                {/* DITAMBAH PENILANGAN KE DALAM DAFTAR MAPPING */}
+                                {['PENANGKAPAN', 'KASUS_BESAR', 'PATROLI', 'BACKUP', 'PENILANGAN'].map((type) => (
                                     <div key={type} className="bg-white/50 p-5 md:p-6 rounded-[20px] md:rounded-[25px] border-2 border-black space-y-4 shadow-[4px_4px_0px_#000]">
                                         <h4 className="font-black italic text-xs uppercase text-slate-900 border-b border-black/10 pb-2">{type.replace('_', ' ')}</h4>
                                         <div className="space-y-3">

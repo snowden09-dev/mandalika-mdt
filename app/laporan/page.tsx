@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldAlert, Target, Zap, Search,
     Camera, Clock, Calendar as CalendarIcon, ArrowLeft,
-    ShieldCheck, X
+    ShieldCheck, X, Ticket
 } from 'lucide-react';
 import { format, parseISO } from "date-fns";
 import { toast, Toaster } from "sonner";
@@ -32,7 +32,9 @@ export default function LaporanMultiForm() {
     const [formData, setFormData] = useState({
         nama_petugas: "", pangkat: "", tanggal: new Date(), waktu_shift: "",
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
-        divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: ""
+        divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
+        // Field tambahan untuk PENILANGAN
+        kendaraan: "", masa_penilangan: "", denda: "", kesalahan: ""
     });
 
     const [foto, setFoto] = useState<File | null>(null);
@@ -40,12 +42,13 @@ export default function LaporanMultiForm() {
 
     const MENTION_ROLE = "<@&1393366590942085220>";
 
-    // --- CONFIG --- (TETAP UTUH)
+    // --- CONFIG --- (DITAMBAH PENILANGAN)
     const CONFIG: any = {
         tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
         kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
         patroli: { color: "#3b82f6", label: "Patroli", poin: 5, icon: Search },
-        backup: { color: "#ef4444", label: "Backup", poin: 3, icon: Zap }
+        backup: { color: "#ef4444", label: "Backup", poin: 3, icon: Zap },
+        tilang: { color: "#f97316", label: "Penilangan", poin: 2, icon: Ticket }
     };
 
     const getFormatMessage = (d: any) => {
@@ -54,6 +57,7 @@ export default function LaporanMultiForm() {
         if (tipe === 'kasus') return `📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nUnit / Divisi : ${d.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
     };
 
     // --- SYNC SESSION DATA ---
@@ -79,7 +83,7 @@ export default function LaporanMultiForm() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // --- LOGIKA SUBMIT (TETAP UTUH) ---
+    // --- LOGIKA SUBMIT ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
         if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
@@ -124,7 +128,7 @@ export default function LaporanMultiForm() {
             <TacticalTransition isVisible={isNavigating} type="COMPUTER" />
             <Toaster position="top-center" richColors />
 
-            {/* 🚀 COMPACT HEADER (SAMA SEPERTI ABSEN) */}
+            {/* 🚀 COMPACT HEADER */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button
                     onClick={() => step === 0 ? handleNavigation('/dashboard') : setStep(0)}
@@ -174,7 +178,7 @@ export default function LaporanMultiForm() {
 
                             <form onSubmit={submitLaporan} className="space-y-4">
 
-                                {/* 🚀 DATE & SHIFT GRID (NATIVE DATE PICKER) */}
+                                {/* 🚀 DATE & SHIFT GRID */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <label className={labelStyle}><CalendarIcon size={12} /> Tanggal</label>
@@ -196,7 +200,7 @@ export default function LaporanMultiForm() {
                                     </div>
                                 </div>
 
-                                {/* 🚀 DYNAMIC FIELDS (COMPACT GRID) */}
+                                {/* 🚀 DYNAMIC FIELDS */}
                                 {tipe === 'tangkap' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -221,9 +225,38 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
+                                {/* 🚀 DYNAMIC FIELD: PENILANGAN */}
+                                {tipe === 'tilang' && (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className={labelStyle}>Jenis Kendaraan</label>
+                                                <select name="kendaraan" required value={formData.kendaraan} onChange={handleInputChange} className={inputStyle}>
+                                                    <option value="">-- PILIH --</option>
+                                                    <option value="Roda 2">Roda 2</option>
+                                                    <option value="Roda 4">Roda 4</option>
+                                                    <option value="Roda 6+">Roda 6+</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className={labelStyle}>Masa Penilangan</label>
+                                                <input name="masa_penilangan" placeholder="Misal: 1 Minggu" required onChange={handleInputChange} className={inputStyle} />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className={labelStyle}>Denda ($)</label>
+                                            <input name="denda" type="number" placeholder="Nominal Denda..." required onChange={handleInputChange} className={inputStyle} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className={labelStyle}>Kesalahan</label>
+                                            <textarea name="kesalahan" placeholder="Tuliskan kesalahan pelanggar..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-[80px] resize-none")} />
+                                        </div>
+                                    </>
+                                )}
+
                                 {/* 🚀 COMPACT UPLOAD BUKTI */}
                                 <div className="space-y-1 pt-2">
-                                    <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL</label>
+                                    <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL / SS</label>
                                     <div className="flex gap-2 items-center">
                                         {preview && (
                                             <div className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>

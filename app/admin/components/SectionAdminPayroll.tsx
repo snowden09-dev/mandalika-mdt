@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send
+    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet
 } from 'lucide-react';
-import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
+import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 
@@ -20,8 +20,10 @@ export default function SectionAdminPayroll() {
     const slipRef = useRef<HTMLDivElement>(null);
     const [requests, setRequests] = useState<any[]>([]);
     const [allPersonnel, setAllPersonnel] = useState<any[]>([]);
+    const [duties, setDuties] = useState<any[]>([]);
+    const [cutis, setCutis] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT'>('PENDING');
+    const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT' | 'REKAP'>('PENDING');
     const [adminSession, setAdminSession] = useState<any>(null);
 
     // --- PREVIEW STATES ---
@@ -39,8 +41,16 @@ export default function SectionAdminPayroll() {
         const { data: reqData } = await supabase.from('pengajuan_gaji').select('*').order('created_at', { ascending: false });
         if (reqData) setRequests(reqData);
 
-        const { data: userData } = await supabase.from('users').select('pangkat');
+        const { data: userData } = await supabase.from('users').select('discord_id, name, pangkat');
         if (userData) setAllPersonnel(userData);
+
+        // Ambil data absen & cuti untuk kalkulasi rekap otomatis
+        const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time');
+        if (dutyData) setDuties(dutyData);
+
+        const { data: cutiData } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_mulai, tanggal_selesai, status');
+        if (cutiData) setCutis(cutiData);
+
         setLoading(false);
     };
 
@@ -82,8 +92,47 @@ export default function SectionAdminPayroll() {
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return requests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
+        if (activeTab === 'REKAP') return []; // Rekap ditangani terpisah
         return requests.filter(r => r.status === activeTab);
     }, [requests, activeTab]);
+
+    // 🚀 ENGINE REKAP (KALKULASI HADIR/CUTI/ALPHA)
+    const rekapData = useMemo(() => {
+        return requests.filter(r => r.status === 'PAID').map(req => {
+            const start = startOfDay(new Date(req.tanggal_mulai));
+            const end = startOfDay(new Date(req.tanggal_selesai));
+            const daysInPeriod = eachDayOfInterval({ start, end });
+            const discordId = req.user_id_discord;
+
+            let hadirCount = 0;
+            let cutiCount = 0;
+
+            daysInPeriod.forEach(day => {
+                const targetStr = format(day, 'yyyy-MM-dd');
+                const isHadir = duties.some(d => d.user_id_discord === discordId && format(new Date(d.start_time), 'yyyy-MM-dd') === targetStr);
+
+                if (isHadir) {
+                    hadirCount++;
+                } else {
+                    const isCuti = cutis.some(c => {
+                        if (c.status !== 'APPROVED' || c.user_id_discord !== discordId) return false;
+                        return day >= startOfDay(new Date(c.tanggal_mulai)) && day <= startOfDay(new Date(c.tanggal_selesai));
+                    });
+                    if (isCuti) cutiCount++;
+                }
+            });
+
+            const alphaCount = Math.max(0, daysInPeriod.length - hadirCount - cutiCount);
+
+            return {
+                ...req,
+                hadir: hadirCount,
+                cuti: cutiCount,
+                alpha: alphaCount,
+                total_hari: daysInPeriod.length
+            };
+        });
+    }, [requests, duties, cutis]);
 
     // 🚀 ENGINE GENERATOR SLIP GAJI
     const handleOpenAndCapture = async (req: any) => {
@@ -93,7 +142,6 @@ export default function SectionAdminPayroll() {
 
         const tId = toast.loading("Mencetak Dokumen Payslip...");
 
-        // Memberikan waktu agar React me-render div tersembunyi dengan sempurna
         setTimeout(async () => {
             if (!slipRef.current) {
                 toast.error("Gagal inisialisasi mesin cetak.", { id: tId });
@@ -117,7 +165,7 @@ export default function SectionAdminPayroll() {
             } finally {
                 setIsGenerating(false);
             }
-        }, 800); // Waktu di-extend sedikit agar QR Code dan Font me-render sempurna
+        }, 800);
     };
 
     // 🚀 ENGINE PENGIRIMAN DISCORD DINAMIS
@@ -128,14 +176,10 @@ export default function SectionAdminPayroll() {
         const tId = toast.loading("Menghubungkan ke HQ Discord...");
 
         try {
-            // 1. Ambil config Webhook dari Database (Jika ada)
             const { data: configData } = await supabase.from('admin_config').select('key, value').in('key', ['webhook_payroll', 'thread_payroll']);
-
-            // 2. Set Link & Thread (Gunakan fallback default jika tabel/data belum ada)
             const WEBHOOK_URL = configData?.find(c => c.key === 'webhook_payroll')?.value || "https://discord.com/api/webhooks/1486137739022700634/m9jKqS2O9DV8L8DcaHgIVGSI1yriyKwYAECgul6Te3W2S-t5isC9r_5x13Zcu-VaT20O";
             const THREAD_ID = configData?.find(c => c.key === 'thread_payroll')?.value || "1467455553214353440";
 
-            // 3. Konversi Base64 gambar ke File Blob
             const blob = await (await fetch(capturedImg)).blob();
             const file = new File([blob], `Payslip_${currentSlipData.nama_panggilan}.png`, { type: 'image/png' });
 
@@ -152,14 +196,12 @@ export default function SectionAdminPayroll() {
                 }]
             }));
 
-            // 4. Kirim ke Discord
             const res = await fetch(`${WEBHOOK_URL}?thread_id=${THREAD_ID}`, {
                 method: 'POST',
                 body: formData
             });
 
             if (res.ok) {
-                // Update status bahwa bukti gambar sudah dikirim
                 await supabase.from('pengajuan_gaji').update({ bukti_transfer: 'SENT_AS_IMAGE_QR' }).eq('id', currentSlipData.id);
                 toast.success("PAYSLIP TERKIRIM KE DISCORD!", { id: tId });
                 setCapturedImg(null);
@@ -226,8 +268,11 @@ export default function SectionAdminPayroll() {
 
                 <div className="flex w-full md:w-auto items-center gap-2">
                     <div className="flex flex-1 md:flex-none bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
-                        {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED'].map((t) => (
-                            <button key={t} onClick={() => setActiveTab(t as any)} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40")}>{t.replace('_', ' ')}</button>
+                        {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED', 'REKAP'].map((t) => (
+                            <button key={t} onClick={() => setActiveTab(t as any)} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap flex items-center gap-2", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>
+                                {t === 'REKAP' && <FileSpreadsheet size={14} />}
+                                {t.replace('_', ' ')}
+                            </button>
                         ))}
                     </div>
                     {activeTab !== 'PENDING' && (
@@ -236,51 +281,102 @@ export default function SectionAdminPayroll() {
                 </div>
             </div>
 
-            {!loading && (
-                filteredData.length === 0 ? (
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
-                        <div className="bg-slate-100 p-5 md:p-6 border-[3.5px] border-slate-900 rounded-3xl mb-4 shadow-[6px_6px_0_0_#000]">
-                            <Database size={56} className="text-slate-400" />
-                        </div>
-                        <h3 className="text-2xl md:text-4xl font-[1000] italic uppercase tracking-tighter text-slate-900">NIHIL DATA</h3>
-                        <p className="text-xs font-black uppercase opacity-50 mt-2 max-w-sm">Saat ini tidak ada laporan di antrian <span className="text-blue-500">{activeTab.replace('_', ' ')}</span>.</p>
-                    </motion.div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                        {filteredData.map((req) => (
-                            <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
-                                <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="absolute top-2 right-2 z-20 bg-white/10 hover:bg-red-500 hover:text-white p-1.5 rounded-lg border-2 border-black opacity-0 group-hover:opacity-100 transition-all text-slate-950"><X size={14} /></button>
-
-                                <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-center border-b-4 border-black">
-                                    <div className="overflow-hidden mr-2">
-                                        <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-base">{req.nama_panggilan}</h4>
-                                        <p className="text-[9px] font-bold text-blue-400 mt-1 uppercase italic">{req.pangkat}</p>
-                                    </div>
-                                    <div className="text-[#00E676] font-black text-lg md:text-xl italic leading-none tracking-tighter shrink-0">${Number(req.jumlah_gaji).toLocaleString()}</div>
-                                </div>
-
-                                <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
-                                    <div className="bg-slate-50 border-2 border-black p-2 md:p-3 rounded-xl text-center font-black text-[9px] md:text-[10px] italic text-slate-900 uppercase">
-                                        {format(new Date(req.tanggal_mulai), 'dd MMM')} — {format(new Date(req.tanggal_selesai), 'dd MMM yyyy')}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 md:gap-3 mt-auto">
-                                        {activeTab === 'PENDING' ? (
-                                            <>
-                                                <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 md:py-2 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
-                                                <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black py-2.5 md:py-2 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
-                                            </>
-                                        ) : activeTab === 'NOT_SENT' ? (
-                                            <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="col-span-2 bg-blue-500 text-white border-2 border-black py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
-                                                {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Eye size={16} />} Buka & Kirim Slip
-                                            </button>
-                                        ) : (
-                                            <div className="col-span-2 text-center text-[10px] font-black opacity-20 uppercase italic text-slate-950 py-1">Recorded</div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+            {/* KONDISIONAL RENDER: TABEL REKAP vs KOTAK KARTU */}
+            {!loading && activeTab === 'REKAP' ? (
+                <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse min-w-[1200px]">
+                            <thead>
+                                <tr className="bg-slate-950 text-white">
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-xs sticky left-0 bg-slate-950 z-10 w-[220px]">Nama Personel</th>
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px]">Periode Gaji</th>
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center text-[#00E676]">Hadir</th>
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center text-[#FFD100]">Cuti</th>
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center text-[#FF4D4D]">Alpha</th>
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-right">Total Gaji</th>
+                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px]">Tgl Pencairan</th>
+                                    <th className="p-4 font-black uppercase italic text-[10px]">Diberikan Oleh</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rekapData.length === 0 ? (
+                                    <tr><td colSpan={8} className="p-10 text-center font-black italic opacity-40 uppercase">Belum ada data gaji yang telah dibayarkan.</td></tr>
+                                ) : (
+                                    rekapData.map((req, idx) => (
+                                        <tr key={req.id} className={cn("border-b-2 border-slate-100 hover:bg-slate-50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
+                                            <td className="p-4 border-r-2 border-slate-100 sticky left-0 bg-inherit z-10">
+                                                <p className="text-xs font-[1000] uppercase italic leading-none">{req.nama_panggilan}</p>
+                                                <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat}</p>
+                                            </td>
+                                            <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
+                                                {format(new Date(req.tanggal_mulai), 'dd/MM/yy')} - {format(new Date(req.tanggal_selesai), 'dd/MM/yy')}
+                                            </td>
+                                            <td className="p-4 border-r-2 border-slate-100 text-center font-black text-sm">{req.hadir}</td>
+                                            <td className="p-4 border-r-2 border-slate-100 text-center font-black text-sm">{req.cuti}</td>
+                                            <td className="p-4 border-r-2 border-slate-100 text-center font-black text-sm">{req.alpha}</td>
+                                            <td className="p-4 border-r-2 border-slate-100 text-right font-[1000] text-[#00E676] text-sm italic tracking-tighter">
+                                                ${Number(req.jumlah_gaji).toLocaleString()}
+                                            </td>
+                                            <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
+                                                {format(new Date(req.updated_at || req.created_at), 'dd MMM yyyy')}
+                                            </td>
+                                            <td className="p-4 text-[10px] font-black uppercase italic text-blue-600">
+                                                {req.keterangan_admin?.replace('AUTH BY ', '') || 'SYSTEM'}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
+                </div>
+            ) : (
+                !loading && (
+                    filteredData.length === 0 ? (
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
+                            <div className="bg-slate-100 p-5 md:p-6 border-[3.5px] border-slate-900 rounded-3xl mb-4 shadow-[6px_6px_0_0_#000]">
+                                <Database size={56} className="text-slate-400" />
+                            </div>
+                            <h3 className="text-2xl md:text-4xl font-[1000] italic uppercase tracking-tighter text-slate-900">NIHIL DATA</h3>
+                            <p className="text-xs font-black uppercase opacity-50 mt-2 max-w-sm">Saat ini tidak ada laporan di antrian <span className="text-blue-500">{activeTab.replace('_', ' ')}</span>.</p>
+                        </motion.div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                            {filteredData.map((req) => (
+                                <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
+                                    <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="absolute top-2 right-2 z-20 bg-white/10 hover:bg-red-500 hover:text-white p-1.5 rounded-lg border-2 border-black opacity-0 group-hover:opacity-100 transition-all text-slate-950"><X size={14} /></button>
+
+                                    <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-center border-b-4 border-black">
+                                        <div className="overflow-hidden mr-2">
+                                            <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-base">{req.nama_panggilan}</h4>
+                                            <p className="text-[9px] font-bold text-blue-400 mt-1 uppercase italic">{req.pangkat}</p>
+                                        </div>
+                                        <div className="text-[#00E676] font-black text-lg md:text-xl italic leading-none tracking-tighter shrink-0">${Number(req.jumlah_gaji).toLocaleString()}</div>
+                                    </div>
+
+                                    <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
+                                        <div className="bg-slate-50 border-2 border-black p-2 md:p-3 rounded-xl text-center font-black text-[9px] md:text-[10px] italic text-slate-900 uppercase">
+                                            {format(new Date(req.tanggal_mulai), 'dd MMM')} — {format(new Date(req.tanggal_selesai), 'dd MMM yyyy')}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 md:gap-3 mt-auto">
+                                            {activeTab === 'PENDING' ? (
+                                                <>
+                                                    <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 md:py-2 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
+                                                    <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black py-2.5 md:py-2 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
+                                                </>
+                                            ) : activeTab === 'NOT_SENT' ? (
+                                                <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="col-span-2 bg-blue-500 text-white border-2 border-black py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
+                                                    {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Eye size={16} />} Buka & Kirim Slip
+                                                </button>
+                                            ) : (
+                                                <div className="col-span-2 text-center text-[10px] font-black opacity-20 uppercase italic text-slate-950 py-1">Recorded</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
                 )
             )}
 
@@ -304,7 +400,6 @@ export default function SectionAdminPayroll() {
             </AnimatePresence>
 
             {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATOR GAMBAR HTML-TO-IMAGE --- */}
-            {/* 🚀 Menggunakan fixed top-[-9999px] agar browser bisa render sempurna sebelum difoto */}
             {currentSlipData && (
                 <div className="fixed top-[-9999px] left-[-9999px] opacity-0 pointer-events-none z-[-1000]">
                     <div ref={slipRef} className="bg-white w-[600px] border-[10px] border-black p-12 space-y-10 text-slate-950 font-mono">
@@ -369,8 +464,8 @@ export default function SectionAdminPayroll() {
             </AnimatePresence>
 
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
             `}</style>
         </div>
     );

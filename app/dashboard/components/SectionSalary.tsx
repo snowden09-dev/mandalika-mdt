@@ -46,25 +46,25 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
     const getGajiByRank = (pangkat: string) => {
         const p = pangkat?.toUpperCase() || "";
-        if (p.includes("JENDRAL")) return 65000;
-        if (p.includes("KOMJEN")) return 64000;
-        if (p.includes("IRJEN")) return 62000;
-        if (p.includes("BRIGJEN")) return 57000;
-        if (p.includes("KOMBES")) return 56000;
-        if (p.includes("AKBP")) return 50000;
-        if (p.includes("KOMPOL")) return 47000;
-        if (p.includes("AKP")) return 45000;
-        if (p.includes("IPTU")) return 37000;
-        if (p.includes("IPDA")) return 36000;
-        if (p.includes("AIPTU")) return 35000;
-        if (p.includes("AIPDA")) return 34000;
-        if (p.includes("BRIPKA")) return 28000;
-        if (p.includes("BRIGPOL")) return 27000;
-        if (p.includes("BRIPTU")) return 26000;
-        if (p.includes("BRIPDA")) return 24000;
-        if (p.includes("BHARATU")) return 23000;
-        if (p.includes("BHARADA")) return 22000;
-        return 23000;
+        if (p.includes("JENDRAL")) return 142000;
+        if (p.includes("KOMJEN")) return 141000;
+        if (p.includes("IRJEN")) return 140000;
+        if (p.includes("BRIGJEN")) return 131000;
+        if (p.includes("KOMBES")) return 130000;
+        if (p.includes("AKBP")) return 122000;
+        if (p.includes("KOMPOL")) return 121000;
+        if (p.includes("AKP")) return 120000;
+        if (p.includes("IPTU")) return 113000;
+        if (p.includes("IPDA")) return 112000;
+        if (p.includes("AIPTU")) return 111000;
+        if (p.includes("AIPDA")) return 110000;
+        if (p.includes("BRIPKA")) return 105000;
+        if (p.includes("BRIGPOL")) return 104000;
+        if (p.includes("BRIPTU")) return 103000;
+        if (p.includes("BRIPDA")) return 102000;
+        if (p.includes("BHARATU")) return 101000;
+        if (p.includes("BHARADA")) return 100000;
+        return 1030000;
     };
 
     const baseSalary = useMemo(() => getGajiByRank(realtimeData?.pangkat), [realtimeData?.pangkat]);

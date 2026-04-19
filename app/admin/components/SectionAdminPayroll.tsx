@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle
+    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -26,6 +26,10 @@ export default function SectionAdminPayroll() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT' | 'REKAP'>('PENDING');
     const [adminSession, setAdminSession] = useState<any>(null);
+
+    // 🚀 STATE PAGINASI
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 6;
 
     // STATE BONUS MANUAL
     const [manualBonus, setManualBonus] = useState<Record<string, number>>({});
@@ -54,7 +58,6 @@ export default function SectionAdminPayroll() {
         const { data: cutiData } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_mulai, tanggal_selesai, status');
         if (cutiData) setCutis(cutiData);
 
-        // Fetch untuk cek target Satlantas
         const { data: lapData } = await supabase.from('laporan_aktivitas').select('user_id_discord, created_at').eq('jenis_laporan', 'Penilangan').eq('status', 'APPROVED');
         if (lapData) setLaporans(lapData);
 
@@ -71,7 +74,11 @@ export default function SectionAdminPayroll() {
         }
     }, []);
 
-    // 🚀 ENGINE SUPER KALKULASI (HADIR, ALPHA, TARGET, POTONGAN & BONUS)
+    // 🚀 RESET PAGINASI JIKA PINDAH TAB
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab]);
+
     const augmentedRequests = useMemo(() => {
         return requests.map(req => {
             const start = startOfDay(new Date(req.tanggal_mulai));
@@ -96,10 +103,9 @@ export default function SectionAdminPayroll() {
 
             const alphaCount = Math.max(0, daysInPeriod.length - hadirCount - cutiCount);
 
-            // Cek Target Tilang & Divisi Satlantas
             const tilangData = laporans.filter(l => l.user_id_discord === discordId && new Date(l.created_at) >= start && new Date(l.created_at) <= end);
             const isTargetMet = tilangData.length >= 15;
-            const isSatlantas = (req.divisi || "").toUpperCase().includes('SATLANTAS'); // 🚀 DETEKSI SATLANTAS
+            const isSatlantas = (req.divisi || "").toUpperCase().includes('SATLANTAS');
 
             const baseGaji = Number(req.jumlah_gaji);
             const potongan = alphaCount * (0.05 * baseGaji);
@@ -107,27 +113,25 @@ export default function SectionAdminPayroll() {
             const finalGaji = baseGaji - potongan + tambahanBonus;
 
             return {
-                ...req,
-                hadir: hadirCount,
-                cuti: cutiCount,
-                alpha: alphaCount,
-                total_hari: daysInPeriod.length,
-                tilangCount: tilangData.length,
-                isTargetMet,
-                isSatlantas, // 🚀 DIMASUKKAN KE DATA
-                baseGaji,
-                potongan,
-                tambahanBonus,
-                finalGaji
+                ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
+                total_hari: daysInPeriod.length, tilangCount: tilangData.length,
+                isTargetMet, isSatlantas, baseGaji, potongan, tambahanBonus, finalGaji
             };
         });
     }, [requests, duties, cutis, laporans, manualBonus]);
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return augmentedRequests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
-        if (activeTab === 'REKAP') return [];
+        if (activeTab === 'REKAP') return augmentedRequests.filter(r => r.status === 'PAID'); // Rekap ambil PAID
         return augmentedRequests.filter(r => r.status === activeTab);
     }, [augmentedRequests, activeTab]);
+
+    // 🚀 SLICING DATA UNTUK PAGINASI
+    const paginatedData = useMemo(() => {
+        return filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    }, [filteredData, currentPage]);
+
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
     const financialStats = useMemo(() => {
         if (!requests || requests.length === 0) return { weeklyPaid: 0, totalPending: 0, forecast: 0 };
@@ -145,7 +149,6 @@ export default function SectionAdminPayroll() {
         return { weeklyPaid, totalPending, forecast };
     }, [requests, augmentedRequests]);
 
-    // 🚀 ENGINE GENERATOR SLIP GAJI
     const handleOpenAndCapture = async (req: any) => {
         setCurrentSlipData(req);
         setIsGenerating(true);
@@ -168,7 +171,6 @@ export default function SectionAdminPayroll() {
         }, 800);
     };
 
-    // 🚀 ENGINE PENGIRIMAN DISCORD
     const handleTransmit = async () => {
         if (!capturedImg || !currentSlipData) return;
         setIsTransmitting(true);
@@ -206,7 +208,6 @@ export default function SectionAdminPayroll() {
         } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
     };
 
-    // 🚀 HANDLE ACTION DENGAN SIMPAN RINCIAN (BASE, POTONGAN, BONUS) KE DATABASE
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
@@ -225,26 +226,43 @@ export default function SectionAdminPayroll() {
         else { toast.success("Success!", { id: tId }); fetchData(); }
     };
 
+    // 🚀 ENGINE DELETE SINGLE & ALL (PURGE)
     const executeDelete = async () => {
-        if (deleteModal.type === 'ALL' && confirmInput !== "BERSIHKAN") return toast.error("Kode Salah!");
-        const tId = toast.loading("Processing Purge...");
+        if (deleteModal.type === 'ALL' && confirmInput !== "BERSIHKAN") return toast.error("Kode Keamanan Salah!");
+        const tId = toast.loading(deleteModal.type === 'ALL' ? "Processing Purge..." : "Menghapus Data Log...");
         try {
-            if (deleteModal.type === 'ALL') { await supabase.from('pengajuan_gaji').delete().neq('status', 'PENDING'); }
-            else { await supabase.from('pengajuan_gaji').delete().eq('id', deleteModal.id); }
-            toast.success("DATA PURGED!", { id: tId }); fetchData();
-            setDeleteModal({ show: false, type: 'ALL' }); setConfirmInput("");
-        } catch (e) { toast.error("Gagal hapus data!"); }
+            if (deleteModal.type === 'ALL') {
+                await supabase.from('pengajuan_gaji').delete().neq('status', 'PENDING');
+            } else {
+                await supabase.from('pengajuan_gaji').delete().eq('id', deleteModal.id);
+            }
+            toast.success(deleteModal.type === 'ALL' ? "SELURUH DATA ARSIP DIBERSIHKAN!" : "LOG BERHASIL DIHAPUS!", { id: tId });
+            fetchData();
+            setDeleteModal({ show: false, type: 'ALL' });
+            setConfirmInput("");
+        } catch (e) { toast.error("Gagal menghapus data!"); }
     };
 
     const getSlipDetails = (slip: any) => {
         const notes = slip.keterangan_admin || "";
         const extract = (key: string) => { const match = notes.match(new RegExp(`${key}:(\\d+)`)); return match ? parseInt(match[1]) : 0; };
         return {
-            alpha: extract('ALPH'),
-            dedc: extract('DEDC'),
-            bons: extract('BONS'),
-            base: extract('BASE') || slip.jumlah_gaji
+            alpha: extract('ALPH'), dedc: extract('DEDC'), bons: extract('BONS'), base: extract('BASE') || slip.jumlah_gaji
         };
+    };
+
+    // 🚀 UI KOMPONEN KONTROL PAGINASI
+    const PaginationControls = () => {
+        if (totalPages <= 1) return null;
+        return (
+            <div className="flex justify-between items-center bg-slate-950 text-white p-4 rounded-xl border-[4px] border-black mt-6 shadow-[6px_6px_0px_#FFD100]">
+                <span className="text-[10px] font-black uppercase italic tracking-widest text-[#FFD100]">Page {currentPage} of {totalPages}</span>
+                <div className="flex gap-2">
+                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="bg-white text-black p-2 rounded-lg active:scale-95 disabled:opacity-30 disabled:active:scale-100 transition-transform"><ChevronLeft size={16} strokeWidth={3} /></button>
+                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="bg-white text-black p-2 rounded-lg active:scale-95 disabled:opacity-30 disabled:active:scale-100 transition-transform"><ChevronRight size={16} strokeWidth={3} /></button>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -286,54 +304,59 @@ export default function SectionAdminPayroll() {
                 </div>
             </div>
 
-            {/* KONDISIONAL RENDER TABEL REKAP */}
+            {/* KONDISIONAL RENDER TABEL REKAP DENGAN PAGINASI */}
             {!loading && activeTab === 'REKAP' && (
-                <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
-                    <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full text-left border-collapse min-w-[1000px]">
-                            <thead>
-                                <tr className="bg-slate-950 text-white">
-                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-xs">Nama Personel</th>
-                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px]">Periode Gaji</th>
-                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center">Rekap (H/C/A)</th>
-                                    <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-right">Total Gaji</th>
-                                    <th className="p-4 border-white/10 font-black uppercase italic text-[10px]">Pencairan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {augmentedRequests.filter(r => r.status === 'PAID').length === 0 ? (
-                                    <tr><td colSpan={5} className="p-10 text-center font-black italic opacity-40 uppercase">Belum ada data gaji yang telah dibayarkan.</td></tr>
-                                ) : (
-                                    augmentedRequests.filter(r => r.status === 'PAID').map((req, idx) => (
-                                        <tr key={req.id} className={cn("border-b-2 border-slate-100 hover:bg-slate-50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
-                                            <td className="p-4 border-r-2 border-slate-100">
-                                                <p className="text-xs font-[1000] uppercase italic leading-none">{req.nama_panggilan}</p>
-                                                <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat}</p>
-                                            </td>
-                                            <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
-                                                {format(new Date(req.tanggal_mulai), 'dd/MM/yy')} - {format(new Date(req.tanggal_selesai), 'dd/MM/yy')}
-                                            </td>
-                                            <td className="p-4 border-r-2 border-slate-100 text-center text-[10px] font-black tracking-widest">
-                                                <span className="text-green-500">{req.hadir}</span> / <span className="text-yellow-500">{req.cuti}</span> / <span className="text-red-500">{req.alpha}</span>
-                                            </td>
-                                            <td className="p-4 border-r-2 border-slate-100 text-right font-[1000] text-[#00E676] text-sm italic">
-                                                ${Number(req.jumlah_gaji).toLocaleString()}
-                                            </td>
-                                            <td className="p-4 text-[10px] font-bold uppercase italic opacity-80">
-                                                {format(new Date(req.updated_at || req.created_at), 'dd MMM yyyy')}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                <>
+                    <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
+                        <div className="overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse min-w-[1000px]">
+                                <thead>
+                                    <tr className="bg-slate-950 text-white">
+                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-xs">Nama Personel</th>
+                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px]">Periode Gaji</th>
+                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center">Rekap (H/C/A)</th>
+                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-right">Total Gaji</th>
+                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginatedData.length === 0 ? (
+                                        <tr><td colSpan={5} className="p-10 text-center font-black italic opacity-40 uppercase">Belum ada data gaji yang telah dibayarkan di halaman ini.</td></tr>
+                                    ) : (
+                                        paginatedData.map((req, idx) => (
+                                            <tr key={req.id} className={cn("border-b-2 border-slate-100 hover:bg-slate-50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
+                                                <td className="p-4 border-r-2 border-slate-100">
+                                                    <p className="text-xs font-[1000] uppercase italic leading-none">{req.nama_panggilan}</p>
+                                                    <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat}</p>
+                                                </td>
+                                                <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
+                                                    {format(new Date(req.tanggal_mulai), 'dd/MM/yy')} - {format(new Date(req.tanggal_selesai), 'dd/MM/yy')}
+                                                </td>
+                                                <td className="p-4 border-r-2 border-slate-100 text-center text-[10px] font-black tracking-widest">
+                                                    <span className="text-green-500">{req.hadir}</span> / <span className="text-yellow-500">{req.cuti}</span> / <span className="text-red-500">{req.alpha}</span>
+                                                </td>
+                                                <td className="p-4 border-r-2 border-slate-100 text-right font-[1000] text-[#00E676] text-sm italic">
+                                                    ${Number(req.jumlah_gaji).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-[#FF4D4D] bg-red-50 hover:bg-red-100 p-2 rounded-xl border-2 border-[#FF4D4D] active:scale-95 transition-all">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                    <PaginationControls />
+                </>
             )}
 
-            {/* KONDISIONAL RENDER KARTU KLAIM */}
+            {/* KONDISIONAL RENDER KARTU KLAIM DENGAN PAGINASI */}
             {!loading && activeTab !== 'REKAP' && (
-                filteredData.length === 0 ? (
+                paginatedData.length === 0 ? (
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
                         <div className="bg-slate-100 p-5 md:p-6 border-[3.5px] border-slate-900 rounded-3xl mb-4 shadow-[6px_6px_0_0_#000]">
                             <Database size={56} className="text-slate-400" />
@@ -342,99 +365,136 @@ export default function SectionAdminPayroll() {
                         <p className="text-xs font-black uppercase opacity-50 mt-2 max-w-sm">Saat ini tidak ada laporan di antrian <span className="text-blue-500">{activeTab.replace('_', ' ')}</span>.</p>
                     </motion.div>
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                        {filteredData.map((req) => (
-                            <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
-                                <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-start border-b-[4px] border-black">
-                                    <div>
-                                        <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-lg">{req.nama_panggilan}</h4>
-                                        <p className="text-[9px] font-bold text-[#A3E635] mt-1 uppercase italic">{req.pangkat} • {req.divisi || 'UNIT'}</p>
-                                    </div>
-                                    <div className="bg-slate-800 p-1.5 rounded-lg border-2 border-slate-700 text-[9px] font-black uppercase text-center shrink-0">
-                                        <p className="text-slate-400">Periode</p>
-                                        <p>{format(new Date(req.tanggal_mulai), 'dd/MM')} - {format(new Date(req.tanggal_selesai), 'dd/MM')}</p>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
-                                    {/* 🚀 RADAR INFO (Hadir & Target Kondisional) */}
-                                    <div className={cn("grid gap-3", req.isSatlantas ? "grid-cols-2" : "grid-cols-1")}>
-                                        {/* Attendance Box */}
-                                        <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden">
-                                            <p className="text-[8px] font-black uppercase opacity-50 mb-1">Kehadiran ({req.total_hari} Hari)</p>
-                                            <div className="flex gap-2 text-[10px] font-black">
-                                                <span className="text-green-600 bg-green-100 px-2 rounded border border-green-300">H: {req.hadir}</span>
-                                                <span className="text-yellow-600 bg-yellow-100 px-2 rounded border border-yellow-300">C: {req.cuti}</span>
-                                                <span className={req.alpha > 0 ? "text-white bg-red-500 px-2 rounded border-2 border-black" : "text-red-500 bg-red-100 px-2 rounded border border-red-300"}>A: {req.alpha}</span>
+                    <>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+                            {paginatedData.map((req) => (
+                                <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
+                                    <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-start border-b-[4px] border-black">
+                                        <div>
+                                            <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-lg">{req.nama_panggilan}</h4>
+                                            <p className="text-[9px] font-bold text-[#A3E635] mt-1 uppercase italic">{req.pangkat} • {req.divisi || 'UNIT'}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <div className="bg-slate-800 p-1.5 rounded-lg border-2 border-slate-700 text-[9px] font-black uppercase text-center shrink-0">
+                                                <p className="text-slate-400">Periode</p>
+                                                <p>{format(new Date(req.tanggal_mulai), 'dd/MM')} - {format(new Date(req.tanggal_selesai), 'dd/MM')}</p>
                                             </div>
-                                            {req.alpha > 0 && <UserX size={40} className="absolute -right-2 -bottom-2 opacity-10 text-red-500" />}
+                                            {/* 🚀 TOMBOL HAPUS LOG SINGLE */}
+                                            <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="bg-[#FF4D4D] text-black p-2 rounded-lg border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 hover:scale-105 transition-all">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
+                                        <div className={cn("grid gap-3", req.isSatlantas ? "grid-cols-2" : "grid-cols-1")}>
+                                            <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden">
+                                                <p className="text-[8px] font-black uppercase opacity-50 mb-1">Kehadiran ({req.total_hari} Hari)</p>
+                                                <div className="flex gap-2 text-[10px] font-black">
+                                                    <span className="text-green-600 bg-green-100 px-2 rounded border border-green-300">H: {req.hadir}</span>
+                                                    <span className="text-yellow-600 bg-yellow-100 px-2 rounded border border-yellow-300">C: {req.cuti}</span>
+                                                    <span className={req.alpha > 0 ? "text-white bg-red-500 px-2 rounded border-2 border-black" : "text-red-500 bg-red-100 px-2 rounded border border-red-300"}>A: {req.alpha}</span>
+                                                </div>
+                                                {req.alpha > 0 && <UserX size={40} className="absolute -right-2 -bottom-2 opacity-10 text-red-500" />}
+                                            </div>
+
+                                            {req.isSatlantas && (
+                                                <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden flex flex-col justify-center">
+                                                    <p className="text-[8px] font-black uppercase opacity-50 mb-1">Target Ops</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={cn("text-xs font-[1000] italic px-2 py-0.5 border border-black rounded shadow-[2px_2px_0px_#000]", req.isTargetMet ? "bg-[#00E676] text-black" : "bg-[#FFD100] text-black")}>
+                                                            {req.tilangCount}/15
+                                                        </span>
+                                                        <span className="text-[8px] font-black uppercase italic">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
+                                                    </div>
+                                                    <Target size={40} className="absolute -right-2 -bottom-2 opacity-10" />
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* Target Box - HANYA MUNCUL UNTUK SATLANTAS */}
-                                        {req.isSatlantas && (
-                                            <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden flex flex-col justify-center">
-                                                <p className="text-[8px] font-black uppercase opacity-50 mb-1">Target Ops</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={cn("text-xs font-[1000] italic px-2 py-0.5 border border-black rounded shadow-[2px_2px_0px_#000]", req.isTargetMet ? "bg-[#00E676] text-black" : "bg-[#FFD100] text-black")}>
-                                                        {req.tilangCount}/15
-                                                    </span>
-                                                    <span className="text-[8px] font-black uppercase italic">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
-                                                </div>
-                                                <Target size={40} className="absolute -right-2 -bottom-2 opacity-10" />
+                                        <div className="border-t-2 border-dashed border-slate-300 pt-3 space-y-1">
+                                            <div className="flex justify-between text-[10px] font-black uppercase opacity-60"><span>Gaji Pokok / Awal</span><span>${req.baseGaji.toLocaleString()}</span></div>
+                                            {req.potongan > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5%)</span><span>- ${Math.round(req.potongan).toLocaleString()}</span></div>}
+                                            {req.tambahanBonus > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-blue-600"><span>Bonus Manual Admin</span><span>+ ${req.tambahanBonus.toLocaleString()}</span></div>}
+                                        </div>
+
+                                        {activeTab === 'PENDING' && (
+                                            <div className="flex gap-2 justify-center border-t-2 border-black pt-3">
+                                                <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 35000 })} className="flex-1 bg-slate-950 text-white py-2 rounded-xl text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
+                                                    <PlusCircle size={12} /> $35k (Lantas/Sab)
+                                                </button>
+                                                <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 50000 })} className="flex-1 bg-slate-950 text-white py-2 rounded-xl text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
+                                                    <PlusCircle size={12} /> $50k (Brimob/Pro)
+                                                </button>
+                                                {req.tambahanBonus > 0 && (
+                                                    <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 0 })} className="bg-red-500 text-white px-2 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] active:scale-95"><Trash2 size={12} /></button>
+                                                )}
                                             </div>
                                         )}
-                                    </div>
 
-                                    {/* KALKULASI PENDAPATAN */}
-                                    <div className="border-t-2 border-dashed border-slate-300 pt-3 space-y-1">
-                                        <div className="flex justify-between text-[10px] font-black uppercase opacity-60"><span>Gaji Pokok / Awal</span><span>${req.baseGaji.toLocaleString()}</span></div>
-                                        {req.potongan > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5%)</span><span>- ${Math.round(req.potongan).toLocaleString()}</span></div>}
-                                        {req.tambahanBonus > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-blue-600"><span>Bonus Manual Admin</span><span>+ ${req.tambahanBonus.toLocaleString()}</span></div>}
-                                    </div>
+                                        <div className="mt-auto flex items-end justify-between bg-slate-100 p-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_#000]">
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase opacity-60 italic leading-none mb-1">Final Payout</p>
+                                                <p className="text-2xl font-[1000] italic text-[#00E676] leading-none text-shadow-sm tracking-tighter">${req.finalGaji.toLocaleString()}</p>
+                                            </div>
 
-                                    {/* TOMBOL MANUAL BONUS (Hanya saat Pending) */}
-                                    {activeTab === 'PENDING' && (
-                                        <div className="flex gap-2 justify-center border-t-2 border-black pt-3">
-                                            <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 35000 })} className="flex-1 bg-slate-950 text-white py-2 rounded-xl text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
-                                                <PlusCircle size={12} /> $35k (Lantas/Sab)
-                                            </button>
-                                            <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 50000 })} className="flex-1 bg-slate-950 text-white py-2 rounded-xl text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
-                                                <PlusCircle size={12} /> $50k (Brimob/Pro)
-                                            </button>
-                                            {req.tambahanBonus > 0 && (
-                                                <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 0 })} className="bg-red-500 text-white px-2 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] active:scale-95"><Trash2 size={12} /></button>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* FINAL SALARY & ACTIONS */}
-                                    <div className="mt-auto flex items-end justify-between bg-slate-100 p-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_#000]">
-                                        <div>
-                                            <p className="text-[9px] font-black uppercase opacity-60 italic leading-none mb-1">Final Payout</p>
-                                            <p className="text-2xl font-[1000] italic text-[#00E676] leading-none text-shadow-sm tracking-tighter">${req.finalGaji.toLocaleString()}</p>
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            {activeTab === 'PENDING' ? (
-                                                <>
-                                                    <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black px-3 py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
-                                                    <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black px-3 py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
-                                                </>
-                                            ) : activeTab === 'NOT_SENT' ? (
-                                                <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="bg-blue-500 text-white border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
-                                                    {isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />} Preview Slip
-                                                </button>
-                                            ) : (
-                                                <button onClick={() => handleOpenAndCapture(req)} className="bg-slate-300 text-slate-950 border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1"><Eye size={14} /> Arsip Slip</button>
-                                            )}
+                                            <div className="flex gap-2">
+                                                {activeTab === 'PENDING' ? (
+                                                    <>
+                                                        <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black px-3 py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
+                                                        <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black px-3 py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
+                                                    </>
+                                                ) : activeTab === 'NOT_SENT' ? (
+                                                    <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="bg-blue-500 text-white border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
+                                                        {isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />} Preview Slip
+                                                    </button>
+                                                ) : (
+                                                    <button onClick={() => handleOpenAndCapture(req)} className="bg-slate-300 text-slate-950 border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1"><Eye size={14} /> Arsip Slip</button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                        <PaginationControls />
+                    </>
                 )
             )}
+
+            {/* 🚀 MODAL HAPUS DATA (NEO BRUTALISM) */}
+            <AnimatePresence>
+                {deleteModal.show && (
+                    <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, opacity: 0, rotate: -2 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white border-[4px] border-black shadow-[8px_8px_0px_#FF4D4D] p-6 max-w-sm w-full rounded-2xl">
+                            <div className="flex items-center gap-3 text-[#FF4D4D] mb-4">
+                                <AlertOctagon size={32} strokeWidth={3} />
+                                <h3 className="text-xl font-[1000] italic uppercase">Peringatan!</h3>
+                            </div>
+                            <p className="text-xs font-bold uppercase mb-4 opacity-70 leading-relaxed">
+                                {deleteModal.type === 'ALL'
+                                    ? "Anda akan menghapus SEMUA data gaji yang sudah diproses dari database. Ketik 'BERSIHKAN' untuk melanjutkan."
+                                    : "Anda yakin ingin menghapus log slip gaji ini secara permanen dari server?"}
+                            </p>
+
+                            {deleteModal.type === 'ALL' && (
+                                <input
+                                    type="text"
+                                    value={confirmInput}
+                                    onChange={(e) => setConfirmInput(e.target.value)}
+                                    placeholder="Ketik BERSIHKAN"
+                                    className="w-full border-2 border-black p-3 mb-4 rounded-xl font-bold uppercase outline-none focus:bg-slate-100"
+                                />
+                            )}
+
+                            <div className="flex gap-2 mt-6">
+                                <button onClick={() => setDeleteModal({ show: false, type: 'ALL' })} className="flex-1 bg-slate-200 text-black border-2 border-black p-3 rounded-xl font-black uppercase text-xs active:translate-y-1 shadow-[2px_2px_0px_#000] transition-transform">Batal</button>
+                                <button onClick={executeDelete} className="flex-1 bg-[#FF4D4D] text-white border-2 border-black p-3 rounded-xl font-black uppercase text-xs active:translate-y-1 shadow-[2px_2px_0px_#000] transition-transform">Hapus</button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* MODAL PREVIEW & KIRIM PAYSLIP */}
             <AnimatePresence>
@@ -461,12 +521,9 @@ export default function SectionAdminPayroll() {
             {currentSlipData && (
                 <div className="fixed top-[-9999px] left-[-9999px] opacity-0 pointer-events-none z-[-1000]">
                     <div ref={slipRef} className="bg-white w-[650px] border-[12px] border-black p-12 space-y-10 text-slate-950 font-mono relative">
-                        {/* Background Watermark */}
                         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none z-0">
                             <img src="/logo-polisi-blackwhite.png" alt="Watermark" className="w-[400px] h-[400px] object-contain grayscale" />
                         </div>
-
-                        {/* Header Slip */}
                         <div className="flex justify-between items-start border-b-[8px] border-black pb-8 relative z-10">
                             <div className="flex gap-4 items-center">
                                 <img src="/logo-polisi-blackwhite.png" alt="Logo MPD" className="w-16 h-16 object-contain" />
@@ -478,7 +535,6 @@ export default function SectionAdminPayroll() {
                             <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{currentSlipData.id.substring(0, 6).toUpperCase()}</div>
                         </div>
 
-                        {/* DETAIL LENGKAP KARYAWAN */}
                         <div className="grid grid-cols-2 gap-10 relative z-10">
                             <div className="space-y-6">
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Personel</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{currentSlipData.nama_panggilan}</p></div>
@@ -494,7 +550,6 @@ export default function SectionAdminPayroll() {
                             </div>
                         </div>
 
-                        {/* RINCIAN PENDAPATAN & POTONGAN */}
                         <div className="border-4 border-black p-6 rounded-2xl relative z-10 bg-white">
                             <h4 className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-4">Rincian Kompensasi</h4>
                             <div className="space-y-3">
@@ -502,14 +557,12 @@ export default function SectionAdminPayroll() {
                                     <span className="opacity-60">Gaji Awal / Pokok</span>
                                     <span>${getSlipDetails(currentSlipData).base.toLocaleString()}</span>
                                 </div>
-
                                 {getSlipDetails(currentSlipData).bons > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-blue-600">
                                         <span>Bonus Kinerja (Divisi)</span>
                                         <span>+ ${getSlipDetails(currentSlipData).bons.toLocaleString()}</span>
                                     </div>
                                 )}
-
                                 {getSlipDetails(currentSlipData).alpha > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
                                         <span>Potongan Alpha ({getSlipDetails(currentSlipData).alpha} Hari)</span>
@@ -519,7 +572,6 @@ export default function SectionAdminPayroll() {
                             </div>
                         </div>
 
-                        {/* PAYOUT TOTAL & QR CODE */}
                         <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676] relative z-10">
                             <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(currentSlipData.jumlah_gaji).toLocaleString()}</h3></div>
                             <div className="bg-white p-2 border-4 border-black">
@@ -527,7 +579,6 @@ export default function SectionAdminPayroll() {
                             </div>
                         </div>
 
-                        {/* FOOTER */}
                         <div className="flex justify-center pt-2 relative z-10">
                             <p className="text-[10px] font-black uppercase tracking-[0.5em] bg-black text-white px-4 py-1 rounded">Mandalika Police Department</p>
                         </div>

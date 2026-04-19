@@ -3,27 +3,27 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
-import { ShieldCheck, Users, FileText, Banknote, Server, Loader2, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Users, FileText, Banknote, Server, Loader2, ArrowLeft, Crosshair } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// IMPORT SEMUA KOMPONEN JENDRAL DI SINI
+// IMPORT SEMUA KOMPONEN
 import SectionAdminPersonnel from './components/SectionAdminPersonnel';
 import SectionAdminCuti from './components/SectionAdminCuti';
-import SectionAdminSystem from './components/SectionAdminSystem'; // Ini Rekap Absen
+import SectionAdminSystem from './components/SectionAdminSystem';
 import SectionAdminLaporan from './components/SectionAdminLaporan';
 import SectionAdminPayroll from './components/SectionAdminPayroll';
-import SectionAdminConfig from './components/SectionAdminConfig'; // Komponen Baru
+import SectionAdminConfig from './components/SectionAdminConfig';
+import SectionAdminDivisi from './components/SectionAdminDivisi'; // KOMPONEN BARU
 
 export default function AdminHQPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'LAPORAN' | 'FINANCE' | 'SYSTEM'>('PERSONEL');
+    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'DIVISI' | 'LAPORAN' | 'FINANCE' | 'SYSTEM'>('PERSONEL');
 
-    // Sub-tab khusus untuk Personel (karena isinya banyak)
+    // Sub-tab khusus untuk Personel
     const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'CUTI' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
 
     useEffect(() => {
-        // Cek Otoritas (Pastikan hanya Admin/Petinggi yang bisa buka)
         const checkAuth = async () => {
             const sessionData = localStorage.getItem('police_session');
             if (!sessionData) { router.push('/'); return; }
@@ -51,7 +51,7 @@ export default function AdminHQPage() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center py-4 gap-4">
 
-                        {/* KIRI: Logo & Judul (+ Tombol Back khusus Mobile) */}
+                        {/* KIRI: Logo & Judul */}
                         <div className="flex justify-between items-center w-full md:w-auto">
                             <div className="flex items-center gap-3">
                                 <ShieldCheck size={36} className="text-[#3B82F6]" />
@@ -60,30 +60,21 @@ export default function AdminHQPage() {
                                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mt-1">High Command Console</p>
                                 </div>
                             </div>
-                            {/* Tombol Back ke Dashboard (Muncul di Mobile Saja) */}
-                            <button
-                                onClick={() => router.push('/dashboard')}
-                                className="md:hidden bg-slate-800 text-white p-2.5 rounded-xl border-2 border-slate-700 active:scale-95 transition-all shadow-[2px_2px_0_0_#3B82F6]"
-                            >
+                            <button onClick={() => router.push('/dashboard')} className="md:hidden bg-slate-800 text-white p-2.5 rounded-xl border-2 border-slate-700 active:scale-95 transition-all shadow-[2px_2px_0_0_#3B82F6]">
                                 <ArrowLeft size={20} />
                             </button>
                         </div>
 
-                        {/* KANAN: MENU UTAMA (4 TAB BESAR) + Tombol Back PC */}
+                        {/* KANAN: MENU UTAMA (5 TAB BESAR) */}
                         <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
-                            {/* Tombol Back ke Dashboard (Muncul di PC Saja) */}
-                            <button
-                                onClick={() => router.push('/dashboard')}
-                                className="hidden md:flex items-center gap-2 px-4 py-3 bg-slate-800 text-slate-400 hover:text-white rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent hover:border-slate-600"
-                            >
+                            <button onClick={() => router.push('/dashboard')} className="hidden md:flex items-center gap-2 px-4 py-3 bg-slate-800 text-slate-400 hover:text-white rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent hover:border-slate-600">
                                 <ArrowLeft size={16} /> Base
                             </button>
-
-                            {/* Garis Pembatas di PC */}
                             <div className="hidden md:block w-[2px] h-8 bg-slate-800 mx-1"></div>
 
                             {[
                                 { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
+                                { id: 'DIVISI', icon: <Crosshair size={16} />, label: 'Divisi Area' }, // TAB BARU
                                 { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
                                 { id: 'FINANCE', icon: <Banknote size={16} />, label: 'Finance' },
                                 { id: 'SYSTEM', icon: <Server size={16} />, label: 'System' }
@@ -93,9 +84,7 @@ export default function AdminHQPage() {
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={cn(
                                         "flex items-center gap-2 px-4 py-3 rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent whitespace-nowrap",
-                                        activeTab === tab.id
-                                            ? "bg-[#3B82F6] text-white border-white shadow-[3px_3px_0px_#fff]"
-                                            : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                                        activeTab === tab.id ? "bg-[#3B82F6] text-white border-white shadow-[3px_3px_0px_#fff]" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                                     )}
                                 >
                                     {tab.icon} {tab.label}
@@ -109,58 +98,43 @@ export default function AdminHQPage() {
             {/* --- KONTEN DINAMIS --- */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <AnimatePresence mode="wait">
-                    <motion.div
-                        key={activeTab}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        {/* 1. TAB PERSONEL (Bercabang 3) */}
+                    <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+
+                        {/* 1. PERSONEL */}
                         {activeTab === 'PERSONEL' && (
                             <div className="space-y-6">
-                                {/* Sub-Navigasi Khusus Personel */}
                                 <div className="flex bg-slate-200 p-1.5 rounded-2xl border-[3.5px] border-black w-fit max-w-full overflow-x-auto shadow-[4px_4px_0px_#000] hide-scrollbar">
                                     {[
                                         { id: 'DATA_ANGGOTA', label: 'Data Anggota' },
                                         { id: 'CUTI', label: 'Pengajuan Cuti' },
                                         { id: 'REKAP_ABSEN', label: 'Rekap Absensi' }
                                     ].map(sub => (
-                                        <button
-                                            key={sub.id}
-                                            onClick={() => setPersonelSubTab(sub.id as any)}
-                                            className={cn(
-                                                "px-4 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all whitespace-nowrap",
-                                                personelSubTab === sub.id
-                                                    ? "bg-white text-black border-2 border-black shadow-[2px_2px_0px_#000]"
-                                                    : "text-slate-500 hover:text-black"
-                                            )}
-                                        >
+                                        <button key={sub.id} onClick={() => setPersonelSubTab(sub.id as any)} className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all whitespace-nowrap", personelSubTab === sub.id ? "bg-white text-black border-2 border-black shadow-[2px_2px_0px_#000]" : "text-slate-500 hover:text-black")}>
                                             {sub.label}
                                         </button>
                                     ))}
                                 </div>
-
-                                {/* Render Komponen Personel sesuai sub-tab */}
                                 {personelSubTab === 'DATA_ANGGOTA' && <SectionAdminPersonnel />}
                                 {personelSubTab === 'CUTI' && <SectionAdminCuti />}
                                 {personelSubTab === 'REKAP_ABSEN' && <SectionAdminSystem />}
                             </div>
                         )}
 
-                        {/* 2. TAB LAPORAN */}
+                        {/* 2. DIVISI AREA */}
+                        {activeTab === 'DIVISI' && <SectionAdminDivisi />}
+
+                        {/* 3. LAPORAN */}
                         {activeTab === 'LAPORAN' && <SectionAdminLaporan />}
 
-                        {/* 3. TAB FINANCE (Gaji & Rekap Excel ada di dalam sini) */}
+                        {/* 4. FINANCE */}
                         {activeTab === 'FINANCE' && <SectionAdminPayroll />}
 
-                        {/* 4. TAB SYSTEM (Konfigurasi Webhook) */}
+                        {/* 5. SYSTEM */}
                         {activeTab === 'SYSTEM' && <SectionAdminConfig />}
 
                     </motion.div>
                 </AnimatePresence>
             </div>
-
             <style jsx global>{`
                 .hide-scrollbar::-webkit-scrollbar { display: none; }
                 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

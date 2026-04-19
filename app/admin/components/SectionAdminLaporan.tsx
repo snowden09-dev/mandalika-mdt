@@ -7,10 +7,10 @@ import {
     CheckCircle2, XCircle, Clock, Eye, Send,
     Trash2, ShieldCheck, Image as ImageIcon,
     Filter, ArrowRight, ExternalLink, X, Zap, AlertOctagon,
-    Settings, Save, Hash, Search, Loader2, Lock, Globe, Camera, FileText, Target
+    Settings, Save, Hash, Search, Loader2, Lock, Globe, Camera, FileText
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
-import { format, parseISO, startOfWeek, endOfWeek } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { id } from "date-fns/locale";
 import { useRouter } from 'next/navigation';
 
@@ -29,7 +29,7 @@ export default function SectionAdminLaporan() {
     const [previewData, setPreviewData] = useState<any>(null);
     const [showConfig, setShowConfig] = useState(false);
 
-    // --- STATE CONFIG ---
+    // --- STATE CONFIG (PENILANGAN DITAMBAHKAN) ---
     const [adminConfigs, setAdminConfigs] = useState({
         webhook_penangkapan: "", webhook_kasus_besar: "", webhook_patroli: "", webhook_backup: "", webhook_penilangan: "",
         thread_penangkapan: "", thread_kasus_besar: "", thread_patroli: "", thread_backup: "", thread_penilangan: ""
@@ -73,42 +73,6 @@ export default function SectionAdminLaporan() {
         return reports.filter(r => r.status === activeTab);
     }, [reports, activeTab]);
 
-    // --- 🚀 LOGIKA LEADERBOARD TARGET PENILANGAN ---
-    const targetMonitor = useMemo(() => {
-        const now = new Date();
-        const startW = startOfWeek(now, { weekStartsOn: 1 });
-        const endW = endOfWeek(now, { weekStartsOn: 1 });
-
-        const userCounts: Record<string, { name: string, count: number }> = {};
-
-        // 1. Identifikasi Anggota Satlantas (Yang pernah setor Penilangan)
-        reports.forEach(r => {
-            if (r.jenis_laporan?.toUpperCase() === 'PENILANGAN') {
-                if (!userCounts[r.user_id_discord]) {
-                    userCounts[r.user_id_discord] = {
-                        name: r.users?.name?.includes('|') ? r.users.name.split('|').pop()?.trim() : (r.users?.name || "ANONIM"),
-                        count: 0
-                    };
-                }
-            }
-        });
-
-        // 2. Hitung jumlah tilang APPROVED khusus MINGGU INI
-        reports.forEach(r => {
-            if (r.jenis_laporan?.toUpperCase() === 'PENILANGAN' && r.status === 'APPROVED') {
-                const reportDate = parseISO(r.created_at);
-                if (reportDate >= startW && reportDate <= endW) {
-                    if (userCounts[r.user_id_discord]) {
-                        userCounts[r.user_id_discord].count += 1;
-                    }
-                }
-            }
-        });
-
-        // 3. Urutkan dari yang terbanyak
-        return Object.values(userCounts).sort((a, b) => b.count - a.count);
-    }, [reports]);
-
     const updateConfigs = async () => {
         const tId = toast.loading("Saving Multi-Channel Configs...");
         try {
@@ -121,12 +85,17 @@ export default function SectionAdminLaporan() {
         } catch (err) { toast.error("Gagal update konfigurasi!"); }
     };
 
+    // --- 🛠️ FUNGSI FILTER URL GAMBAR ---
     const formatImageUrlForDiscord = (url: string) => {
         if (!url) return null;
         let finalUrl = url.trim();
 
-        if (finalUrl.includes('supabase.co/storage')) return finalUrl;
+        // 1. Jika URL dari Supabase, biarkan saja karena ini sudah Direct URL
+        if (finalUrl.includes('supabase.co/storage')) {
+            return finalUrl;
+        }
 
+        // 2. Fix khusus untuk Imgur standard
         if (finalUrl.includes('imgur.com') && !finalUrl.includes('i.imgur.com')) {
             if (!finalUrl.includes('/a/') && !finalUrl.includes('/gallery/')) {
                 finalUrl = finalUrl.replace('imgur.com', 'i.imgur.com');
@@ -134,12 +103,13 @@ export default function SectionAdminLaporan() {
                     finalUrl += '.jpg';
                 }
             } else {
-                return null;
+                return null; // Return null jika format album agar webhook tidak error
             }
         }
         return finalUrl;
     };
 
+    // --- 🛠️ LOGIKA FIX: PENAMBAHAN SYSTEM RADAR BUKTI ---
     const handleAction = async (report: any, status: 'APPROVED' | 'REJECTED') => {
         const tId = toast.loading(`Processing ${status}...`);
         try {
@@ -288,6 +258,7 @@ export default function SectionAdminLaporan() {
                             <div className="flex items-center gap-3 text-slate-950"><Globe size={24} /><h3 className="font-[1000] italic uppercase tracking-tighter text-lg md:text-xl">Multi-Channel Transmit Control</h3></div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                                {/* DITAMBAH PENILANGAN KE DALAM DAFTAR MAPPING */}
                                 {['PENANGKAPAN', 'KASUS_BESAR', 'PATROLI', 'BACKUP', 'PENILANGAN'].map((type) => (
                                     <div key={type} className="bg-white/50 p-5 md:p-6 rounded-[20px] md:rounded-[25px] border-2 border-black space-y-4 shadow-[4px_4px_0px_#000]">
                                         <h4 className="font-black italic text-xs uppercase text-slate-900 border-b border-black/10 pb-2">{type.replace('_', ' ')}</h4>
@@ -309,39 +280,6 @@ export default function SectionAdminLaporan() {
                     </motion.div>
                 )}
             </AnimatePresence>
-
-            {/* --- 🎯 SATLANTAS TARGET MONITOR --- */}
-            {!loading && targetMonitor.length > 0 && activeTab === 'PENDING' && (
-                <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-4 px-2">
-                        <Target size={20} className="text-[#F97316]" />
-                        <h3 className="font-[1000] italic uppercase text-lg text-slate-900">Traffic Enforcement Target</h3>
-                        <span className="text-[9px] font-black uppercase bg-slate-200 px-2 py-1 rounded-md ml-2 border border-slate-300">Minggu Ini</span>
-                    </div>
-                    <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4 px-1">
-                        {targetMonitor.map((user, idx) => {
-                            const TARGET = 15;
-                            const isAchieved = user.count >= TARGET;
-                            const pct = Math.min((user.count / TARGET) * 100, 100);
-
-                            return (
-                                <div key={idx} className={`min-w-[200px] md:min-w-[240px] bg-white border-[3px] border-black p-4 rounded-2xl shadow-[4px_4px_0px_${isAchieved ? '#00E676' : '#F97316'}] flex-shrink-0`}>
-                                    <p className="text-[10px] font-black opacity-60 uppercase truncate mb-1">{user.name}</p>
-                                    <div className="flex justify-between items-end mb-2">
-                                        <span className="text-3xl font-[1000] italic leading-none">{user.count}<span className="text-sm text-slate-400">/{TARGET}</span></span>
-                                        <span className={`text-[8px] text-white px-2 py-1 rounded-md border-2 border-black font-black uppercase ${isAchieved ? 'bg-[#00E676]' : 'bg-red-500'}`}>
-                                            {isAchieved ? 'ACHIEVED' : `KURANG ${TARGET - user.count}`}
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-slate-100 h-2 mt-3 border-[1.5px] border-black rounded-full overflow-hidden">
-                                        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className={`h-full ${isAchieved ? 'bg-[#00E676]' : 'bg-[#F97316]'}`} />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* LIST REPORTS & EMPTY STATE */}
             {loading ? (

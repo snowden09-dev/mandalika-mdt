@@ -96,12 +96,13 @@ export default function SectionAdminPayroll() {
 
             const alphaCount = Math.max(0, daysInPeriod.length - hadirCount - cutiCount);
 
-            // Cek Target Tilang
+            // Cek Target Tilang & Divisi Satlantas
             const tilangData = laporans.filter(l => l.user_id_discord === discordId && new Date(l.created_at) >= start && new Date(l.created_at) <= end);
             const isTargetMet = tilangData.length >= 15;
+            const isSatlantas = (req.divisi || "").toUpperCase().includes('SATLANTAS'); // 🚀 DETEKSI SATLANTAS
 
-            const baseGaji = Number(req.jumlah_gaji); // Nilai awal dari DB (sudah termasuk auto-bonus jika target tercapai dari sistem frontend member)
-            const potongan = alphaCount * (0.05 * baseGaji); // Potong 5% per Alpha
+            const baseGaji = Number(req.jumlah_gaji);
+            const potongan = alphaCount * (0.05 * baseGaji);
             const tambahanBonus = manualBonus[req.id] || 0;
             const finalGaji = baseGaji - potongan + tambahanBonus;
 
@@ -113,6 +114,7 @@ export default function SectionAdminPayroll() {
                 total_hari: daysInPeriod.length,
                 tilangCount: tilangData.length,
                 isTargetMet,
+                isSatlantas, // 🚀 DIMASUKKAN KE DATA
                 baseGaji,
                 potongan,
                 tambahanBonus,
@@ -209,7 +211,6 @@ export default function SectionAdminPayroll() {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
 
-        // Simpan rincian ke keterangan_admin agar bisa dirender di slip nanti
         const adminNotes = status === 'PAID'
             ? `AUTH BY ${adminSession?.name || 'ADMIN'} | ALPH:${reqToApprove.alpha} | DEDC:${Math.round(reqToApprove.potongan)} | BONS:${reqToApprove.tambahanBonus} | BASE:${reqToApprove.baseGaji}`
             : `REJECTED BY ${adminSession?.name || 'ADMIN'}`;
@@ -235,7 +236,6 @@ export default function SectionAdminPayroll() {
         } catch (e) { toast.error("Gagal hapus data!"); }
     };
 
-    // Helper untuk Parsing Note di Slip
     const getSlipDetails = (slip: any) => {
         const notes = slip.keterangan_admin || "";
         const extract = (key: string) => { const match = notes.match(new RegExp(`${key}:(\\d+)`)); return match ? parseInt(match[1]) : 0; };
@@ -357,8 +357,8 @@ export default function SectionAdminPayroll() {
                                 </div>
 
                                 <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
-                                    {/* RADAR INFO (Hadir, Target) */}
-                                    <div className="grid grid-cols-2 gap-3">
+                                    {/* 🚀 RADAR INFO (Hadir & Target Kondisional) */}
+                                    <div className={cn("grid gap-3", req.isSatlantas ? "grid-cols-2" : "grid-cols-1")}>
                                         {/* Attendance Box */}
                                         <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden">
                                             <p className="text-[8px] font-black uppercase opacity-50 mb-1">Kehadiran ({req.total_hari} Hari)</p>
@@ -370,17 +370,19 @@ export default function SectionAdminPayroll() {
                                             {req.alpha > 0 && <UserX size={40} className="absolute -right-2 -bottom-2 opacity-10 text-red-500" />}
                                         </div>
 
-                                        {/* Target Box */}
-                                        <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden flex flex-col justify-center">
-                                            <p className="text-[8px] font-black uppercase opacity-50 mb-1">Target Ops</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className={cn("text-xs font-[1000] italic px-2 py-0.5 border border-black rounded shadow-[2px_2px_0px_#000]", req.isTargetMet ? "bg-[#00E676] text-black" : "bg-[#FFD100] text-black")}>
-                                                    {req.tilangCount}/15
-                                                </span>
-                                                <span className="text-[8px] font-black uppercase italic">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
+                                        {/* Target Box - HANYA MUNCUL UNTUK SATLANTAS */}
+                                        {req.isSatlantas && (
+                                            <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden flex flex-col justify-center">
+                                                <p className="text-[8px] font-black uppercase opacity-50 mb-1">Target Ops</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={cn("text-xs font-[1000] italic px-2 py-0.5 border border-black rounded shadow-[2px_2px_0px_#000]", req.isTargetMet ? "bg-[#00E676] text-black" : "bg-[#FFD100] text-black")}>
+                                                        {req.tilangCount}/15
+                                                    </span>
+                                                    <span className="text-[8px] font-black uppercase italic">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
+                                                </div>
+                                                <Target size={40} className="absolute -right-2 -bottom-2 opacity-10" />
                                             </div>
-                                            <Target size={40} className="absolute -right-2 -bottom-2 opacity-10" />
-                                        </div>
+                                        )}
                                     </div>
 
                                     {/* KALKULASI PENDAPATAN */}
@@ -420,7 +422,7 @@ export default function SectionAdminPayroll() {
                                                 </>
                                             ) : activeTab === 'NOT_SENT' ? (
                                                 <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="bg-blue-500 text-white border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
-                                                    {isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />} Kirim Slip
+                                                    {isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />} Preview Slip
                                                 </button>
                                             ) : (
                                                 <button onClick={() => handleOpenAndCapture(req)} className="bg-slate-300 text-slate-950 border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1"><Eye size={14} /> Arsip Slip</button>

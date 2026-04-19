@@ -13,7 +13,8 @@ import {
 import {
     format, startOfMonth, endOfMonth, startOfWeek,
     endOfWeek, addDays, isSameDay, isWithinInterval,
-    addMonths, subMonths, subDays, startOfDay, endOfDay, isBefore, parseISO
+    addMonths, subMonths, startOfDay, endOfDay, isBefore, parseISO,
+    getDay, differenceInDays, subWeeks
 } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { supabase } from "@/lib/supabase";
@@ -25,12 +26,11 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
     const [history, setHistory] = useState<any[]>([]);
-    const [userReports, setUserReports] = useState<any[]>([]); // 🚀 State untuk log tilang
+    const [userReports, setUserReports] = useState<any[]>([]);
     const [isVerifying, setIsVerifying] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 4;
 
-    // --- DOWNLOAD STATE ---
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [selectedSlip, setSelectedSlip] = useState<any>(null);
 
@@ -75,11 +75,9 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         if (!user) return;
         const discordId = user.user_metadata?.provider_id || user.id;
 
-        // Fetch History Gaji
         const { data: historyData } = await supabase.from('pengajuan_gaji').select('*').eq('user_id_discord', discordId).order('created_at', { ascending: false });
         if (historyData) setHistory(historyData);
 
-        // 🚀 Fetch Laporan Aktivitas (Hanya yang Penilangan & APPROVED untuk kalkulasi bonus Satlantas)
         const { data: reportsData } = await supabase.from('laporan_aktivitas')
             .select('created_at')
             .eq('user_id_discord', discordId)
@@ -90,17 +88,15 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
     useEffect(() => { fetchHistoryAndReports(); }, []);
 
-    // 🚀 LOGIKA BONUS & TARGET TRACKER
+    // 🚀 LOGIKA DIVISI SATLANTAS
     const divisiUser = realtimeData?.divisi?.toUpperCase() || "";
     const isSatlantas = divisiUser.includes('SATLANTAS');
 
-    // Potensi Bonus Maksimal (Sesuai Arahan)
     const bonusPotential = (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) ? 35000 :
         (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) ? 50000 : 0;
 
     const TARGET_TILANG = 15;
 
-    // Hitung progress hanya pada rentang tanggal yang dipilih user
     const targetProgress = useMemo(() => {
         if (!range.from || !range.to) return 0;
         const endRange = endOfDay(range.to);
@@ -110,10 +106,17 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         }).length;
     }, [range, userReports]);
 
-    // Saat ini baru SATLANTAS yang logic-nya aktif
     const isTargetMet = isSatlantas ? targetProgress >= TARGET_TILANG : false;
     const earnedBonus = isTargetMet ? bonusPotential : 0;
-    const finalSalary = baseSalary + earnedBonus;
+
+    // 🚀 MULTIPLIER GAJI (x2 MINGGU)
+    const selectedWeeksCount = useMemo(() => {
+        if (!range.from || !range.to) return 1;
+        const diffDays = differenceInDays(startOfDay(range.to), startOfDay(range.from)) + 1;
+        return diffDays === 14 ? 2 : 1;
+    }, [range]);
+
+    const finalSalary = (baseSalary * selectedWeeksCount) + earnedBonus;
 
     const days = useMemo(() => {
         const monthStart = startOfMonth(currentMonth);
@@ -126,8 +129,18 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return rows;
     }, [currentMonth]);
 
-    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+    // 🚀 LOGIKA PERIODE DINAMIS (MINGGU INI VS MINGGU LALU)
+    const activePeriod = useMemo(() => {
+        const now = new Date();
+        const currentDay = getDay(now); // 0 = Minggu, 1 = Senin, dsb.
+
+        // Jika hari ini sudah Minggu (0), gunakan minggu ini. Jika belum (Senin-Sabtu), mundur 1 minggu.
+        const referenceDate = currentDay === 0 ? now : subWeeks(now, 1);
+
+        const start = startOfWeek(referenceDate, { weekStartsOn: 1 }); // Mulai Senin
+        const end = endOfWeek(referenceDate, { weekStartsOn: 1 }); // Berakhir Minggu
+        return { start, end };
+    }, []);
 
     const handleDateClick = (day: Date) => {
         if (!range.from || (range.from && range.to)) setRange({ from: day, to: null });
@@ -142,16 +155,39 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
         setIsVerifying(true);
         try {
+            const startDayObj = startOfDay(range.from);
+            const endDayObj = startOfDay(range.to);
+
+            // 1️⃣ VALIDASI HARI: Wajib Senin - Minggu
+            if (getDay(startDayObj) !== 1 || getDay(endDayObj) !== 0) {
+                showNotif("PILIHAN HARI SALAH", "Pengajuan wajib dimulai dari hari SENIN dan berakhir di hari MINGGU.", "ERROR");
+                setIsVerifying(false); return;
+            }
+
+            // 2️⃣ VALIDASI DURASI: Wajib Kelipatan 7 Hari (Max 14)
+            const diffDays = differenceInDays(endDayObj, startDayObj) + 1;
+            if (diffDays !== 7 && diffDays !== 14) {
+                showNotif("DURASI TIDAK VALID", "Durasi klaim wajib 1 Minggu (7 Hari) atau 2 Minggu (14 Hari).", "ERROR");
+                setIsVerifying(false); return;
+            }
+
+            // 3️⃣ VALIDASI PREMATUR: Mencegah klaim minggu ini jika belum hari Minggu
+            if (endDayObj > startOfDay(activePeriod.end)) {
+                showNotif("PERIODE BELUM TERCAPAI", "Anda tidak bisa mengklaim gaji untuk minggu kerja yang belum selesai. Klaim baru terbuka pada hari Minggu.", "ERROR");
+                setIsVerifying(false); return;
+            }
+
+            // 4️⃣ VALIDASI KADALUWARSA: Maksimal 2 Minggu ke belakang
+            const maxPastStart = subWeeks(activePeriod.start, 1);
+            if (startDayObj < maxPastStart) {
+                showNotif("KLAIM KADALUWARSA", "Batas klaim maksimal adalah 2 minggu ke belakang (x2 Gaji).", "ERROR");
+                setIsVerifying(false); return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
             const discordId = user?.user_metadata?.provider_id || user?.id;
             const startStr = range.from.toISOString();
             const endStr = range.to.toISOString();
-
-            const limitDate = startOfDay(subDays(new Date(), 14));
-            if (isBefore(range.from, limitDate)) {
-                showNotif("KLAIM KADALUWARSA", "Batas klaim maksimal adalah 2 minggu ke belakang!", "ERROR");
-                setIsVerifying(false); return;
-            }
 
             const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
@@ -164,13 +200,12 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            // Simpan gaji Final (Base + Bonus)
             const { error } = await supabase.from('pengajuan_gaji').insert([{
                 user_id_discord: discordId,
                 nama_panggilan: nickname,
                 pangkat: realtimeData?.pangkat || "RECRUIT",
                 divisi: realtimeData?.divisi || "SABHARA",
-                jumlah_gaji: finalSalary, // 🚀 MENGGUNAKAN FINAL SALARY
+                jumlah_gaji: finalSalary,
                 tanggal_mulai: startStr,
                 tanggal_selesai: endStr,
                 status: 'PENDING'
@@ -185,7 +220,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         } finally { setIsVerifying(false); }
     };
 
-    // LOGIKA DOWNLOAD SLIP GAJI
     const handleDownloadSlip = async (log: any) => {
         setDownloadingId(log.id);
         setSelectedSlip(log);
@@ -233,26 +267,26 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 </div>
             </div>
 
-            {/* 🚀 STATS & DYNAMIC BONUS PANEL */}
+            {/* STATS & DYNAMIC BONUS PANEL */}
             <div className={`md:col-span-4 bg-[#00E676] ${boxBorder} ${hardShadow} flex flex-col overflow-hidden text-black`}>
                 <div className="p-5 flex-1 flex flex-col justify-center">
                     <div className="flex justify-between items-start mb-2">
                         <Wallet size={24} />
                         <span className="text-[9px] font-[1000] bg-black text-white px-2 py-1 italic uppercase tracking-widest">{realtimeData?.pangkat || 'RECRUIT'}</span>
                     </div>
-                    <p className="text-[10px] font-black uppercase italic opacity-60 mt-2">Base Salary</p>
-                    <h2 className="text-3xl font-[1000] italic">${baseSalary.toLocaleString()}</h2>
+                    <p className="text-[10px] font-black uppercase italic opacity-60 mt-2">Base Salary {selectedWeeksCount > 1 ? '(x2 Weeks)' : ''}</p>
+                    <h2 className="text-3xl font-[1000] italic">${(baseSalary * selectedWeeksCount).toLocaleString()}</h2>
                 </div>
 
-                {/* Panel Target Bonus */}
-                <div className="bg-slate-950 text-white p-5 flex flex-col border-t-[4px] border-black relative">
-                    <div className="flex justify-between items-center mb-2">
-                        <p className="text-[10px] font-black uppercase italic text-[#FFD100]">Performance Bonus</p>
-                        <span className="text-sm font-[1000] italic text-[#A3E635]">+${earnedBonus.toLocaleString()}</span>
-                    </div>
+                {/* 🚀 TARGET BONUS (HANYA MUNCUL JIKA SATLANTAS) */}
+                {isSatlantas && (
+                    <div className="bg-slate-950 text-white p-5 flex flex-col border-t-[4px] border-black relative">
+                        <div className="flex justify-between items-center mb-2">
+                            <p className="text-[10px] font-black uppercase italic text-[#FFD100]">Performance Bonus</p>
+                            <span className="text-sm font-[1000] italic text-[#A3E635]">+${earnedBonus.toLocaleString()}</span>
+                        </div>
 
-                    {isSatlantas ? (
-                        range.from && range.to ? (
+                        {range.from && range.to ? (
                             <div className="mt-2 space-y-1">
                                 <div className="flex justify-between text-[9px] font-bold uppercase text-slate-400">
                                     <span>Target {TARGET_TILANG} Tilang</span>
@@ -269,14 +303,9 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             </div>
                         ) : (
                             <p className="text-[9px] font-black uppercase text-slate-500 mt-1 border-2 border-slate-800 border-dashed p-2 text-center">Pilih rentang tanggal untuk kalkulasi bonus</p>
-                        )
-                    ) : (
-                        <div className="mt-2 border-2 border-slate-800 border-dashed p-2 flex items-center justify-center gap-2">
-                            <Lock size={12} className="text-slate-500" />
-                            <p className="text-[8px] font-black uppercase text-slate-500">System Locked (No Active Target)</p>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="bg-white p-4 flex justify-between items-end border-t-[4px] border-black">
                     <p className="text-[10px] font-[1000] uppercase italic opacity-60">Total Payout</p>
@@ -302,13 +331,14 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 <div className="bg-black text-[#A3E635] border-2 border-black p-3 mb-4 shadow-[4px_4px_0px_#FFF]">
                     <div className="flex items-center gap-2 border-b border-[#A3E635]/30 pb-1 mb-2">
                         <AlertTriangle size={14} />
-                        <p className="text-[10px] font-black uppercase italic tracking-widest text-[#A3E635]">Info Pengajuan</p>
+                        <p className="text-[10px] font-black uppercase italic tracking-widest text-[#A3E635]">Info Aturan Gaji</p>
                     </div>
                     <p className="text-[9px] font-black leading-relaxed uppercase mb-2">
-                        Pilih rentang hari. Anda dapat mengajukan gaji meskipun tidak ada log duty. Maksimal mundur 2 minggu. Khusus anggota dengan Target, bonus dihitung berdasarkan performa di tanggal terpilih.
+                        WAJIB pilih tanggal dari hari <b>SENIN sampai MINGGU</b> (Kelipatan 7 Hari).
+                        Periode gaji terbaru hanya bisa diklaim jika sudah mencapai Hari Minggu.
                     </p>
                     <div className="bg-[#A3E635] text-black px-2 py-1 inline-block font-black text-[9px] uppercase italic border border-[#A3E635]">
-                        Periode Minggu Ini: {format(currentWeekStart, 'dd MMM yyyy', { locale: id })} - {format(currentWeekEnd, 'dd MMM yyyy', { locale: id })}
+                        Periode Dapat Diklaim: {format(activePeriod.start, 'dd MMM', { locale: id })} - {format(activePeriod.end, 'dd MMM yyyy', { locale: id })}
                     </div>
                 </div>
 
@@ -371,7 +401,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             {selectedSlip && (
                 <div style={{ position: 'absolute', top: '-4000px', left: '-4000px', zIndex: -100 }}>
                     <div ref={slipRef} className="bg-white w-[600px] border-[10px] border-black p-12 space-y-10 text-slate-950 font-mono">
-                        {/* Header */}
                         <div className="flex justify-between items-start border-b-[8px] border-black pb-8">
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 text-blue-600 mb-2 font-black italic text-sm tracking-[0.3em]"><Shield size={24} /> MPD HQ</div>
@@ -381,7 +410,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{selectedSlip.id.substring(0, 6).toUpperCase()}</div>
                         </div>
 
-                        {/* DETAIL LENGKAP */}
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-6">
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Lengkap</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{selectedSlip.nama_panggilan}</p></div>
@@ -393,12 +421,11 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(), 'dd MMMM yyyy', { locale: id })}</p></div>
                                 <div className="bg-slate-50 border-4 border-dashed border-black p-4 rounded-xl text-center">
                                     <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
-                                    <p className="text-[11px] font-black uppercase leading-none">{selectedSlip.keterangan_admin?.replace('AUTH BY ', '') || 'HIGH COMMAND'}</p>
+                                    <p className="text-[11px] font-black uppercase leading-none">{selectedSlip.keterangan_admin?.split(' |')[0]?.replace('AUTH BY ', '') || 'HIGH COMMAND'}</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Payout & QR */}
                         <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676]">
                             <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(selectedSlip.jumlah_gaji).toLocaleString()}</h3></div>
                             <div className="bg-white p-2 border-4 border-black">

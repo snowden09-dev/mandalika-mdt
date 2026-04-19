@@ -1,152 +1,148 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    ShieldAlert, Users, CalendarCheck, LayoutDashboard,
-    ArrowLeft, Banknote, FileSpreadsheet, ClipboardList, Lock
-} from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { toast, Toaster } from 'sonner';
+import { supabase } from "@/lib/supabase";
+import { ShieldCheck, Users, FileText, Banknote, Server, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// Import Section
-import SectionAdminCuti from "./components/SectionAdminCuti";
-import SectionAdminPersonnel from "./components/SectionAdminPersonnel";
-import SectionAdminSystem from "./components/SectionAdminSystem";
-import SectionAdminPayroll from "./components/SectionAdminPayroll";
-import SectionAdminLaporan from "./components/SectionAdminLaporan";
+// IMPORT SEMUA KOMPONEN JENDRAL DI SINI
+import SectionAdminPersonnel from './components/SectionAdminPersonnel';
+import SectionAdminCuti from './components/SectionAdminCuti';
+import SectionAdminSystem from './components/SectionAdminSystem'; // Ini Rekap Absen
+import SectionAdminLaporan from './components/SectionAdminLaporan';
+import SectionAdminPayroll from './components/SectionAdminPayroll';
+import SectionAdminConfig from './components/SectionAdminConfig'; // Komponen Baru
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-export default function AdminPortal() {
+export default function AdminHQPage() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState('cuti');
-    const [isChecking, setIsChecking] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'LAPORAN' | 'FINANCE' | 'SYSTEM'>('PERSONEL');
+
+    // Sub-tab khusus untuk Personel (karena isinya banyak)
+    const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'CUTI' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
 
     useEffect(() => {
-        const verifyAdmin = async () => {
+        // Cek Otoritas (Pastikan hanya Admin/Petinggi yang bisa buka)
+        const checkAuth = async () => {
             const sessionData = localStorage.getItem('police_session');
+            if (!sessionData) { router.push('/'); return; }
 
-            if (!sessionData) {
-                router.push('/');
-                return;
-            }
+            const parsed = JSON.parse(sessionData);
+            const { data } = await supabase.from('users').select('is_admin, is_highadmin').eq('discord_id', parsed.discord_id).single();
 
-            try {
-                const parsed = JSON.parse(sessionData);
-
-                // --- LOGIKA KEAMANAN TINGKAT TINGGI ---
-                // Cek is_admin dan is_highadmin secara eksplisit di database
-                const { data, error } = await supabase
-                    .from('users')
-                    .select('pangkat, divisi, is_highadmin, is_admin')
-                    .eq('discord_id', parsed.discord_id)
-                    .single();
-
-                if (data) {
-                    // Hanya izinkan jika is_admin ATAU is_highadmin bernilai TRUE
-                    // Pangkat Jendral/Petinggi tetap dicek sebagai fallback, tapi prioritas tetap pada boolean
-                    const hasAccess = data.is_admin === true || data.is_highadmin === true || data.pangkat === 'JENDRAL' || data.divisi === 'PETINGGI';
-
-                    if (!hasAccess) {
-                        toast.error("AKSES ILEGAL TERDETEKSI! Kembali ke Portal.");
-                        setTimeout(() => router.push('/dashboard'), 1500);
-                    } else {
-                        setIsChecking(false);
-                    }
-                } else {
-                    router.push('/');
-                }
-            } catch (err) {
-                router.push('/');
+            if (!data?.is_admin && !data?.is_highadmin) {
+                router.push('/dashboard');
+            } else {
+                setLoading(false);
             }
         };
-        verifyAdmin();
+        checkAuth();
     }, [router]);
 
-    // Layar "Loading" saat verifikasi sedang berlangsung (Gembok Visual)
-    if (isChecking) return (
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white font-mono font-black uppercase italic p-6 text-center">
-            <motion.div
-                animate={{ scale: [1, 1.1, 1], rotate: [0, 10, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-            >
-                <Lock size={80} className="mb-6 text-[#A78BFA]" strokeWidth={3} />
-            </motion.div>
-            <div className="tracking-[0.3em] text-2xl mb-2 text-[#A78BFA]">ENCRYPTING ACCESS...</div>
-            <p className="text-[10px] opacity-40">Mandalika High Command Protocol v2.0</p>
-        </div>
-    );
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 font-mono text-black font-black italic text-xl animate-pulse"><Loader2 className="animate-spin mr-3" /> VERIFYING CLEARANCE...</div>;
+
+    const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
     return (
-        <div className="flex min-h-screen bg-[#A78BFA] font-mono overflow-hidden text-slate-950">
-            <Toaster position="top-center" richColors />
+        <div className="min-h-screen bg-slate-50 font-mono text-slate-950 pb-24">
+            {/* --- HEADER NAVIGASI MASTER --- */}
+            <div className="bg-slate-950 text-white sticky top-0 z-50 border-b-[6px] border-[#3B82F6] shadow-[0px_10px_0px_#000]">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck size={36} className="text-[#3B82F6]" />
+                            <div>
+                                <h1 className="text-2xl font-[1000] uppercase italic leading-none">Internal Affairs</h1>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mt-1">High Command Console</p>
+                            </div>
+                        </div>
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-                {/* HEADER ADMIN */}
-                <header className="flex justify-between items-center px-4 md:px-8 py-4 bg-white border-b-[6px] border-slate-950 z-40 shadow-[0px_6px_0px_#000]">
-                    <div className="flex items-center gap-3">
-                        <ShieldAlert size={32} className="text-[#A78BFA]" strokeWidth={2.5} />
-                        <div>
-                            <h2 className="font-[1000] italic uppercase text-xl md:text-2xl tracking-tighter leading-none">HIGH COMMAND</h2>
-                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 italic leading-none mt-1">Admin Protocol Active</p>
+                        {/* MENU UTAMA (4 TAB BESAR) */}
+                        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+                            {[
+                                { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
+                                { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
+                                { id: 'FINANCE', icon: <Banknote size={16} />, label: 'Finance' },
+                                { id: 'SYSTEM', icon: <Server size={16} />, label: 'System' }
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-3 rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent whitespace-nowrap",
+                                        activeTab === tab.id
+                                            ? "bg-[#3B82F6] text-white border-white shadow-[3px_3px_0px_#fff]"
+                                            : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                                    )}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                    <button onClick={() => router.push('/dashboard')} className="flex items-center gap-2 bg-[#FFD100] border-[3.5px] border-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">
-                        <ArrowLeft size={16} /> <span className="hidden md:inline italic text-[10px]">Back to Portal</span>
-                    </button>
-                </header>
-
-                {/* MAIN CONTENT AREA */}
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 bg-[#A78BFA]">
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={activeTab}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            {activeTab === 'cuti' && <SectionAdminCuti key="cuti" />}
-                            {activeTab === 'personnel' && <SectionAdminPersonnel key="personnel" />}
-                            {activeTab === 'payroll' && <SectionAdminPayroll key="payroll" />}
-                            {activeTab === 'laporan' && <SectionAdminLaporan key="laporan" />}
-                            {activeTab === 'rekap' && <SectionAdminSystem key="rekap" />}
-                        </motion.div>
-                    </AnimatePresence>
-                </main>
-
-                {/* BOTTOM NAVIGATION - 5 MENU */}
-                <nav className="fixed bottom-0 left-0 w-full bg-white border-t-[6px] border-slate-950 flex justify-around items-center py-4 pb-8 md:pb-4 z-[60] shadow-[0px_-6px_0px_rgba(0,0,0,1)]">
-
-                    <button onClick={() => setActiveTab('cuti')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'cuti' ? 'text-[#A78BFA] scale-110' : 'opacity-40 hover:opacity-100'}`}>
-                        <CalendarCheck size={22} strokeWidth={2.5} />
-                        <span className="text-[8px] font-[1000] uppercase italic block text-center mt-1">Cuti</span>
-                    </button>
-
-                    <button onClick={() => setActiveTab('personnel')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'personnel' ? 'text-[#3B82F6] scale-110' : 'opacity-40 hover:opacity-100'}`}>
-                        <Users size={22} strokeWidth={2.5} />
-                        <span className="text-[8px] font-[1000] uppercase italic block text-center mt-1">Anggota</span>
-                    </button>
-
-                    <button onClick={() => setActiveTab('laporan')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'laporan' ? 'text-[#F59E0B] scale-110' : 'opacity-40 hover:opacity-100'}`}>
-                        <ClipboardList size={22} strokeWidth={2.5} />
-                        <span className="text-[8px] font-[1000] uppercase italic block text-center mt-1">Laporan</span>
-                    </button>
-
-                    <button onClick={() => setActiveTab('payroll')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'payroll' ? 'text-[#00E676] scale-110' : 'opacity-40 hover:opacity-100'}`}>
-                        <Banknote size={22} strokeWidth={2.5} />
-                        <span className="text-[8px] font-[1000] uppercase italic block text-center mt-1">Payroll</span>
-                    </button>
-
-                    <button onClick={() => setActiveTab('rekap')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'rekap' ? 'text-[#FF4D4D] scale-110' : 'opacity-40 hover:opacity-100'}`}>
-                        <FileSpreadsheet size={22} strokeWidth={2.5} />
-                        <span className="text-[8px] font-[1000] uppercase italic block text-center mt-1">Rekap</span>
-                    </button>
-
-                </nav>
+                </div>
             </div>
+
+            {/* --- KONTEN DINAMIS --- */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {/* 1. TAB PERSONEL (Bercabang 3) */}
+                        {activeTab === 'PERSONEL' && (
+                            <div className="space-y-6">
+                                {/* Sub-Navigasi Khusus Personel */}
+                                <div className="flex bg-slate-200 p-1.5 rounded-2xl border-[3.5px] border-black w-fit shadow-[4px_4px_0px_#000]">
+                                    {[
+                                        { id: 'DATA_ANGGOTA', label: 'Data Anggota' },
+                                        { id: 'CUTI', label: 'Pengajuan Cuti' },
+                                        { id: 'REKAP_ABSEN', label: 'Rekap Absensi' }
+                                    ].map(sub => (
+                                        <button
+                                            key={sub.id}
+                                            onClick={() => setPersonelSubTab(sub.id as any)}
+                                            className={cn(
+                                                "px-4 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all",
+                                                personelSubTab === sub.id
+                                                    ? "bg-white text-black border-2 border-black shadow-[2px_2px_0px_#000]"
+                                                    : "text-slate-500 hover:text-black"
+                                            )}
+                                        >
+                                            {sub.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Render Komponen Personel sesuai sub-tab */}
+                                {personelSubTab === 'DATA_ANGGOTA' && <SectionAdminPersonnel />}
+                                {personelSubTab === 'CUTI' && <SectionAdminCuti />}
+                                {personelSubTab === 'REKAP_ABSEN' && <SectionAdminSystem />}
+                            </div>
+                        )}
+
+                        {/* 2. TAB LAPORAN */}
+                        {activeTab === 'LAPORAN' && <SectionAdminLaporan />}
+
+                        {/* 3. TAB FINANCE (Gaji & Rekap Excel ada di dalam sini) */}
+                        {activeTab === 'FINANCE' && <SectionAdminPayroll />}
+
+                        {/* 4. TAB SYSTEM (Konfigurasi Webhook) */}
+                        {activeTab === 'SYSTEM' && <SectionAdminConfig />}
+
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+
+            <style jsx global>{`
+                .hide-scrollbar::-webkit-scrollbar { display: none; }
+                .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+            `}</style>
         </div>
     );
 }

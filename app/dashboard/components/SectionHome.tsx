@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, Variants } from 'framer-motion';
+import { supabase } from "@/lib/supabase";
 import {
     Zap, Clock, Calendar, FileText, Award,
     ChevronRight, Radar, Fingerprint, Target,
@@ -10,6 +11,8 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
+import { format, startOfWeek, endOfWeek } from "date-fns";
+import { id } from "date-fns/locale";
 
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 }, // 🎓 Entry level untuk anak didik baru
@@ -33,6 +36,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         active: false,
         type: 'STAR'
     });
+
+    // 🚀 STATE UNTUK TARGET TILANG SATLANTAS
+    const [totalTilang, setTotalTilang] = useState(0);
 
     const boxBorder = "border-[4.5px] border-black";
     const hardShadow = "shadow-[10px_10px_0px_#000]";
@@ -68,12 +74,54 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             prpPct: Math.min((currentPRP / nextR.prp) * 100 || 100, 100).toFixed(0),
             hrPct: Math.min((currentHRS / nextR.hrs) * 100 || 100, 100).toFixed(0),
             prpNeed: Math.max(nextR.prp - currentPRP, 0),
-            // 🔥 PERBAIKAN DESIMAL KEBANYAKAN: Dibulatkan max 1 angka di belakang koma
             hrNeed: parseFloat(Math.max(nextR.hrs - currentHRS, 0).toFixed(1))
         };
     }, [realtimeData]);
 
     const isCasis = realtimeData.pangkat?.toUpperCase() === 'CASIS';
+
+    // 🔥 LOGIKA DETEKSI SATLANTAS & PERIODE MINGGU INI
+    const isSatlantas = realtimeData.divisi?.toUpperCase().includes('SATLANTAS');
+    const TARGET_TILANG = 15;
+    const tilangPct = Math.min((totalTilang / TARGET_TILANG) * 100, 100).toFixed(0);
+
+    const now = new Date();
+    const startW = startOfWeek(now, { weekStartsOn: 1 });
+    const endW = endOfWeek(now, { weekStartsOn: 1 });
+    const periodText = `${format(startW, 'dd MMM')} - ${format(endW, 'dd MMM yyyy', { locale: id })}`;
+
+    // 📡 RADAR OTOMATIS: Tarik Data Tilang langsung dari Supabase
+    useEffect(() => {
+        const fetchTilangMingguan = async () => {
+            if (!isSatlantas) return;
+
+            // Ambil ID Discord dari local storage agar akurat
+            const sessionData = localStorage.getItem('police_session');
+            if (!sessionData) return;
+            const parsed = JSON.parse(sessionData);
+            const discordId = parsed.discord_id;
+
+            if (!discordId) return;
+
+            const startStr = startW.toISOString();
+            const endStr = endW.toISOString();
+
+            const { count, error } = await supabase
+                .from('laporan_aktivitas')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id_discord', discordId)
+                .eq('jenis_laporan', 'Penilangan')
+                .eq('status', 'APPROVED')
+                .gte('created_at', startStr)
+                .lte('created_at', endStr);
+
+            if (!error && count !== null) {
+                setTotalTilang(count);
+            }
+        };
+
+        fetchTilangMingguan();
+    }, [isSatlantas, startW, endW]);
 
     return (
         <motion.div
@@ -177,6 +225,49 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     </div>
                 </div>
             </motion.div>
+
+            {/* --- 🔥 KHUSUS SATLANTAS: TARGET PENILANGAN --- */}
+            {isSatlantas && !isCasis && (
+                <motion.div variants={item} className={`col-span-2 bg-[#F97316] p-4 md:p-6 ${boxBorder} ${hardShadow} relative group overflow-hidden`}>
+                    <div className="absolute -right-6 -top-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                        <Crosshair size={180} />
+                    </div>
+
+                    <div className="flex justify-between items-center mb-6 relative z-10">
+                        <div className="bg-black text-[#F97316] px-3 py-1 inline-block text-[10px] font-black uppercase italic border-2 border-black">
+                            Traffic Enforcement
+                        </div>
+                        <p className="text-[10px] md:text-[11px] font-black uppercase bg-white border-2 border-black px-3 py-1 shadow-[3px_3px_0px_#000]">
+                            {periodText}
+                        </p>
+                    </div>
+
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                        <div>
+                            <h3 className="text-5xl md:text-6xl font-[1000] italic leading-none tracking-tighter text-white drop-shadow-[3px_3px_0_#000]">
+                                {totalTilang} <span className="text-3xl md:text-4xl text-black">/ {TARGET_TILANG}</span>
+                            </h3>
+                            <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black">Kendaraan Ditilang</p>
+                        </div>
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0px_#000] shrink-0 text-center transform group-hover:-translate-y-1 transition-transform">
+                            <p className="text-[9px] md:text-[10px] font-black opacity-50 uppercase mb-1">Status Target</p>
+                            <p className={`text-lg md:text-xl font-[1000] italic uppercase leading-none ${totalTilang >= TARGET_TILANG ? 'text-[#00E676]' : 'text-[#FF4D4D]'}`}>
+                                {totalTilang >= TARGET_TILANG ? 'ACHIEVED' : 'PENDING'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-auto relative z-10">
+                        <div className="bg-black h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000]">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${tilangPct}%` }}
+                                className={`h-full border-r-2 border-black ${totalTilang >= TARGET_TILANG ? 'bg-[#00E676]' : 'bg-[#FFD100]'}`}
+                            />
+                        </div>
+                    </div>
+                </motion.div>
+            )}
 
             {/* --- 🔥 CONDITIONAL ACTIONS: CASIS VS POLICE --- */}
             {isCasis ? (

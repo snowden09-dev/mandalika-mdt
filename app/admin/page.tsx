@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
-import { ShieldCheck, Users, FileText, Banknote, Server, Loader2 } from 'lucide-react';
+import { ShieldCheck, Users, FileText, Banknote, Server, Loader2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // IMPORT SEMUA KOMPONEN JENDRAL DI SINI
@@ -49,17 +49,39 @@ export default function AdminHQPage() {
             {/* --- HEADER NAVIGASI MASTER --- */}
             <div className="bg-slate-950 text-white sticky top-0 z-50 border-b-[6px] border-[#3B82F6] shadow-[0px_10px_0px_#000]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
-                        <div className="flex items-center gap-3">
-                            <ShieldCheck size={36} className="text-[#3B82F6]" />
-                            <div>
-                                <h1 className="text-2xl font-[1000] uppercase italic leading-none">Internal Affairs</h1>
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mt-1">High Command Console</p>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center py-4 gap-4">
+
+                        {/* KIRI: Logo & Judul (+ Tombol Back khusus Mobile) */}
+                        <div className="flex justify-between items-center w-full md:w-auto">
+                            <div className="flex items-center gap-3">
+                                <ShieldCheck size={36} className="text-[#3B82F6]" />
+                                <div>
+                                    <h1 className="text-2xl font-[1000] uppercase italic leading-none">Internal Affairs</h1>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mt-1">High Command Console</p>
+                                </div>
                             </div>
+                            {/* Tombol Back ke Dashboard (Muncul di Mobile Saja) */}
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="md:hidden bg-slate-800 text-white p-2.5 rounded-xl border-2 border-slate-700 active:scale-95 transition-all shadow-[2px_2px_0_0_#3B82F6]"
+                            >
+                                <ArrowLeft size={20} />
+                            </button>
                         </div>
 
-                        {/* MENU UTAMA (4 TAB BESAR) */}
-                        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+                        {/* KANAN: MENU UTAMA (4 TAB BESAR) + Tombol Back PC */}
+                        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+                            {/* Tombol Back ke Dashboard (Muncul di PC Saja) */}
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="hidden md:flex items-center gap-2 px-4 py-3 bg-slate-800 text-slate-400 hover:text-white rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent hover:border-slate-600"
+                            >
+                                <ArrowLeft size={16} /> Base
+                            </button>
+
+                            {/* Garis Pembatas di PC */}
+                            <div className="hidden md:block w-[2px] h-8 bg-slate-800 mx-1"></div>
+
                             {[
                                 { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
                                 { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
@@ -98,7 +120,7 @@ export default function AdminHQPage() {
                         {activeTab === 'PERSONEL' && (
                             <div className="space-y-6">
                                 {/* Sub-Navigasi Khusus Personel */}
-                                <div className="flex bg-slate-200 p-1.5 rounded-2xl border-[3.5px] border-black w-fit shadow-[4px_4px_0px_#000]">
+                                <div className="flex bg-slate-200 p-1.5 rounded-2xl border-[3.5px] border-black w-fit max-w-full overflow-x-auto shadow-[4px_4px_0px_#000] hide-scrollbar">
                                     {[
                                         { id: 'DATA_ANGGOTA', label: 'Data Anggota' },
                                         { id: 'CUTI', label: 'Pengajuan Cuti' },
@@ -108,7 +130,7 @@ export default function AdminHQPage() {
                                             key={sub.id}
                                             onClick={() => setPersonelSubTab(sub.id as any)}
                                             className={cn(
-                                                "px-4 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all",
+                                                "px-4 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all whitespace-nowrap",
                                                 personelSubTab === sub.id
                                                     ? "bg-white text-black border-2 border-black shadow-[2px_2px_0px_#000]"
                                                     : "text-slate-500 hover:text-black"

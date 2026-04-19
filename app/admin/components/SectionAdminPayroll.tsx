@@ -122,7 +122,7 @@ export default function SectionAdminPayroll() {
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return augmentedRequests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
-        if (activeTab === 'REKAP') return augmentedRequests.filter(r => r.status === 'PAID'); // Rekap ambil PAID
+        if (activeTab === 'REKAP') return augmentedRequests.filter(r => r.status === 'PAID');
         return augmentedRequests.filter(r => r.status === activeTab);
     }, [augmentedRequests, activeTab]);
 
@@ -208,13 +208,17 @@ export default function SectionAdminPayroll() {
         } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
     };
 
+    // 🚀 ENGINE APPROVAL DENGAN PENYIMPANAN NAMA ADMIN YANG PRESISI
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
 
+        // Menggabungkan Pangkat + Nama agar tidak terpotong saat dirender di slip
+        const adminIdentity = adminSession ? `${adminSession.pangkat || ''} ${adminSession.name || ''}`.trim() : 'HIGH COMMAND';
+
         const adminNotes = status === 'PAID'
-            ? `AUTH BY ${adminSession?.name || 'ADMIN'} | ALPH:${reqToApprove.alpha} | DEDC:${Math.round(reqToApprove.potongan)} | BONS:${reqToApprove.tambahanBonus} | BASE:${reqToApprove.baseGaji}`
-            : `REJECTED BY ${adminSession?.name || 'ADMIN'}`;
+            ? `AUTH BY ${adminIdentity} | ALPH:${reqToApprove.alpha} | DEDC:${Math.round(reqToApprove.potongan)} | BONS:${reqToApprove.tambahanBonus} | BASE:${reqToApprove.baseGaji}`
+            : `REJECTED BY ${adminIdentity}`;
 
         const { error } = await supabase.from('pengajuan_gaji').update({
             status,
@@ -226,7 +230,6 @@ export default function SectionAdminPayroll() {
         else { toast.success("Success!", { id: tId }); fetchData(); }
     };
 
-    // 🚀 ENGINE DELETE SINGLE & ALL (PURGE)
     const executeDelete = async () => {
         if (deleteModal.type === 'ALL' && confirmInput !== "BERSIHKAN") return toast.error("Kode Keamanan Salah!");
         const tId = toast.loading(deleteModal.type === 'ALL' ? "Processing Purge..." : "Menghapus Data Log...");
@@ -251,7 +254,6 @@ export default function SectionAdminPayroll() {
         };
     };
 
-    // 🚀 UI KOMPONEN KONTROL PAGINASI
     const PaginationControls = () => {
         if (totalPages <= 1) return null;
         return (
@@ -304,7 +306,7 @@ export default function SectionAdminPayroll() {
                 </div>
             </div>
 
-            {/* KONDISIONAL RENDER TABEL REKAP DENGAN PAGINASI */}
+            {/* TABEL REKAP */}
             {!loading && activeTab === 'REKAP' && (
                 <>
                     <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
@@ -354,7 +356,7 @@ export default function SectionAdminPayroll() {
                 </>
             )}
 
-            {/* KONDISIONAL RENDER KARTU KLAIM DENGAN PAGINASI */}
+            {/* KARTU KLAIM */}
             {!loading && activeTab !== 'REKAP' && (
                 paginatedData.length === 0 ? (
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
@@ -379,7 +381,6 @@ export default function SectionAdminPayroll() {
                                                 <p className="text-slate-400">Periode</p>
                                                 <p>{format(new Date(req.tanggal_mulai), 'dd/MM')} - {format(new Date(req.tanggal_selesai), 'dd/MM')}</p>
                                             </div>
-                                            {/* 🚀 TOMBOL HAPUS LOG SINGLE */}
                                             <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="bg-[#FF4D4D] text-black p-2 rounded-lg border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 hover:scale-105 transition-all">
                                                 <Trash2 size={16} />
                                             </button>
@@ -462,7 +463,7 @@ export default function SectionAdminPayroll() {
                 )
             )}
 
-            {/* 🚀 MODAL HAPUS DATA (NEO BRUTALISM) */}
+            {/* 🚀 MODAL HAPUS DATA */}
             <AnimatePresence>
                 {deleteModal.show && (
                     <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -471,9 +472,9 @@ export default function SectionAdminPayroll() {
                                 <AlertOctagon size={32} strokeWidth={3} />
                                 <h3 className="text-xl font-[1000] italic uppercase">Peringatan!</h3>
                             </div>
-                            <p className="text-xs font-bold uppercase mb-4 opacity-70 leading-relaxed">
+                            <p className="text-xs font-bold uppercase mb-4 opacity-70 leading-relaxed text-black">
                                 {deleteModal.type === 'ALL'
-                                    ? "Anda akan menghapus SEMUA data gaji yang sudah diproses dari database. Ketik 'BERSIHKAN' untuk melanjutkan."
+                                    ? "Anda akan menghapus SEMUA data gaji yang sudah diproses dari server. Ketik 'BERSIHKAN' untuk melanjutkan."
                                     : "Anda yakin ingin menghapus log slip gaji ini secara permanen dari server?"}
                             </p>
 
@@ -483,7 +484,7 @@ export default function SectionAdminPayroll() {
                                     value={confirmInput}
                                     onChange={(e) => setConfirmInput(e.target.value)}
                                     placeholder="Ketik BERSIHKAN"
-                                    className="w-full border-2 border-black p-3 mb-4 rounded-xl font-bold uppercase outline-none focus:bg-slate-100"
+                                    className="w-full border-2 border-black p-3 mb-4 rounded-xl font-bold uppercase outline-none focus:bg-slate-100 text-black placeholder-slate-400"
                                 />
                             )}
 
@@ -545,7 +546,10 @@ export default function SectionAdminPayroll() {
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(currentSlipData.updated_at || currentSlipData.created_at), 'dd MMMM yyyy', { locale: localeId })}</p></div>
                                 <div className="bg-slate-50 border-4 border-dashed border-black p-4 rounded-xl text-center">
                                     <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
-                                    <p className="text-[11px] font-black uppercase leading-none text-blue-600">{(currentSlipData.keterangan_admin?.split(' |')[0]?.replace('AUTH BY ', '')) || 'HIGH COMMAND'}</p>
+                                    {/* 🚀 EXTRACT NAMA FULL ADMIN TANPA TERPOTONG */}
+                                    <p className="text-[11px] font-black uppercase leading-none text-blue-600">
+                                        {currentSlipData.keterangan_admin ? currentSlipData.keterangan_admin.split('|')[0].replace(/AUTH BY/g, '').trim() : 'HIGH COMMAND'}
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -74,7 +74,7 @@ export default function SectionAdminPayroll() {
         }
     }, []);
 
-    // 🚀 RESET PAGINASI JIKA PINDAH TAB
+    // RESET PAGINASI JIKA PINDAH TAB
     useEffect(() => {
         setCurrentPage(1);
     }, [activeTab]);
@@ -126,7 +126,7 @@ export default function SectionAdminPayroll() {
         return augmentedRequests.filter(r => r.status === activeTab);
     }, [augmentedRequests, activeTab]);
 
-    // 🚀 SLICING DATA UNTUK PAGINASI
+    // SLICING DATA UNTUK PAGINASI
     const paginatedData = useMemo(() => {
         return filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     }, [filteredData, currentPage]);
@@ -190,7 +190,7 @@ export default function SectionAdminPayroll() {
                 content: `<@${currentSlipData.user_id_discord || ''}> **PENGIRIMAN PAYSLIP BERHASIL**`,
                 embeds: [{
                     title: "🏛️ MANDALIKA POLICE - OFFICIAL PAYSLIP",
-                    description: `Payslip resmi Jendral telah diterbitkan dan divalidasi oleh **${adminSession?.name || 'High Command'}**.`,
+                    description: `Payslip resmi Jendral telah diterbitkan dan divalidasi oleh High Command.`,
                     color: 0,
                     footer: { text: "Mandalika Automated Payroll System" },
                     timestamp: new Date().toISOString()
@@ -208,16 +208,20 @@ export default function SectionAdminPayroll() {
         } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
     };
 
-    // 🚀 ENGINE APPROVAL DENGAN PENYIMPANAN NAMA ADMIN YANG PRESISI
+    // 🚀 ENGINE APPROVAL: AMAN DARI KARAKTER | PADA NAMA
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
 
-        // Menggabungkan Pangkat + Nama agar tidak terpotong saat dirender di slip
-        const adminIdentity = adminSession ? `${adminSession.pangkat || ''} ${adminSession.name || ''}`.trim() : 'HIGH COMMAND';
+        // Logic cerdas memastikan Pangkat tergabung dgn Nama jika belum ada
+        let adminIdentity = adminSession?.name || 'ADMIN';
+        if (adminSession?.pangkat && !adminIdentity.toUpperCase().includes(adminSession.pangkat.toUpperCase())) {
+            adminIdentity = `${adminSession.pangkat} | ${adminIdentity}`;
+        }
 
+        // 🚀 KITA PAKAI PEMISAH '-' AGAR '|' DI NAMA TIDAK BIKIN BUG
         const adminNotes = status === 'PAID'
-            ? `AUTH BY ${adminIdentity} | ALPH:${reqToApprove.alpha} | DEDC:${Math.round(reqToApprove.potongan)} | BONS:${reqToApprove.tambahanBonus} | BASE:${reqToApprove.baseGaji}`
+            ? `AUTH BY ${adminIdentity} - ALPH:${reqToApprove.alpha} - DEDC:${Math.round(reqToApprove.potongan)} - BONS:${reqToApprove.tambahanBonus} - BASE:${reqToApprove.baseGaji}`
             : `REJECTED BY ${adminIdentity}`;
 
         const { error } = await supabase.from('pengajuan_gaji').update({
@@ -244,6 +248,18 @@ export default function SectionAdminPayroll() {
             setDeleteModal({ show: false, type: 'ALL' });
             setConfirmInput("");
         } catch (e) { toast.error("Gagal menghapus data!"); }
+    };
+
+    // 🚀 ENGINE EKSTRAKTOR NAMA ADMIN YANG PRESISI
+    const getAdminName = (notes: string) => {
+        if (!notes) return 'HIGH COMMAND';
+        let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');
+        const alphIndex = str.indexOf('ALPH:');
+        if (alphIndex !== -1) {
+            // Potong sebelum 'ALPH:' lalu bersihkan karakter '-', '|', ';' di ujung teks
+            str = str.substring(0, alphIndex).replace(/[\s|;\-]+$/, '');
+        }
+        return str.trim();
     };
 
     const getSlipDetails = (slip: any) => {
@@ -548,7 +564,7 @@ export default function SectionAdminPayroll() {
                                     <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
                                     {/* 🚀 EXTRACT NAMA FULL ADMIN TANPA TERPOTONG */}
                                     <p className="text-[11px] font-black uppercase leading-none text-blue-600">
-                                        {currentSlipData.keterangan_admin ? currentSlipData.keterangan_admin.split('|')[0].replace(/AUTH BY/g, '').trim() : 'HIGH COMMAND'}
+                                        {getAdminName(currentSlipData.keterangan_admin)}
                                     </p>
                                 </div>
                             </div>

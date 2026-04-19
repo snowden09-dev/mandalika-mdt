@@ -16,6 +16,9 @@ const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
+// 🚀 DAFTAR PANGKAT PETINGGI YANG KEBAL POTONGAN
+const PETINGGI_RANKS = ['JENDRAL', 'WAKAPOLRI', 'KAPOLRI', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBES', 'AKBP'];
+
 export default function SectionAdminPayroll() {
     const slipRef = useRef<HTMLDivElement>(null);
     const [requests, setRequests] = useState<any[]>([]);
@@ -27,7 +30,7 @@ export default function SectionAdminPayroll() {
     const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT' | 'REKAP'>('PENDING');
     const [adminSession, setAdminSession] = useState<any>(null);
 
-    // 🚀 STATE PAGINASI
+    // STATE PAGINASI
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6;
 
@@ -74,11 +77,11 @@ export default function SectionAdminPayroll() {
         }
     }, []);
 
-    // RESET PAGINASI JIKA PINDAH TAB
     useEffect(() => {
         setCurrentPage(1);
     }, [activeTab]);
 
+    // 🚀 ENGINE SUPER KALKULASI DENGAN ATURAN BARU ($5K ALPHA, $3K CUTI, PETINGGI AMAN)
     const augmentedRequests = useMemo(() => {
         return requests.map(req => {
             const start = startOfDay(new Date(req.tanggal_mulai));
@@ -107,15 +110,25 @@ export default function SectionAdminPayroll() {
             const isTargetMet = tilangData.length >= 15;
             const isSatlantas = (req.divisi || "").toUpperCase().includes('SATLANTAS');
 
+            // Cek apakah dia petinggi
+            const pangkatUser = (req.pangkat || "").toUpperCase();
+            const isPetinggi = PETINGGI_RANKS.some(rank => pangkatUser.includes(rank));
+
             const baseGaji = Number(req.jumlah_gaji);
-            const potongan = alphaCount * (0.05 * baseGaji);
+
+            // 🚀 LOGIKA POTONGAN BARU
+            const potonganAlpha = isPetinggi ? 0 : (alphaCount * 5000);
+            const potonganCuti = isPetinggi ? 0 : (cutiCount * 3000);
+            const totalPotongan = potonganAlpha + potonganCuti;
+
             const tambahanBonus = manualBonus[req.id] || 0;
-            const finalGaji = baseGaji - potongan + tambahanBonus;
+            const finalGaji = baseGaji - totalPotongan + tambahanBonus;
 
             return {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
-                isTargetMet, isSatlantas, baseGaji, potongan, tambahanBonus, finalGaji
+                isTargetMet, isSatlantas, isPetinggi, baseGaji,
+                potonganAlpha, potonganCuti, totalPotongan, tambahanBonus, finalGaji
             };
         });
     }, [requests, duties, cutis, laporans, manualBonus]);
@@ -126,7 +139,6 @@ export default function SectionAdminPayroll() {
         return augmentedRequests.filter(r => r.status === activeTab);
     }, [augmentedRequests, activeTab]);
 
-    // SLICING DATA UNTUK PAGINASI
     const paginatedData = useMemo(() => {
         return filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     }, [filteredData, currentPage]);
@@ -190,7 +202,7 @@ export default function SectionAdminPayroll() {
                 content: `<@${currentSlipData.user_id_discord || ''}> **PENGIRIMAN PAYSLIP BERHASIL**`,
                 embeds: [{
                     title: "🏛️ MANDALIKA POLICE - OFFICIAL PAYSLIP",
-                    description: `Payslip resmi Jendral telah diterbitkan dan divalidasi oleh High Command.`,
+                    description: `Payslip resmi Jendral telah diterbitkan dan divalidasi oleh HQ Finance.`,
                     color: 0,
                     footer: { text: "Mandalika Automated Payroll System" },
                     timestamp: new Date().toISOString()
@@ -208,20 +220,25 @@ export default function SectionAdminPayroll() {
         } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
     };
 
-    // 🚀 ENGINE APPROVAL: AMAN DARI KARAKTER | PADA NAMA
+    // 🚀 ENGINE APPROVAL: PEMBERSIH NAMA DUPLIKAT (PANGKAT | NAMA)
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
 
-        // Logic cerdas memastikan Pangkat tergabung dgn Nama jika belum ada
-        let adminIdentity = adminSession?.name || 'ADMIN';
-        if (adminSession?.pangkat && !adminIdentity.toUpperCase().includes(adminSession.pangkat.toUpperCase())) {
-            adminIdentity = `${adminSession.pangkat} | ${adminIdentity}`;
-        }
+        const rawName = adminSession?.name || 'ADMIN';
+        const rawRank = adminSession?.pangkat || '';
 
-        // 🚀 KITA PAKAI PEMISAH '-' AGAR '|' DI NAMA TIDAK BIKIN BUG
+        let cleanName = rawName;
+        // Jika nama sudah mengandung Pangkat, hapus pangkatnya dan karakter '|' agar tidak duplikat
+        if (rawRank && cleanName.toUpperCase().includes(rawRank.toUpperCase())) {
+            cleanName = cleanName.replace(new RegExp(rawRank, 'ig'), '').replace(/^[\s\|-]+/, '').trim();
+        }
+        // Gabungkan kembali secara paksa jadi "PANGKAT | NAMA"
+        const adminIdentity = rawRank ? `${rawRank.toUpperCase()} | ${cleanName.toUpperCase()}` : cleanName.toUpperCase();
+
+        // 🚀 KITA PAKAI PEMISAH '-' AGAR '|' DI NAMA TIDAK BIKIN BUG PARSER
         const adminNotes = status === 'PAID'
-            ? `AUTH BY ${adminIdentity} - ALPH:${reqToApprove.alpha} - DEDC:${Math.round(reqToApprove.potongan)} - BONS:${reqToApprove.tambahanBonus} - BASE:${reqToApprove.baseGaji}`
+            ? `AUTH BY ${adminIdentity} - ALPH:${reqToApprove.potonganAlpha} - CUTI:${reqToApprove.potonganCuti} - BONS:${reqToApprove.tambahanBonus} - BASE:${reqToApprove.baseGaji}`
             : `REJECTED BY ${adminIdentity}`;
 
         const { error } = await supabase.from('pengajuan_gaji').update({
@@ -250,14 +267,13 @@ export default function SectionAdminPayroll() {
         } catch (e) { toast.error("Gagal menghapus data!"); }
     };
 
-    // 🚀 ENGINE EKSTRAKTOR NAMA ADMIN YANG PRESISI
+    // 🚀 ENGINE EKSTRAKTOR NAMA ADMIN DARI CATATAN
     const getAdminName = (notes: string) => {
         if (!notes) return 'HIGH COMMAND';
         let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');
-        const alphIndex = str.indexOf('ALPH:');
+        const alphIndex = str.indexOf('- ALPH:'); // potong di tanda strip pertama
         if (alphIndex !== -1) {
-            // Potong sebelum 'ALPH:' lalu bersihkan karakter '-', '|', ';' di ujung teks
-            str = str.substring(0, alphIndex).replace(/[\s|;\-]+$/, '');
+            str = str.substring(0, alphIndex);
         }
         return str.trim();
     };
@@ -266,7 +282,10 @@ export default function SectionAdminPayroll() {
         const notes = slip.keterangan_admin || "";
         const extract = (key: string) => { const match = notes.match(new RegExp(`${key}:(\\d+)`)); return match ? parseInt(match[1]) : 0; };
         return {
-            alpha: extract('ALPH'), dedc: extract('DEDC'), bons: extract('BONS'), base: extract('BASE') || slip.jumlah_gaji
+            potonganAlpha: extract('ALPH'),
+            potonganCuti: extract('CUTI'),
+            bons: extract('BONS'),
+            base: extract('BASE') || slip.jumlah_gaji
         };
     };
 
@@ -431,7 +450,12 @@ export default function SectionAdminPayroll() {
 
                                         <div className="border-t-2 border-dashed border-slate-300 pt-3 space-y-1">
                                             <div className="flex justify-between text-[10px] font-black uppercase opacity-60"><span>Gaji Pokok / Awal</span><span>${req.baseGaji.toLocaleString()}</span></div>
-                                            {req.potongan > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5%)</span><span>- ${Math.round(req.potongan).toLocaleString()}</span></div>}
+
+                                            {/* RENDER RINCIAN POTONGAN DI KARTU */}
+                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (x{req.alpha})</span><span>- ${req.potonganAlpha.toLocaleString()}</span></div>}
+                                            {req.potonganCuti > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Cuti/Izin (x{req.cuti})</span><span>- ${req.potonganCuti.toLocaleString()}</span></div>}
+                                            {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-[10px] font-black uppercase text-green-600"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
+
                                             {req.tambahanBonus > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-blue-600"><span>Bonus Manual Admin</span><span>+ ${req.tambahanBonus.toLocaleString()}</span></div>}
                                         </div>
 
@@ -479,7 +503,7 @@ export default function SectionAdminPayroll() {
                 )
             )}
 
-            {/* 🚀 MODAL HAPUS DATA */}
+            {/* MODAL HAPUS DATA */}
             <AnimatePresence>
                 {deleteModal.show && (
                     <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -562,7 +586,6 @@ export default function SectionAdminPayroll() {
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(currentSlipData.updated_at || currentSlipData.created_at), 'dd MMMM yyyy', { locale: localeId })}</p></div>
                                 <div className="bg-slate-50 border-4 border-dashed border-black p-4 rounded-xl text-center">
                                     <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
-                                    {/* 🚀 EXTRACT NAMA FULL ADMIN TANPA TERPOTONG */}
                                     <p className="text-[11px] font-black uppercase leading-none text-blue-600">
                                         {getAdminName(currentSlipData.keterangan_admin)}
                                     </p>
@@ -577,16 +600,25 @@ export default function SectionAdminPayroll() {
                                     <span className="opacity-60">Gaji Awal / Pokok</span>
                                     <span>${getSlipDetails(currentSlipData).base.toLocaleString()}</span>
                                 </div>
+
                                 {getSlipDetails(currentSlipData).bons > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-blue-600">
                                         <span>Bonus Kinerja (Divisi)</span>
                                         <span>+ ${getSlipDetails(currentSlipData).bons.toLocaleString()}</span>
                                     </div>
                                 )}
-                                {getSlipDetails(currentSlipData).alpha > 0 && (
+
+                                {/* 🚀 RENDER POTONGAN DI SLIP RESMI */}
+                                {getSlipDetails(currentSlipData).potonganAlpha > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
-                                        <span>Potongan Alpha ({getSlipDetails(currentSlipData).alpha} Hari)</span>
-                                        <span>- ${getSlipDetails(currentSlipData).dedc.toLocaleString()}</span>
+                                        <span>Potongan Alpha</span>
+                                        <span>- ${getSlipDetails(currentSlipData).potonganAlpha.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {getSlipDetails(currentSlipData).potonganCuti > 0 && (
+                                    <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
+                                        <span>Potongan Cuti/Izin</span>
+                                        <span>- ${getSlipDetails(currentSlipData).potonganCuti.toLocaleString()}</span>
                                     </div>
                                 )}
                             </div>

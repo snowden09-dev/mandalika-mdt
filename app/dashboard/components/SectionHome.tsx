@@ -7,7 +7,7 @@ import {
     Zap, Clock, Calendar, FileText, Award,
     ChevronRight, Radar, Fingerprint, Target,
     Crosshair, Activity, ShieldAlert, TrendingUp,
-    UserCheck, HelpCircle, AlertTriangle, GraduationCap
+    UserCheck, HelpCircle, AlertTriangle, GraduationCap, Star
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
@@ -15,7 +15,7 @@ import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
 
 const RANKS_DB = [
-    { name: "CASIS", prp: 0, hrs: 0 }, // 🎓 Entry level untuk anak didik baru
+    { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
     { name: "BHARATU", prp: 50, hrs: 10 }, { name: "BRIPDA", prp: 100, hrs: 20 },
     { name: "BRIPTU", prp: 150, hrs: 25 }, { name: "BRIGPOL", prp: 250, hrs: 35 },
@@ -28,16 +28,20 @@ const RANKS_DB = [
     { name: "JENDRAL", prp: 15000, hrs: 1500 },
 ];
 
+// 🚀 ROLE ID KHUSUS PETINGGI DARI DISCORD
+const PETINGGI_ROLE_ID = "1393377874077028493";
+
 export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
     const router = useRouter();
 
-    // 🚀 STATE NAVIGASI UNTUK LOADING SCREEN
+    // 🚀 STATE DATA USER (Akan di-update otomatis oleh Auto-Sync)
+    const [userData, setUserData] = useState<any>(realtimeData);
+
     const [navState, setNavState] = useState<{ active: boolean, type: 'STAR' | 'COMPUTER' }>({
         active: false,
         type: 'STAR'
     });
 
-    // 🚀 STATE UNTUK TARGET TILANG SATLANTAS
     const [totalTilang, setTotalTilang] = useState(0);
 
     const boxBorder = "border-[4.5px] border-black";
@@ -53,6 +57,36 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         show: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
     };
 
+    // 🚀 ENGINE AUTO-SYNC (BERJALAN SETIAP KALI PAGE DI REFRESH)
+    useEffect(() => {
+        const syncFreshData = async () => {
+            const sessionData = localStorage.getItem('police_session');
+            if (!sessionData) return;
+
+            const parsed = JSON.parse(sessionData);
+            const discordId = parsed.discord_id;
+
+            if (discordId) {
+                // Tarik data terbaru diam-diam dari Database
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('discord_id', discordId)
+                    .single();
+
+                if (data && !error) {
+                    setUserData(data); // Update UI secara real-time
+
+                    // Timpa Local Storage agar data singkron
+                    const updatedSession = { ...parsed, ...data };
+                    localStorage.setItem('police_session', JSON.stringify(updatedSession));
+                }
+            }
+        };
+
+        syncFreshData();
+    }, []);
+
     const handleAction = (path: string, type: 'STAR' | 'COMPUTER') => {
         setNavState({ active: true, type });
         setTimeout(() => {
@@ -60,12 +94,13 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         }, 3000);
     };
 
+    // KALKULASI BERDASARKAN userData TERBARU
     const progress = useMemo(() => {
-        const currentPRP = Number(realtimeData.point_prp) || 0;
-        const currentHRS = Number(realtimeData.total_jam_duty) || 0;
-        const currentRankName = realtimeData.pangkat?.toUpperCase() || "CASIS";
+        const currentPRP = Number(userData.point_prp) || 0;
+        const currentHRS = Number(userData.total_jam_duty) || 0;
+        const currentRankName = userData.pangkat?.toUpperCase() || "CASIS";
         const currentRankIndex = RANKS_DB.findIndex(r => r.name === currentRankName);
-        const nextR = RANKS_DB[currentRankIndex + 1] || RANKS_DB[currentRankIndex];
+        const nextR = RANKS_DB[currentRankIndex + 1] || RANKS_DB[currentRankIndex] || RANKS_DB[0];
 
         return {
             next: nextR.name,
@@ -76,12 +111,15 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             prpNeed: Math.max(nextR.prp - currentPRP, 0),
             hrNeed: parseFloat(Math.max(nextR.hrs - currentHRS, 0).toFixed(1))
         };
-    }, [realtimeData]);
+    }, [userData]);
 
-    const isCasis = realtimeData.pangkat?.toUpperCase() === 'CASIS';
+    const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
+    const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
 
-    // 🔥 LOGIKA DETEKSI SATLANTAS & PERIODE MINGGU INI
-    const isSatlantas = realtimeData.divisi?.toUpperCase().includes('SATLANTAS');
+    // 🚀 DETEKSI PETINGGI BERDASARKAN ROLE ID DISCORD
+    // Menggunakan String() agar aman baik jika database menyimpan role sebagai Array ['123', '456'] maupun String "123,456"
+    const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
+
     const TARGET_TILANG = 15;
     const tilangPct = Math.min((totalTilang / TARGET_TILANG) * 100, 100).toFixed(0);
 
@@ -90,18 +128,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const endW = endOfWeek(now, { weekStartsOn: 1 });
     const periodText = `${format(startW, 'dd MMM')} - ${format(endW, 'dd MMM yyyy', { locale: id })}`;
 
-    // 📡 RADAR OTOMATIS: Tarik Data Tilang langsung dari Supabase
     useEffect(() => {
         const fetchTilangMingguan = async () => {
-            if (!isSatlantas) return;
-
-            // Ambil ID Discord dari local storage agar akurat
-            const sessionData = localStorage.getItem('police_session');
-            if (!sessionData) return;
-            const parsed = JSON.parse(sessionData);
-            const discordId = parsed.discord_id;
-
-            if (!discordId) return;
+            if (!isSatlantas || !userData.discord_id) return;
 
             const startStr = startW.toISOString();
             const endStr = endW.toISOString();
@@ -109,7 +138,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             const { count, error } = await supabase
                 .from('laporan_aktivitas')
                 .select('*', { count: 'exact', head: true })
-                .eq('user_id_discord', discordId)
+                .eq('user_id_discord', userData.discord_id)
                 .eq('jenis_laporan', 'Penilangan')
                 .eq('status', 'APPROVED')
                 .gte('created_at', startStr)
@@ -121,7 +150,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         };
 
         fetchTilangMingguan();
-    }, [isSatlantas, startW, endW]);
+    }, [isSatlantas, userData.discord_id, startW, endW]);
 
     return (
         <motion.div
@@ -132,7 +161,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-8 ${boxBorder} ${hardShadow} relative overflow-hidden flex flex-col justify-end min-h-[220px] group`}>
+            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative overflow-hidden flex flex-col justify-end min-h-[240px] group`}>
                 <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500">
                     <Fingerprint size={160} className="text-black" />
                 </div>
@@ -142,10 +171,29 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     <div className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676]">
                         {isCasis ? "Siswa Diklat Terdeteksi" : "Akses Terverifikasi"}
                     </div>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">{nickname}</h1>
-                    <div className="flex gap-3">
-                        <span className="bg-[#FFD100] px-4 py-1.5 border-[3px] border-black text-[12px] font-black italic shadow-[4px_4px_0_0_#000]">{realtimeData.pangkat}</span>
-                        <span className="bg-[#CCFF00] px-4 py-1.5 border-[3px] border-black text-[12px] font-black italic shadow-[4px_4px_0_0_#000]">{realtimeData.divisi}</span>
+
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">
+                        {userData.name || nickname}
+                    </h1>
+
+                    {/* TAMPILAN 3 ROLE SEKALIGUS */}
+                    <div className="flex flex-wrap gap-2 md:gap-3">
+                        <span className="bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
+                            {userData.pangkat || 'NO RANK'}
+                        </span>
+
+                        {userData.divisi && (
+                            <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
+                                {userData.divisi}
+                            </span>
+                        )}
+
+                        {/* BADGE KHUSUS PETINGGI (ROLE ID BASE) */}
+                        {isPetinggi && (
+                            <span className="bg-slate-950 text-[#00E676] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#00E676] flex items-center gap-1.5">
+                                <Star size={14} className="fill-[#00E676] text-[#00E676]" /> HIGH COMMAND
+                            </span>
+                        )}
                     </div>
                 </div>
             </motion.div>
@@ -160,7 +208,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     <TrendingUp size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{realtimeData.point_prp}</h2>
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{userData.point_prp || 0}</h2>
                     <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Points Collected</p>
                 </div>
                 <div className="mt-auto relative z-10">
@@ -184,7 +232,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     <Clock size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{realtimeData.total_jam_duty}</h2>
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{userData.total_jam_duty || 0}</h2>
                     <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Total Hours</p>
                 </div>
                 <div className="mt-auto relative z-10">

@@ -14,17 +14,30 @@ import TacticalTransition from './TacticalTransition';
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
 
+// 🚀 STRUKTUR PANGKAT BARU (Dari terendah ke tertinggi dengan estimasi Poin & Jam)
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
-    { name: "RECRUIT", prp: 0, hrs: 0 }, { name: "BHARADA", prp: 0, hrs: 0 },
-    { name: "BHARATU", prp: 50, hrs: 10 }, { name: "BRIPDA", prp: 100, hrs: 20 },
-    { name: "BRIPTU", prp: 150, hrs: 25 }, { name: "BRIGPOL", prp: 250, hrs: 35 },
-    { name: "BRIPKA", prp: 350, hrs: 50 }, { name: "AIPDA", prp: 450, hrs: 65 },
-    { name: "AIPTU", prp: 600, hrs: 80 }, { name: "IPDA", prp: 800, hrs: 100 },
-    { name: "IPTU", prp: 1000, hrs: 120 }, { name: "AKP", prp: 1300, hrs: 150 },
-    { name: "KOMPOL", prp: 1600, hrs: 180 }, { name: "AKBP", prp: 2000, hrs: 220 },
-    { name: "KOMBESPOL", prp: 2500, hrs: 260 }, { name: "BRIGJEN", prp: 5000, hrs: 500 },
-    { name: "IRJEN", prp: 7500, hrs: 750 }, { name: "KOMJEN", prp: 10000, hrs: 1000 },
+    { name: "RECRUIT", prp: 0, hrs: 0 },
+    { name: "BHARADA", prp: 0, hrs: 0 },
+    { name: "BHARATU", prp: 50, hrs: 10 },
+    { name: "BHARAKA", prp: 100, hrs: 15 },
+    { name: "ABRIGPOL", prp: 150, hrs: 20 },
+    { name: "ABRIPTU", prp: 200, hrs: 25 },
+    { name: "ABRIPDA", prp: 250, hrs: 30 },
+    { name: "BRIPDA", prp: 300, hrs: 40 },
+    { name: "BRIPTU", prp: 400, hrs: 50 },
+    { name: "BRIPKA", prp: 500, hrs: 65 },
+    { name: "AIPDA", prp: 650, hrs: 80 },
+    { name: "AIPTU", prp: 800, hrs: 100 },
+    { name: "IPDA", prp: 1000, hrs: 120 },
+    { name: "IPTU", prp: 1250, hrs: 150 },
+    { name: "AKP", prp: 1500, hrs: 180 },
+    { name: "KOMPOL", prp: 1800, hrs: 220 },
+    { name: "AKBP", prp: 2200, hrs: 260 },
+    { name: "KOMBESPOL", prp: 2700, hrs: 320 },
+    { name: "BRIGJEN", prp: 5000, hrs: 500 },
+    { name: "IRJEN", prp: 7500, hrs: 750 },
+    { name: "KOMJEN", prp: 10000, hrs: 1000 },
     { name: "JENDRAL", prp: 15000, hrs: 1500 },
 ];
 
@@ -63,19 +76,18 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             const discordId = parsed.discord_id;
 
             if (discordId) {
-                // 🚀 PERBAIKAN 1: FORCE SYNC REALTIME KE DISCORD SEBELUM LOAD DATABASE
-                // Memaksa sistem untuk mengecek role terbaru dari Discord melalui API Jendral
+                // 🚀 PERBAIKAN FATAL: Memastikan payload sesuai dengan "userId" di API route!
                 try {
                     await fetch('/api/check-role', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ discord_id: discordId }) // Sesuaikan jika API Jendral menerima GET/POST yang beda
+                        body: JSON.stringify({ userId: discordId }) // Sebelumnya "discord_id" yg membuat API gagal
                     });
                 } catch (err) {
                     console.error("Gagal melakukan sync real-time ke Discord:", err);
                 }
 
-                // Setelah di-sync oleh API, baru kita ambil data terbarunya dari database
+                // Setelah di-sync oleh API, tarik data terbarunya dari database
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -100,10 +112,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         }, 3000);
     };
 
-    // 🚀 PERBAIKAN 2: PEMBERSIHAN NAMA (NICKNAME CLEANUP)
+    // 🚀 PEMBERSIHAN NICKNAME (Menghapus pangkat)
     const cleanName = useMemo(() => {
         const rawName = userData.name || nickname || "OFFICER";
-        // Jika ada simbol '|', potong dan ambil tulisan paling belakang (namanya)
         return rawName.includes('|') ? rawName.split('|').pop()?.trim() : rawName;
     }, [userData.name, nickname]);
 
@@ -128,10 +139,15 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
 
-    // 🚀 DETEKSI PETINGGI & FILTER DIVISI (AGAR TIDAK OVERLAP)
+    // 🚀 DETEKSI BADGE
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
-    // Tampilkan divisi JIKA ada isinya DAN isinya BUKAN tulisan "Petinggi"
-    const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' ? userData.divisi.toUpperCase() : null;
+
+    // Tampilkan Divisi JIKA: Ada datanya, BUKAN tulisan "Petinggi", dan BUKAN "NON DIVISI"
+    const cleanDivisi = userData.divisi &&
+        userData.divisi.toUpperCase() !== 'PETINGGI' &&
+        userData.divisi.toUpperCase() !== 'NON DIVISI'
+        ? userData.divisi.toUpperCase()
+        : null;
 
     const TARGET_TILANG = 15;
     const tilangPct = Math.min((totalTilang / TARGET_TILANG) * 100, 100).toFixed(0);
@@ -184,26 +200,25 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                         {isCasis ? "Siswa Diklat Terdeteksi" : "Akses Terverifikasi"}
                     </div>
 
-                    {/* 🚀 NAMA SUDAH BERSIH DARI PANGKAT */}
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">
                         {cleanName}
                     </h1>
 
-                    {/* 🚀 TAMPILAN 3 ROLE PRIORITAS (PANGKAT, DIVISI, PETINGGI) */}
+                    {/* 🚀 TAMPILAN 3 ROLE PRIORITAS */}
                     <div className="flex flex-wrap gap-2 md:gap-3">
                         {/* 1. BADGE PANGKAT */}
                         <span className="bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {/* 2. BADGE DIVISI (Bisa Sabhara, Satlantas, dll) */}
+                        {/* 2. BADGE DIVISI (SABHARA, SATLANTAS, BRIMOB, PROPAM) */}
                         {cleanDivisi && (
                             <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                                 {cleanDivisi}
                             </span>
                         )}
 
-                        {/* 3. BADGE PETINGGI (Berdasarkan Role ID Discord) */}
+                        {/* 3. BADGE PETINGGI */}
                         {isPetinggi && (
                             <span className="bg-slate-950 text-[#00E676] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#00E676] flex items-center gap-1.5">
                                 <Star size={14} className="fill-[#00E676] text-[#00E676]" /> PETINGGI

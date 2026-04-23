@@ -36,7 +36,7 @@ export default function AbsenPage() {
 
     const [images, setImages] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
-    const [previewModalInfo, setPreviewModalInfo] = useState<string | null>(null); // State untuk Preview Modal
+    const [previewModalInfo, setPreviewModalInfo] = useState<string | null>(null);
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
@@ -70,7 +70,7 @@ export default function AbsenPage() {
                 </div>
                 <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100"><X size={12} className="text-slate-950" /></button>
             </div>
-        ), { duration: 4000 });
+        ), { duration: 5000 });
     };
 
     const showWarningToast = (pesan: string) => {
@@ -95,7 +95,6 @@ export default function AbsenPage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // 🚀 LOGIKA VALIDASI TANGGAL & DURASI
         if (activeTab === 'DUTY') {
             const selectedDutyDate = new Date(tanggalDuty);
             selectedDutyDate.setHours(0, 0, 0, 0);
@@ -105,42 +104,62 @@ export default function AbsenPage() {
             if (diffDutyDays > 3) return showErrorToast("Batas absen mundur maksimal 3 hari!");
             if (images.length === 0) return toast.error("Lampirkan 1 foto bukti!");
 
-            // Kalkulasi jam sebelum loading berjalan
             let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
             let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
             if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
 
-            let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
-            const durasiJam = parseFloat(diff.toFixed(2));
-
-            // PERINGATAN DURASI > 7 JAM
-            if (durasiJam > 7) {
-                const yakin = window.confirm(`⚠️ PERINGATAN!\n\nDurasi duty Anda ${durasiJam} jam (Lebih dari 7 jam).\nSilakan cek kembali jam mulai dan selesai agar tidak salah.\n\nKlik "OK" jika Anda YAKIN jam ini sudah benar.`);
-                if (!yakin) return; // Jika user batal, proses berhenti disini
+            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL (Cegah absen lupa ganti tanggal pas lewat jam 12 malam)
+            const nowWithBuffer = new Date(Date.now() + 5 * 60000); // Tambah buffer 5 menit toleransi
+            if (startObj > nowWithBuffer) {
+                return showErrorToast("Jam Mulai ada di masa depan! Jika Anda shift malam dan sudah lewat jam 12, pastikan TANGGAL diubah mundur 1 hari.");
+            }
+            if (endObj > nowWithBuffer) {
+                return showErrorToast("Jam Selesai ada di masa depan! Anda tidak bisa absen sebelum shift benar-benar selesai.");
             }
 
-            // Notifikasi absen mundur (Jika klik ok pada jam, tetap muncul notif ini)
+            // 🚀 PERTAHANAN 2: ANTI-OVERWORK (Blokir ketat > 7 jam)
+            let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
+            const durasiJam = parseFloat(diff.toFixed(2));
+            if (durasiJam > 7) {
+                return showErrorToast(`Durasi ${durasiJam} Jam DITOLAK! Maksimal 1x absen adalah 7 jam. Silakan pecah absen Anda jika ada jeda off-duty.`);
+            }
+
             if (diffDutyDays > 0 && diffDutyDays <= 3) {
                 showWarningToast(`Anda melakukan absen mundur (H-${diffDutyDays}).`);
             }
-        }
 
-        if (activeTab === 'CUTI') {
-            if (!mulaiCuti || !selesaiCuti) return toast.error("Lengkapi tanggal cuti!");
-            const selectedMulaiCuti = new Date(mulaiCuti); selectedMulaiCuti.setHours(0, 0, 0, 0);
-            const selectedSelesaiCuti = new Date(selesaiCuti); selectedSelesaiCuti.setHours(0, 0, 0, 0);
+            setLoading(true);
+            const tId = toast.loading("Memverifikasi Keamanan Absen...");
 
-            if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Tanggal selesai salah!");
-            const diffMulaiDays = Math.round((today.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
-            if (diffMulaiDays < 0) return showErrorToast("Mulai cuti max hari ini!");
-            if (diffMulaiDays > 3) return showErrorToast("Cuti mundur max H-3!");
-        }
+            try {
+                // 🚀 PERTAHANAN 3: ANTI-OVERLAP (Cek persilangan jam dengan database)
+                const dStartSearch = new Date(startObj.getTime() - 24 * 60 * 60 * 1000).toISOString();
+                const dEndSearch = new Date(endObj.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-        setLoading(true);
-        const tId = toast.loading("Transmitting...");
+                const { data: existingDuties, error: errOverlap } = await supabase
+                    .from('presensi_duty')
+                    .select('start_time, end_time')
+                    .eq('user_id_discord', identity.discordId)
+                    .gte('start_time', dStartSearch)
+                    .lte('end_time', dEndSearch);
 
-        try {
-            if (activeTab === 'DUTY') {
+                if (existingDuties && existingDuties.length > 0) {
+                    const hasOverlap = existingDuties.some(duty => {
+                        const exStart = new Date(duty.start_time).getTime();
+                        const exEnd = new Date(duty.end_time).getTime();
+                        // Logika overlap: MulaiBaru < SelesaiLama DAN SelesaiBaru > MulaiLama
+                        return (startObj.getTime() < exEnd) && (endObj.getTime() > exStart);
+                    });
+
+                    if (hasOverlap) {
+                        toast.dismiss(tId);
+                        setLoading(false);
+                        return showErrorToast("JAM BERSILANGAN! Waktu duty Anda bertabrakan dengan data absen yang sudah tercatat sebelumnya.");
+                    }
+                }
+
+                toast.loading("Mengunggah Bukti Visual...", { id: tId });
+
                 let photoUrls: string[] = [];
                 for (const file of images) {
                     const fName = `${identity.discordId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -150,12 +169,6 @@ export default function AbsenPage() {
                     photoUrls.push(publicUrl);
                 }
 
-                let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
-                let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
-                if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
-
-                let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
-                const durasiJam = parseFloat(diff.toFixed(2));
                 const durasiMenitBulat = Math.round(durasiJam * 60);
 
                 const { error: insErr } = await supabase.from('presensi_duty').insert([{
@@ -172,6 +185,7 @@ export default function AbsenPage() {
                 }]);
                 if (insErr) throw insErr;
 
+                // Update Total Jam Duty
                 const { data: currentUserData } = await supabase.from('users').select('total_jam_duty').eq('discord_id', identity.discordId).maybeSingle();
                 const currentTotal = Number(currentUserData?.total_jam_duty || 0);
                 const additionalHours = Number((durasiMenitBulat / 60).toFixed(2));
@@ -189,7 +203,27 @@ export default function AbsenPage() {
                     </div>
                 ), { id: tId, duration: 3000 });
 
-            } else {
+                setTimeout(() => handleNavigation('/dashboard'), 2000);
+
+            } catch (err: any) {
+                toast.error(`ERROR: ${err.message}`, { id: tId });
+                setLoading(false);
+            }
+
+        } else if (activeTab === 'CUTI') {
+            if (!mulaiCuti || !selesaiCuti) return toast.error("Lengkapi tanggal cuti!");
+            const selectedMulaiCuti = new Date(mulaiCuti); selectedMulaiCuti.setHours(0, 0, 0, 0);
+            const selectedSelesaiCuti = new Date(selesaiCuti); selectedSelesaiCuti.setHours(0, 0, 0, 0);
+
+            if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Tanggal selesai salah!");
+            const diffMulaiDays = Math.round((today.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffMulaiDays < 0) return showErrorToast("Mulai cuti max hari ini!");
+            if (diffMulaiDays > 3) return showErrorToast("Cuti mundur max H-3!");
+
+            setLoading(true);
+            const tId = toast.loading("Transmitting Cuti...");
+
+            try {
                 const { error: cutiErr } = await supabase.from('pengajuan_cuti').insert([{
                     user_id_discord: identity.discordId,
                     nama_panggilan: identity.nama,
@@ -211,13 +245,12 @@ export default function AbsenPage() {
                         </div>
                     </div>
                 ), { id: tId, duration: 3000 });
+
+                setTimeout(() => handleNavigation('/dashboard'), 2000);
+            } catch (err: any) {
+                toast.error(`ERROR: ${err.message}`, { id: tId });
+                setLoading(false);
             }
-
-            setTimeout(() => handleNavigation('/dashboard'), 2000);
-
-        } catch (err: any) {
-            toast.error(`ERROR: ${err.message}`, { id: tId });
-            setLoading(false);
         }
     };
 
@@ -342,7 +375,6 @@ export default function AbsenPage() {
                                         {images.length < 3 && (
                                             <label className={`relative w-16 h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-200 transition-colors`}>
                                                 <Camera size={16} className="text-slate-400" />
-                                                {/* FIX MOBILE: Opacity-0 inset-0 agar full box bisa diklik */}
                                                 <input
                                                     type="file"
                                                     accept="image/*"

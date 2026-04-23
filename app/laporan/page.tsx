@@ -82,7 +82,7 @@ export default function LaporanMultiForm() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // --- 🚀 LOGIKA SUBMIT (DISCORD HOSTING + STATUS PENDING) ---
+    // --- 🚀 LOGIKA SUBMIT (DINAMIS KE MASING-MASING WEBHOOK/THREAD) ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
         if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
@@ -95,14 +95,34 @@ export default function LaporanMultiForm() {
         try {
             const tId = toast.loading("Mengirim Laporan ke HQ Discord...");
 
-            // 1. Ambil URL Webhook dari Config
-            const { data: configData } = await supabase.from('admin_config').select('value').eq('key', 'webhook_laporan').single();
-            if (!configData || !configData.value) throw new Error("Webhook Discord belum disetting di Admin Panel!");
+            // 1. Ambil Semua Config dari Database
+            const { data: configData } = await supabase.from('admin_config').select('*');
+
+            // 2. Mapping tipe laporan ke format Key di Database
+            const typeMapping: any = {
+                tangkap: 'penangkapan',
+                kasus: 'kasus_besar',
+                patroli: 'patroli',
+                backup: 'backup',
+                tilang: 'penilangan'
+            };
+            const configKeyPrefix = typeMapping[tipe];
+
+            // 3. Cari Webhook URL dan Thread ID Spesifik untuk tipe laporan ini
+            const webhookUrlData = configData?.find(c => c.key === `webhook_${configKeyPrefix}`)?.value;
+            const threadIdData = configData?.find(c => c.key === `thread_${configKeyPrefix}`)?.value;
+
+            if (!webhookUrlData) throw new Error(`Webhook Discord untuk ${conf.label} belum disetting di Admin Panel!`);
 
             // Wajib tambah ?wait=true agar Discord mengirim balik URL gambarnya
-            const webhookUrl = configData.value.includes('?') ? `${configData.value}&wait=true` : `${configData.value}?wait=true`;
+            let finalWebhookUrl = webhookUrlData.includes('?') ? `${webhookUrlData}&wait=true` : `${webhookUrlData}?wait=true`;
 
-            // 2. Tembak Foto & Teks Laporan ke Discord Webhook
+            // Tambahkan Thread ID jika disetting
+            if (threadIdData && threadIdData.trim() !== '') {
+                finalWebhookUrl += `&thread_id=${threadIdData.trim()}`;
+            }
+
+            // 4. Tembak Foto & Teks Laporan ke Discord Webhook
             const formDataDiscord = new FormData();
             formDataDiscord.append("file", foto);
             formDataDiscord.append("payload_json", JSON.stringify({
@@ -110,14 +130,14 @@ export default function LaporanMultiForm() {
                 username: `Laporan Ops - ${formData.nama_petugas}`
             }));
 
-            const discordResponse = await fetch(webhookUrl, {
+            const discordResponse = await fetch(finalWebhookUrl, {
                 method: "POST",
                 body: formDataDiscord,
             });
 
-            if (!discordResponse.ok) throw new Error("Discord Webhook menolak laporan!");
+            if (!discordResponse.ok) throw new Error("Discord Webhook menolak laporan! Cek kembali URL/Thread ID.");
 
-            // 3. Ambil URL Gambar dari Server Discord
+            // 5. Ambil URL Gambar dari Server Discord
             const discordData = await discordResponse.json();
             const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
 
@@ -125,20 +145,20 @@ export default function LaporanMultiForm() {
 
             toast.loading("Mencatat Laporan ke Arsip Markas...", { id: tId });
 
-            // 4. Masukkan ke Database dengan Status PENDING (Menunggu ACC Admin)
+            // 6. Masukkan ke Database dengan Status PENDING (Menunggu ACC Admin)
             const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
                 isi_laporan: formattedReport,
                 poin: 0,                   // Poin 0 karena masih PENDING
-                poin_estimasi: conf.poin,  // Simpan nilai poin yang SEHARUSNYA didapat jika di-ACC
+                poin_estimasi: conf.poin,  // Simpan nilai poin estimasi
                 bukti_foto: discordImageUrl, // Simpan URL Discord
                 status: 'PENDING'          // Status Menunggu ACC
             }]);
 
             if (insertError) throw insertError;
 
-            toast.success(`LAPORAN TERKIRIM! (Menunggu ACC Admin untuk +${conf.poin} PRP)`, { id: tId });
+            toast.success(`LAPORAN ${conf.label.toUpperCase()} TERKIRIM! (Menunggu ACC)`, { id: tId });
             setTimeout(() => handleNavigation('/dashboard'), 1500);
 
         } catch (err: any) {

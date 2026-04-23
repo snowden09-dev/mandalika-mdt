@@ -7,7 +7,7 @@ import {
     CheckCircle2, XCircle, Clock, Eye, Send,
     Trash2, ShieldCheck, Image as ImageIcon,
     Filter, ArrowRight, ExternalLink, X, Zap, AlertOctagon,
-    Save, Hash, Search, Loader2, Lock, Globe, Camera, FileText, CheckSquare
+    Save, Hash, Search, Loader2, Lock, FileText, CheckSquare
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -16,7 +16,7 @@ const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
-type StatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_SENT';
+type StatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED';
 type CategoryFilter = 'SEMUA' | 'PENANGKAPAN' | 'KASUS_BESAR' | 'PATROLI' | 'BACKUP' | 'PENILANGAN';
 
 export default function SectionAdminLaporan() {
@@ -36,12 +36,6 @@ export default function SectionAdminLaporan() {
     const [previewData, setPreviewData] = useState<any>(null);
     const [isProcessingMassal, setIsProcessingMassal] = useState(false);
 
-    // STATE CONFIG (Tetap disimpan untuk logic kirim discord, tapi UI-nya dihapus)
-    const [adminConfigs, setAdminConfigs] = useState({
-        webhook_penangkapan: "", webhook_kasus_besar: "", webhook_patroli: "", webhook_backup: "", webhook_penilangan: "",
-        thread_penangkapan: "", thread_kasus_besar: "", thread_patroli: "", thread_backup: "", thread_penilangan: ""
-    });
-
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
     const [confirmInput, setConfirmInput] = useState("");
 
@@ -60,14 +54,10 @@ export default function SectionAdminLaporan() {
 
         setIsAuthorized(true);
 
+        // Ambil semua laporan beserta nama dan pangkat dari tabel users
         const { data: lap } = await supabase.from('laporan_aktivitas').select(`*, users(name, pangkat)`).order('created_at', { ascending: false });
         if (lap) setReports(lap);
 
-        const { data: cfg } = await supabase.from('admin_config').select('*');
-        if (cfg && cfg.length > 0) {
-            const configObj = cfg.reduce((acc: any, curr: any) => ({ ...acc, [curr.key]: curr.value }), {});
-            setAdminConfigs(prev => ({ ...prev, ...configObj }));
-        }
         setLoading(false);
     };
 
@@ -79,16 +69,8 @@ export default function SectionAdminLaporan() {
     }, [activeTab, activeCategory]);
 
     const filteredData = useMemo(() => {
-        let data = reports;
+        let data = reports.filter(r => r.status === activeTab);
 
-        // 1. Filter Status
-        if (activeTab === 'NOT_SENT') {
-            data = data.filter(r => r.status === 'APPROVED' && r.is_sent_discord !== true);
-        } else {
-            data = data.filter(r => r.status === activeTab);
-        }
-
-        // 2. Filter Kategori
         if (activeCategory !== 'SEMUA') {
             data = data.filter(r => {
                 const dbType = (r.jenis_laporan || "").replace(' ', '_').toUpperCase();
@@ -106,55 +88,21 @@ export default function SectionAdminLaporan() {
         return filteredData.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredData, currentPage]);
 
-    const formatImageUrlForDiscord = (url: string) => {
-        if (!url) return null;
-        let finalUrl = url.trim();
-        if (finalUrl.includes('supabase.co/storage')) return finalUrl;
-        if (finalUrl.includes('imgur.com') && !finalUrl.includes('i.imgur.com')) {
-            if (!finalUrl.includes('/a/') && !finalUrl.includes('/gallery/')) {
-                finalUrl = finalUrl.replace('imgur.com', 'i.imgur.com');
-                if (!finalUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) finalUrl += '.jpg';
-            } else {
-                return null;
-            }
-        }
-        return finalUrl;
-    };
 
-    // --- HELPER FUNGSI: PROSES 1 LAPORAN (ACC) ---
+    // --- HELPER FUNGSI: PROSES 1 LAPORAN (ACC POIN SAJA) ---
     const processSingleApprove = async (report: any) => {
-        // 1. Tambah PRP
+        // 1. Tambah PRP ke User
         if (report.user_id_discord) {
             const { data: userData } = await supabase.from('users').select('point_prp').eq('discord_id', report.user_id_discord).single();
             const currentPoin = Number(userData?.point_prp) || 0;
             const poinTambahan = Number(report.poin_estimasi) || 0;
+
             const { error: prpErr } = await supabase.from('users').update({ point_prp: currentPoin + poinTambahan }).eq('discord_id', report.user_id_discord);
             if (prpErr) throw prpErr;
         }
 
-        // 2. Kirim Webhook
-        const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
-        const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
-        const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
-
-        if (!targetWebhook) throw new Error(`Webhook ${report.jenis_laporan} kosong!`);
-
-        const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
-        const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
-
-        const response = await fetch(`${targetWebhook}${targetThread ? `?thread_id=${targetThread}` : ''}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                content: `**[LAPORAN ${(report.jenis_laporan || "").toUpperCase()}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
-                embeds: embedsPayload
-            })
-        });
-
-        if (!response.ok) throw new Error("Discord API Error");
-
-        // 3. Update Status Laporan
-        const { error: dbErr } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED', is_sent_discord: true }).eq('id', report.id);
+        // 2. Update Status Laporan (Tidak perlu kirim webhook lagi, karena sudah ada di Discord)
+        const { error: dbErr } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED' }).eq('id', report.id);
         if (dbErr) throw dbErr;
     };
 
@@ -164,8 +112,8 @@ export default function SectionAdminLaporan() {
         try {
             if (status === 'APPROVED') {
                 await processSingleApprove(report);
-                setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'APPROVED', is_sent_discord: true } : r));
-                toast.success(`Berhasil ACC!`, { id: tId });
+                setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'APPROVED' } : r));
+                toast.success(`Berhasil ACC Poin!`, { id: tId });
             } else {
                 const { error } = await supabase.from('laporan_aktivitas').update({ status: 'REJECTED' }).eq('id', report.id);
                 if (error) throw error;
@@ -177,10 +125,10 @@ export default function SectionAdminLaporan() {
         }
     };
 
-    // --- MASS ACTION HANDLER (ACC ALL) ---
+    // --- MASS ACTION HANDLER (ACC ALL POIN) ---
     const handleApproveAll = async () => {
         if (filteredData.length === 0) return;
-        const confirm = window.confirm(`PERINGATAN: Yakin ingin menyetujui ${filteredData.length} Laporan sekaligus?\n\nSistem akan mengirim semua log ke Discord dan menambahkan PRP anggota secara massal.`);
+        const confirm = window.confirm(`PERINGATAN: Yakin ingin menyetujui ${filteredData.length} Laporan sekaligus?\n\nSistem akan menambahkan PRP anggota secara massal. Pastikan Anda sudah mengecek keaslian foto di Discord!`);
         if (!confirm) return;
 
         setIsProcessingMassal(true);
@@ -190,7 +138,7 @@ export default function SectionAdminLaporan() {
         let failCount = 0;
 
         for (let i = 0; i < filteredData.length; i++) {
-            toast.loading(`Memproses ${i + 1}/${filteredData.length}...`, { id: tId });
+            toast.loading(`Memproses Poin ${i + 1}/${filteredData.length}...`, { id: tId });
             try {
                 await processSingleApprove(filteredData[i]);
                 successCount++;
@@ -200,39 +148,9 @@ export default function SectionAdminLaporan() {
             }
         }
 
-        toast.success(`Operasi Selesai! Berhasil: ${successCount} | Gagal: ${failCount}`, { id: tId, duration: 5000 });
+        toast.success(`Operasi Selesai! Poin Masuk: ${successCount} | Gagal: ${failCount}`, { id: tId, duration: 5000 });
         setIsProcessingMassal(false);
         verifyAndFetch(); // Refresh total agar state sinkron dengan database
-    };
-
-    const handleTransmit = async (report: any) => {
-        const tId = toast.loading("Resending to Dedicated Channel...");
-        const typeKey = (report.jenis_laporan || "").replace(' ', '_').toLowerCase();
-        const targetWebhook = adminConfigs[`webhook_${typeKey}` as keyof typeof adminConfigs];
-        const targetThread = adminConfigs[`thread_${typeKey}` as keyof typeof adminConfigs];
-
-        if (!targetWebhook) return toast.error(`Webhook belum di-set!`, { id: tId });
-
-        const discordImageUrl = formatImageUrlForDiscord(report.bukti_foto);
-        const embedsPayload = discordImageUrl ? [{ image: { url: discordImageUrl }, color: 3447003 }] : [];
-
-        try {
-            const response = await fetch(`${targetWebhook}${targetThread ? `?thread_id=${targetThread}` : ''}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    content: `**[RESEND LAPORAN ${(report.jenis_laporan || "").toUpperCase()}]**\nPersonel: ${report.users?.name}\n\n${report.isi_laporan}`,
-                    embeds: embedsPayload
-                })
-            });
-
-            if (!response.ok) throw new Error("Discord Webhook Error!");
-            await supabase.from('laporan_aktivitas').update({ is_sent_discord: true }).eq('id', report.id);
-            setReports(prev => prev.map(r => r.id === report.id ? { ...r, is_sent_discord: true } : r));
-
-            toast.success("RESENT SUCCESSFULLY!", { id: tId });
-            setPreviewData(null);
-        } catch (err: any) { toast.error(err.message, { id: tId }); }
     };
 
     const executeDelete = async () => {
@@ -262,15 +180,15 @@ export default function SectionAdminLaporan() {
             {/* HEADER UTAMA */}
             <div className={`bg-white ${boxBorder} ${hardShadow} p-4 md:p-6 rounded-[25px] flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
                 <div className="flex items-center justify-between w-full md:w-auto gap-4">
-                    <h2 className="text-xl md:text-3xl font-[1000] italic uppercase tracking-tighter leading-none">Report Logs</h2>
+                    <h2 className="text-xl md:text-3xl font-[1000] italic uppercase tracking-tighter leading-none">Report Verification</h2>
                     <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="bg-red-500 text-white p-2 rounded-xl border-2 border-black shadow-[3px_3px_0px_#000] active:translate-y-1 active:shadow-none">
                         <Trash2 size={20} />
                     </button>
                 </div>
 
                 <div className="flex w-full md:w-auto bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
-                    {(['PENDING', 'NOT_SENT', 'APPROVED', 'REJECTED'] as StatusFilter[]).map((t) => (
-                        <button key={t} onClick={() => setActiveTab(t)} className={cn("px-3 py-2 rounded-lg text-[10px] font-black uppercase italic whitespace-nowrap", activeTab === t ? "bg-slate-950 text-white shadow-[3px_3px_0px_#A3E635]" : "opacity-40 hover:opacity-100")}>
+                    {(['PENDING', 'APPROVED', 'REJECTED'] as StatusFilter[]).map((t) => (
+                        <button key={t} onClick={() => setActiveTab(t)} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic whitespace-nowrap", activeTab === t ? "bg-slate-950 text-white shadow-[3px_3px_0px_#A3E635]" : "opacity-40 hover:opacity-100")}>
                             {t.replace('_', ' ')}
                         </button>
                     ))}
@@ -303,7 +221,7 @@ export default function SectionAdminLaporan() {
                         className="w-full md:w-auto bg-[#A3E635] text-black px-4 py-2 rounded-xl border-2 border-black font-[1000] text-[10px] uppercase italic shadow-[3px_3px_0px_#000] hover:-translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isProcessingMassal ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16} />}
-                        ACC SEMUA ({filteredData.length})
+                        ACC POIN SEMUA ({filteredData.length})
                     </button>
                 )}
             </div>
@@ -342,21 +260,15 @@ export default function SectionAdminLaporan() {
                                             {lap.isi_laporan}
                                         </div>
 
-                                        {lap.bukti_foto && (
-                                            <button onClick={() => setPreviewData(lap)} className="w-full flex items-center justify-center gap-2 bg-blue-50 border-2 border-black border-dashed py-2 rounded-xl text-[9px] font-[1000] uppercase italic text-blue-600 hover:bg-blue-100 transition-all active:scale-95">
-                                                <Camera size={14} /> Lihat Bukti Foto
-                                            </button>
-                                        )}
-
                                         <div className="grid grid-cols-2 gap-2">
                                             {lap.status === 'PENDING' ? (
                                                 <>
-                                                    <button disabled={isProcessingMassal} onClick={() => handleAction(lap, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950 disabled:opacity-50">Reject</button>
-                                                    <button disabled={isProcessingMassal} onClick={() => handleAction(lap, 'APPROVED')} className="bg-[#A3E635] border-2 border-black py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950 disabled:opacity-50">Approve</button>
+                                                    <button disabled={isProcessingMassal} onClick={() => handleAction(lap, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black py-2.5 rounded-xl font-[1000] text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950 disabled:opacity-50">Reject</button>
+                                                    <button disabled={isProcessingMassal} onClick={() => handleAction(lap, 'APPROVED')} className="bg-[#A3E635] border-2 border-black py-2.5 rounded-xl font-[1000] text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all text-slate-950 disabled:opacity-50">Acc Poin</button>
                                                 </>
                                             ) : (
                                                 <button onClick={() => setPreviewData(lap)} className="col-span-2 bg-blue-500 text-white border-2 border-black py-2.5 rounded-xl font-[1000] text-[10px] uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 flex items-center justify-center gap-2">
-                                                    <Eye size={16} /> Buka Arsip
+                                                    <FileText size={16} /> Buka Teks Arsip
                                                 </button>
                                             )}
                                         </div>
@@ -424,36 +336,32 @@ export default function SectionAdminLaporan() {
                 )}
             </AnimatePresence>
 
-            {/* MODAL PREVIEW */}
+            {/* MODAL PREVIEW (TEKS ONLY) */}
             <AnimatePresence>
                 {previewData && (
                     <div className="fixed inset-0 z-[400] bg-black/90 p-4 flex items-center justify-center overflow-y-auto">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white max-w-2xl w-full rounded-[30px] border-[4px] border-slate-950 shadow-[10px_10px_0px_#3B82F6] overflow-hidden text-slate-950 my-10 relative">
                             <div className="bg-slate-950 p-4 flex justify-between items-center text-white sticky top-0 z-10">
-                                <h3 className="font-[1000] italic uppercase tracking-tighter">Arsip & Preview</h3>
+                                <h3 className="font-[1000] italic uppercase tracking-tighter">Detail Teks Laporan</h3>
                                 <button onClick={() => setPreviewData(null)} className="hover:bg-red-500 hover:text-white p-1 rounded-md transition-colors"><X size={20} /></button>
                             </div>
                             <div className="p-6 space-y-6">
-                                <div className="bg-[#2C2F33] text-[#DCDDDE] p-5 rounded-[20px] font-mono text-[10px] border-4 border-black whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar">
+                                <div className="bg-[#2C2F33] text-[#DCDDDE] p-5 rounded-[20px] font-mono text-[10px] border-4 border-black whitespace-pre-wrap max-h-64 overflow-y-auto custom-scrollbar">
                                     {previewData.isi_laporan}
                                 </div>
 
                                 {previewData.bukti_foto && (
-                                    <div className="relative">
-                                        <div className="absolute top-2 left-2 bg-blue-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-md z-10 border border-black shadow-[2px_2px_0px_#000]">Attached Evidence</div>
-                                        <img src={formatImageUrlForDiscord(previewData.bukti_foto) || previewData.bukti_foto} className="w-full h-auto rounded-[20px] border-4 border-black shadow-[4px_4px_0px_#000]" alt="Bukti Laporan" />
+                                    <div className="pt-2">
+                                        <a
+                                            href={previewData.bukti_foto}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="w-full bg-slate-100 border-[3px] border-black px-6 py-4 rounded-xl font-[1000] uppercase italic text-xs shadow-[4px_4px_0px_#000] hover:-translate-y-1 hover:shadow-[6px_6px_0px_#000] active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all flex justify-center items-center gap-3 text-blue-600"
+                                        >
+                                            <ExternalLink size={18} /> Lihat Bukti Foto Asli (Discord)
+                                        </a>
                                     </div>
                                 )}
-
-                                <div className="flex flex-col md:flex-row gap-3 pt-2">
-                                    <div className="flex-1 bg-slate-50 p-3 rounded-xl border-2 border-black border-dashed">
-                                        <p className="text-[9px] font-black uppercase opacity-40 italic">Active Webhook URL:</p>
-                                        <p className="text-[8px] font-black truncate text-blue-600">{adminConfigs[`webhook_${(previewData.jenis_laporan || "").replace(' ', '_').toLowerCase()}` as keyof typeof adminConfigs] || 'N/A'}</p>
-                                    </div>
-                                    <button onClick={() => handleTransmit(previewData)} className="bg-yellow-400 border-[3px] border-black px-6 py-3 rounded-xl font-[1000] uppercase italic text-xs shadow-[4px_4px_0px_#000] active:translate-y-1 flex justify-center items-center gap-2 text-slate-950">
-                                        <Send size={16} /> Resend
-                                    </button>
-                                </div>
                             </div>
                         </motion.div>
                     </div>

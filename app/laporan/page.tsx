@@ -33,7 +33,6 @@ export default function LaporanMultiForm() {
         nama_petugas: "", pangkat: "", tanggal: new Date(), waktu_shift: "",
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
         divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
-        // Field tambahan untuk PENILANGAN
         kendaraan: "", masa_penilangan: "", denda: "", kesalahan: ""
     });
 
@@ -42,7 +41,7 @@ export default function LaporanMultiForm() {
 
     const MENTION_ROLE = "<@&1393366590942085220>";
 
-    // --- CONFIG --- (DITAMBAH PENILANGAN)
+    // --- CONFIG --- 
     const CONFIG: any = {
         tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
         kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
@@ -69,12 +68,12 @@ export default function LaporanMultiForm() {
         const loadProfile = async () => {
             const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', parsed.discord_id).single();
             if (data) {
-                const cleanName = data.name.includes('|') ? data.name.split('|').pop().trim() : data.name;
-                setFormData(prev => ({ ...prev, nama_petugas: cleanName, pangkat: data.pangkat, divisi: data.divisi || "" }));
+                const cleanName = data.name.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
+                setFormData(prev => ({ ...prev, nama_petugas: cleanName || "", pangkat: data.pangkat, divisi: data.divisi || "" }));
             }
         };
         loadProfile();
-    }, []);
+    }, [router]);
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -83,7 +82,7 @@ export default function LaporanMultiForm() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // --- LOGIKA SUBMIT ---
+    // --- 🚀 LOGIKA SUBMIT (DISCORD HOSTING + STATUS PENDING) ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
         if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
@@ -91,33 +90,59 @@ export default function LaporanMultiForm() {
         setLoading(true);
         const conf = CONFIG[tipe];
         const sessionData = JSON.parse(localStorage.getItem('police_session') || '{}');
+        const formattedReport = getFormatMessage(formData);
 
         try {
-            const tId = toast.loading("Mengamankan Data & Foto Bukti...");
+            const tId = toast.loading("Mengirim Laporan ke HQ Discord...");
 
-            const fileExt = foto.name.split('.').pop();
-            const fileName = `${sessionData.discord_id}-${Date.now()}.${fileExt}`;
+            // 1. Ambil URL Webhook dari Config
+            const { data: configData } = await supabase.from('admin_config').select('value').eq('key', 'webhook_laporan').single();
+            if (!configData || !configData.value) throw new Error("Webhook Discord belum disetting di Admin Panel!");
 
-            const { error: uploadError } = await supabase.storage.from('bukti_laporan').upload(fileName, foto, { cacheControl: '3600', upsert: false });
-            if (uploadError) throw new Error("Gagal upload! Cek Bucket 'bukti_laporan'.");
+            // Wajib tambah ?wait=true agar Discord mengirim balik URL gambarnya
+            const webhookUrl = configData.value.includes('?') ? `${configData.value}&wait=true` : `${configData.value}?wait=true`;
 
-            const { data: publicUrlData } = supabase.storage.from('bukti_laporan').getPublicUrl(fileName);
-            const fotoUrl = publicUrlData.publicUrl;
+            // 2. Tembak Foto & Teks Laporan ke Discord Webhook
+            const formDataDiscord = new FormData();
+            formDataDiscord.append("file", foto);
+            formDataDiscord.append("payload_json", JSON.stringify({
+                content: formattedReport,
+                username: `Laporan Ops - ${formData.nama_petugas}`
+            }));
 
+            const discordResponse = await fetch(webhookUrl, {
+                method: "POST",
+                body: formDataDiscord,
+            });
+
+            if (!discordResponse.ok) throw new Error("Discord Webhook menolak laporan!");
+
+            // 3. Ambil URL Gambar dari Server Discord
+            const discordData = await discordResponse.json();
+            const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
+
+            if (!discordImageUrl) throw new Error("Gagal mengekstrak URL Foto dari Discord!");
+
+            toast.loading("Mencatat Laporan ke Arsip Markas...", { id: tId });
+
+            // 4. Masukkan ke Database dengan Status PENDING (Menunggu ACC Admin)
             const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
-                isi_laporan: getFormatMessage(formData),
-                poin_estimasi: conf.poin,
-                bukti_foto: fotoUrl,
-                status: 'PENDING'
+                isi_laporan: formattedReport,
+                poin: 0,                   // Poin 0 karena masih PENDING
+                poin_estimasi: conf.poin,  // Simpan nilai poin yang SEHARUSNYA didapat jika di-ACC
+                bukti_foto: discordImageUrl, // Simpan URL Discord
+                status: 'PENDING'          // Status Menunggu ACC
             }]);
+
             if (insertError) throw insertError;
 
-            toast.success("TRANSMISI BERHASIL!", { id: tId });
+            toast.success(`LAPORAN TERKIRIM! (Menunggu ACC Admin untuk +${conf.poin} PRP)`, { id: tId });
             setTimeout(() => handleNavigation('/dashboard'), 1500);
+
         } catch (err: any) {
-            toast.error("ERROR", { description: err.message });
+            toast.error("TRANSMISI GAGAL", { description: err.message });
         } finally {
             setLoading(false);
         }
@@ -156,7 +181,7 @@ export default function LaporanMultiForm() {
                                     <div className="p-3 rounded-xl border-2 border-black bg-slate-50" style={{ color: conf.color }}><conf.icon size={24} /></div>
                                     <div className="text-center">
                                         <p className={`${fontBlack} text-xs leading-none mb-1`}>{conf.label}</p>
-                                        <span className="bg-slate-950 text-white px-2 py-0.5 rounded-md text-[8px] font-black">+{conf.poin} PRP</span>
+                                        <span className="bg-slate-950 text-white px-2 py-0.5 rounded-md text-[8px] font-black">+{conf.poin} PRP (Pending)</span>
                                     </div>
                                 </button>
                             ))}

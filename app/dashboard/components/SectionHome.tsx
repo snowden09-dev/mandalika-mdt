@@ -34,14 +34,11 @@ const PETINGGI_ROLE_ID = "1393377874077028493";
 export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
     const router = useRouter();
 
-    // 🚀 STATE DATA USER (Akan di-update otomatis oleh Auto-Sync)
     const [userData, setUserData] = useState<any>(realtimeData);
-
     const [navState, setNavState] = useState<{ active: boolean, type: 'STAR' | 'COMPUTER' }>({
         active: false,
         type: 'STAR'
     });
-
     const [totalTilang, setTotalTilang] = useState(0);
 
     const boxBorder = "border-[4.5px] border-black";
@@ -57,7 +54,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         show: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
     };
 
-    // 🚀 ENGINE AUTO-SYNC (BERJALAN SETIAP KALI PAGE DI REFRESH)
     useEffect(() => {
         const syncFreshData = async () => {
             const sessionData = localStorage.getItem('police_session');
@@ -67,7 +63,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             const discordId = parsed.discord_id;
 
             if (discordId) {
-                // Tarik data terbaru diam-diam dari Database
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -75,9 +70,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     .single();
 
                 if (data && !error) {
-                    setUserData(data); // Update UI secara real-time
-
-                    // Timpa Local Storage agar data singkron
+                    setUserData(data);
                     const updatedSession = { ...parsed, ...data };
                     localStorage.setItem('police_session', JSON.stringify(updatedSession));
                 }
@@ -94,7 +87,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         }, 3000);
     };
 
-    // KALKULASI BERDASARKAN userData TERBARU
     const progress = useMemo(() => {
         const currentPRP = Number(userData.point_prp) || 0;
         const currentHRS = Number(userData.total_jam_duty) || 0;
@@ -116,9 +108,11 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
 
-    // 🚀 DETEKSI PETINGGI BERDASARKAN ROLE ID DISCORD
-    // Menggunakan String() agar aman baik jika database menyimpan role sebagai Array ['123', '456'] maupun String "123,456"
+    // 🚀 DETEKSI PETINGGI & FILTER DIVISI
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
+
+    // Auto-Filter: Jika di database kolom divisi isinya "PETINGGI", jangan tampilkan sebagai Divisi agar tidak double.
+    const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' ? userData.divisi : null;
 
     const TARGET_TILANG = 15;
     const tilangPct = Math.min((totalTilang / TARGET_TILANG) * 100, 100).toFixed(0);
@@ -157,7 +151,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             variants={container} initial="hidden" animate="show"
             className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative"
         >
-            {/* 🚀 LAYAR TRANSISI */}
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
@@ -176,22 +169,24 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                         {userData.name || nickname}
                     </h1>
 
-                    {/* TAMPILAN 3 ROLE SEKALIGUS */}
+                    {/* 🚀 TAMPILAN 3 ROLE PRIORITAS (PANGKAT, DIVISI, PETINGGI) */}
                     <div className="flex flex-wrap gap-2 md:gap-3">
+                        {/* 1. BADGE PANGKAT */}
                         <span className="bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {userData.divisi && (
+                        {/* 2. BADGE DIVISI (Jika ada, dan bukan tulisan 'Petinggi') */}
+                        {cleanDivisi && (
                             <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
-                                {userData.divisi}
+                                {cleanDivisi}
                             </span>
                         )}
 
-                        {/* BADGE KHUSUS PETINGGI (ROLE ID BASE) */}
+                        {/* 3. BADGE PETINGGI (Berdasarkan Role ID Discord) */}
                         {isPetinggi && (
                             <span className="bg-slate-950 text-[#00E676] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#00E676] flex items-center gap-1.5">
-                                <Star size={14} className="fill-[#00E676] text-[#00E676]" /> HIGH COMMAND
+                                <Star size={14} className="fill-[#00E676] text-[#00E676]" /> PETINGGI
                             </span>
                         )}
                     </div>

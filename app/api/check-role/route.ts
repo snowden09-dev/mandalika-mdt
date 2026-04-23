@@ -41,11 +41,17 @@ export async function POST(req: Request) {
             if (roles.includes(rank.id)) { detectedPangkat = rank.name; break; }
         }
 
+        // 🚀 LOGIKA DIVISI DIPERBAIKI
+        // Petinggi dihapus dari sini agar tidak menabrak Divisi utama (seperti Satlantas)
         const DIVISI_ID = {
-            PETINGGI: "1393377874077028493", PROPAM: "1458009275472281672",
-            BRIMOB: "1417238500025040987", SATLANTAS: "1427725693126574121", SABHARA: "1423062503646298262"
+            PROPAM: "1458009275472281672",
+            BRIMOB: "1417238500025040987",
+            SATLANTAS: "1427725693126574121",
+            SABHARA: "1423062503646298262"
         };
-        let detectedDivisi = "SABHARA";
+
+        // Default diatur ke NON DIVISI
+        let detectedDivisi = "NON DIVISI";
         for (const [name, id] of Object.entries(DIVISI_ID)) {
             if (roles.includes(id)) { detectedDivisi = name; break; }
         }
@@ -66,5 +72,7 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json({ isPolice, divisi: detectedDivisi, pangkat: detectedPangkat, discord_id: userId });
-    } catch (err) { return NextResponse.json({ error: "Fail" }, { status: 500 }); }
+    } catch (err) {
+        return NextResponse.json({ error: "Fail" }, { status: 500 });
+    }
 }

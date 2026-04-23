@@ -63,6 +63,19 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             const discordId = parsed.discord_id;
 
             if (discordId) {
+                // 🚀 PERBAIKAN 1: FORCE SYNC REALTIME KE DISCORD SEBELUM LOAD DATABASE
+                // Memaksa sistem untuk mengecek role terbaru dari Discord melalui API Jendral
+                try {
+                    await fetch('/api/check-role', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ discord_id: discordId }) // Sesuaikan jika API Jendral menerima GET/POST yang beda
+                    });
+                } catch (err) {
+                    console.error("Gagal melakukan sync real-time ke Discord:", err);
+                }
+
+                // Setelah di-sync oleh API, baru kita ambil data terbarunya dari database
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -87,6 +100,13 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         }, 3000);
     };
 
+    // 🚀 PERBAIKAN 2: PEMBERSIHAN NAMA (NICKNAME CLEANUP)
+    const cleanName = useMemo(() => {
+        const rawName = userData.name || nickname || "OFFICER";
+        // Jika ada simbol '|', potong dan ambil tulisan paling belakang (namanya)
+        return rawName.includes('|') ? rawName.split('|').pop()?.trim() : rawName;
+    }, [userData.name, nickname]);
+
     const progress = useMemo(() => {
         const currentPRP = Number(userData.point_prp) || 0;
         const currentHRS = Number(userData.total_jam_duty) || 0;
@@ -108,11 +128,10 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
 
-    // 🚀 DETEKSI PETINGGI & FILTER DIVISI
+    // 🚀 DETEKSI PETINGGI & FILTER DIVISI (AGAR TIDAK OVERLAP)
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
-
-    // Auto-Filter: Jika di database kolom divisi isinya "PETINGGI", jangan tampilkan sebagai Divisi agar tidak double.
-    const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' ? userData.divisi : null;
+    // Tampilkan divisi JIKA ada isinya DAN isinya BUKAN tulisan "Petinggi"
+    const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' ? userData.divisi.toUpperCase() : null;
 
     const TARGET_TILANG = 15;
     const tilangPct = Math.min((totalTilang / TARGET_TILANG) * 100, 100).toFixed(0);
@@ -165,8 +184,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                         {isCasis ? "Siswa Diklat Terdeteksi" : "Akses Terverifikasi"}
                     </div>
 
+                    {/* 🚀 NAMA SUDAH BERSIH DARI PANGKAT */}
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">
-                        {userData.name || nickname}
+                        {cleanName}
                     </h1>
 
                     {/* 🚀 TAMPILAN 3 ROLE PRIORITAS (PANGKAT, DIVISI, PETINGGI) */}
@@ -176,7 +196,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {/* 2. BADGE DIVISI (Jika ada, dan bukan tulisan 'Petinggi') */}
+                        {/* 2. BADGE DIVISI (Bisa Sabhara, Satlantas, dll) */}
                         {cleanDivisi && (
                             <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                                 {cleanDivisi}

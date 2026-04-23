@@ -125,9 +125,10 @@ export default function LaporanMultiForm() {
             // 4. Tembak Foto & Teks Laporan ke Discord Webhook
             const formDataDiscord = new FormData();
             formDataDiscord.append("file", foto);
+
+            // 🚀 PERBAIKAN: Hapus username override agar Webhook Discord menggunakan nama & avatar aslinya!
             formDataDiscord.append("payload_json", JSON.stringify({
-                content: formattedReport,
-                username: `Laporan Ops - ${formData.nama_petugas}`
+                content: formattedReport
             }));
 
             const discordResponse = await fetch(finalWebhookUrl, {
@@ -145,15 +146,15 @@ export default function LaporanMultiForm() {
 
             toast.loading("Mencatat Laporan ke Arsip Markas...", { id: tId });
 
-            // 6. Masukkan ke Database dengan Status PENDING (Menunggu ACC Admin)
+            // 6. 🚀 PERBAIKAN: Masukkan ke Database SESUAI SKEMA (Tanpa kolom 'poin')
             const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
                 isi_laporan: formattedReport,
-                poin: 0,                   // Poin 0 karena masih PENDING
-                poin_estimasi: conf.poin,  // Simpan nilai poin estimasi
-                bukti_foto: discordImageUrl, // Simpan URL Discord
-                status: 'PENDING'          // Status Menunggu ACC
+                poin_estimasi: conf.poin,  // Simpan nilai poin estimasi (Sesuai Skema Database Jendral)
+                bukti_foto: discordImageUrl, // Simpan URL dari Discord
+                status: 'PENDING',          // Status Menunggu ACC Poin
+                is_sent_discord: true       // Tandai bahwa ini sudah masuk Discord
             }]);
 
             if (insertError) throw insertError;

@@ -203,7 +203,7 @@ export default function SectionAdminPayroll() {
                 content: `<@${currentSlipData.user_id_discord || ''}> **PENGIRIMAN PAYSLIP BERHASIL**`,
                 embeds: [{
                     title: "🏛️ MANDALIKA POLICE - OFFICIAL PAYSLIP",
-                    description: `Payslip resmi Jendral telah diterbitkan dan divalidasi oleh HQ Finance.`,
+                    description: `Payslip resmi telah diterbitkan dan divalidasi oleh HQ Finance.`,
                     color: 0,
                     footer: { text: "Mandalika Automated Payroll System" },
                     timestamp: new Date().toISOString()

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight
+    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2
 } from 'lucide-react';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -34,8 +34,9 @@ export default function SectionAdminPayroll() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6;
 
-    // STATE BONUS MANUAL
-    const [manualBonus, setManualBonus] = useState<Record<string, number>>({});
+    // 🚀 STATE BONUS / DENDA MANUAL
+    const [manualAdjustments, setManualAdjustments] = useState<Record<string, { amount: number, reason: string }>>({});
+    const [adjInputs, setAdjInputs] = useState<Record<string, { amount: string, reason: string }>>({});
 
     // --- PREVIEW STATES ---
     const [currentSlipData, setCurrentSlipData] = useState<any>(null);
@@ -81,7 +82,7 @@ export default function SectionAdminPayroll() {
         setCurrentPage(1);
     }, [activeTab]);
 
-    // 🚀 ENGINE SUPER KALKULASI DENGAN ATURAN BARU ($5K ALPHA, $3K CUTI, PETINGGI AMAN)
+    // 🚀 ENGINE SUPER KALKULASI DENGAN ATURAN BARU (ALPHA 5%, CUTI 2%, MANUAL ADJ)
     const augmentedRequests = useMemo(() => {
         return requests.map(req => {
             const start = startOfDay(new Date(req.tanggal_mulai));
@@ -116,22 +117,22 @@ export default function SectionAdminPayroll() {
 
             const baseGaji = Number(req.jumlah_gaji);
 
-            // 🚀 LOGIKA POTONGAN BARU
-            const potonganAlpha = isPetinggi ? 0 : (alphaCount * 5000);
-            const potonganCuti = isPetinggi ? 0 : (cutiCount * 3000);
+            // 🚀 LOGIKA POTONGAN BARU (PERSENTASE)
+            const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGaji * 0.05));
+            const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGaji * 0.02));
             const totalPotongan = potonganAlpha + potonganCuti;
 
-            const tambahanBonus = manualBonus[req.id] || 0;
-            const finalGaji = baseGaji - totalPotongan + tambahanBonus;
+            const adjustment = manualAdjustments[req.id] || { amount: 0, reason: 'Penyesuaian Manual' };
+            const finalGaji = baseGaji - totalPotongan + adjustment.amount;
 
             return {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
                 isTargetMet, isSatlantas, isPetinggi, baseGaji,
-                potonganAlpha, potonganCuti, totalPotongan, tambahanBonus, finalGaji
+                potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
             };
         });
-    }, [requests, duties, cutis, laporans, manualBonus]);
+    }, [requests, duties, cutis, laporans, manualAdjustments]);
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return augmentedRequests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
@@ -220,7 +221,7 @@ export default function SectionAdminPayroll() {
         } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
     };
 
-    // 🚀 ENGINE APPROVAL: PEMBERSIH NAMA DUPLIKAT (PANGKAT | NAMA)
+    // 🚀 ENGINE APPROVAL & CATATAN ADMIN (TERMASUK ADJUSTMENT)
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
@@ -229,16 +230,13 @@ export default function SectionAdminPayroll() {
         const rawRank = adminSession?.pangkat || '';
 
         let cleanName = rawName;
-        // Jika nama sudah mengandung Pangkat, hapus pangkatnya dan karakter '|' agar tidak duplikat
         if (rawRank && cleanName.toUpperCase().includes(rawRank.toUpperCase())) {
             cleanName = cleanName.replace(new RegExp(rawRank, 'ig'), '').replace(/^[\s\|-]+/, '').trim();
         }
-        // Gabungkan kembali secara paksa jadi "PANGKAT | NAMA"
         const adminIdentity = rawRank ? `${rawRank.toUpperCase()} | ${cleanName.toUpperCase()}` : cleanName.toUpperCase();
 
-        // 🚀 KITA PAKAI PEMISAH '-' AGAR '|' DI NAMA TIDAK BIKIN BUG PARSER
         const adminNotes = status === 'PAID'
-            ? `AUTH BY ${adminIdentity} - ALPH:${reqToApprove.potonganAlpha} - CUTI:${reqToApprove.potonganCuti} - BONS:${reqToApprove.tambahanBonus} - BASE:${reqToApprove.baseGaji}`
+            ? `AUTH BY ${adminIdentity} - ALPH:${reqToApprove.potonganAlpha} - CUTI:${reqToApprove.potonganCuti} - ADJ:${reqToApprove.adjustment.amount} - RSN:${reqToApprove.adjustment.reason} - BASE:${reqToApprove.baseGaji}`
             : `REJECTED BY ${adminIdentity}`;
 
         const { error } = await supabase.from('pengajuan_gaji').update({
@@ -267,11 +265,11 @@ export default function SectionAdminPayroll() {
         } catch (e) { toast.error("Gagal menghapus data!"); }
     };
 
-    // 🚀 ENGINE EKSTRAKTOR NAMA ADMIN DARI CATATAN
+    // 🚀 ENGINE EKSTRAKTOR DARI CATATAN ADMIN (SLIP BUILDER)
     const getAdminName = (notes: string) => {
         if (!notes) return 'HIGH COMMAND';
         let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');
-        const alphIndex = str.indexOf('- ALPH:'); // potong di tanda strip pertama
+        const alphIndex = str.indexOf('- ALPH:');
         if (alphIndex !== -1) {
             str = str.substring(0, alphIndex);
         }
@@ -280,11 +278,23 @@ export default function SectionAdminPayroll() {
 
     const getSlipDetails = (slip: any) => {
         const notes = slip.keterangan_admin || "";
-        const extract = (key: string) => { const match = notes.match(new RegExp(`${key}:(\\d+)`)); return match ? parseInt(match[1]) : 0; };
+        const extract = (key: string) => {
+            const match = notes.match(new RegExp(`${key}:([-]?\\d+)`));
+            return match ? parseInt(match[1]) : 0;
+        };
+        const extractReason = () => {
+            const match = notes.match(/RSN:(.*?)( - BASE:|$)/);
+            return match ? match[1].trim() : 'Penyesuaian Manual';
+        };
+
+        const legacyBons = extract('BONS'); // Untuk kompatibilitas format lama
+        const adjAmount = extract('ADJ');
+
         return {
             potonganAlpha: extract('ALPH'),
             potonganCuti: extract('CUTI'),
-            bons: extract('BONS'),
+            adj: adjAmount !== 0 ? adjAmount : legacyBons,
+            reason: extractReason(),
             base: extract('BASE') || slip.jumlah_gaji
         };
     };
@@ -452,23 +462,58 @@ export default function SectionAdminPayroll() {
                                             <div className="flex justify-between text-[10px] font-black uppercase opacity-60"><span>Gaji Pokok / Awal</span><span>${req.baseGaji.toLocaleString()}</span></div>
 
                                             {/* RENDER RINCIAN POTONGAN DI KARTU */}
-                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (x{req.alpha})</span><span>- ${req.potonganAlpha.toLocaleString()}</span></div>}
-                                            {req.potonganCuti > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Cuti/Izin (x{req.cuti})</span><span>- ${req.potonganCuti.toLocaleString()}</span></div>}
+                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5% x {req.alpha})</span><span>- ${req.potonganAlpha.toLocaleString()}</span></div>}
+                                            {req.potonganCuti > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Cuti/Izin (2% x {req.cuti})</span><span>- ${req.potonganCuti.toLocaleString()}</span></div>}
                                             {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-[10px] font-black uppercase text-green-600"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
 
-                                            {req.tambahanBonus > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-blue-600"><span>Bonus Manual Admin</span><span>+ ${req.tambahanBonus.toLocaleString()}</span></div>}
+                                            {req.adjustment.amount !== 0 && (
+                                                <div className={cn("flex justify-between text-[10px] font-black uppercase", req.adjustment.amount > 0 ? "text-blue-600" : "text-red-600")}>
+                                                    <span className="truncate max-w-[200px]">Adj: {req.adjustment.reason}</span>
+                                                    <span>{req.adjustment.amount > 0 ? '+' : '-'} ${Math.abs(req.adjustment.amount).toLocaleString()}</span>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {activeTab === 'PENDING' && (
-                                            <div className="flex gap-2 justify-center border-t-2 border-black pt-3">
-                                                <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 35000 })} className="flex-1 bg-slate-950 text-white py-2 rounded-xl text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
-                                                    <PlusCircle size={12} /> $35k (Lantas/Sab)
-                                                </button>
-                                                <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 50000 })} className="flex-1 bg-slate-950 text-white py-2 rounded-xl text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
-                                                    <PlusCircle size={12} /> $50k (Brimob/Pro)
-                                                </button>
-                                                {req.tambahanBonus > 0 && (
-                                                    <button onClick={() => setManualBonus({ ...manualBonus, [req.id]: 0 })} className="bg-red-500 text-white px-2 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] active:scale-95"><Trash2 size={12} /></button>
+                                            <div className="flex flex-col gap-2 justify-center border-t-2 border-black pt-3">
+                                                {/* QUICK PRESET BUTTONS */}
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 35000, reason: 'Bonus Target Divisi' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
+                                                        <PlusCircle size={12} /> $35k (Lantas/Sab)
+                                                    </button>
+                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 50000, reason: 'Bonus Target Divisi' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
+                                                        <PlusCircle size={12} /> $50k (Brimob/Pro)
+                                                    </button>
+                                                </div>
+
+                                                {/* 🚀 CUSTOM ADJUSTMENT INPUTS */}
+                                                <div className="flex gap-2 items-center">
+                                                    <Settings2 size={16} className="text-slate-400 shrink-0" />
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Nominal (- utk Denda)"
+                                                        value={adjInputs[req.id]?.amount || ''}
+                                                        onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], amount: e.target.value } })}
+                                                        className="border-2 border-black px-2 py-1.5 text-[10px] w-24 rounded outline-none focus:bg-slate-100"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Keterangan..."
+                                                        value={adjInputs[req.id]?.reason || ''}
+                                                        onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], reason: e.target.value } })}
+                                                        className="border-2 border-black px-2 py-1.5 text-[10px] flex-1 rounded outline-none focus:bg-slate-100"
+                                                    />
+                                                    <button
+                                                        onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: Number(adjInputs[req.id]?.amount || 0), reason: adjInputs[req.id]?.reason || 'Penyesuaian Sistem' } })}
+                                                        className="bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] border-2 border-black font-black shadow-[2px_2px_0_0_#000] active:translate-y-1 active:shadow-none"
+                                                    >Apply</button>
+                                                </div>
+
+                                                {req.adjustment.amount !== 0 && (
+                                                    <div className="flex justify-between items-center bg-yellow-100 border border-yellow-400 p-1.5 rounded mt-1">
+                                                        <span className="text-[9px] font-black italic uppercase text-yellow-800">Aktif: {req.adjustment.reason}</span>
+                                                        <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} className="bg-red-500 text-white rounded p-1"><X size={10} /></button>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
@@ -601,24 +646,25 @@ export default function SectionAdminPayroll() {
                                     <span>${getSlipDetails(currentSlipData).base.toLocaleString()}</span>
                                 </div>
 
-                                {getSlipDetails(currentSlipData).bons > 0 && (
-                                    <div className="flex justify-between items-center text-sm font-bold uppercase italic text-blue-600">
-                                        <span>Bonus Kinerja (Divisi)</span>
-                                        <span>+ ${getSlipDetails(currentSlipData).bons.toLocaleString()}</span>
-                                    </div>
-                                )}
-
                                 {/* 🚀 RENDER POTONGAN DI SLIP RESMI */}
                                 {getSlipDetails(currentSlipData).potonganAlpha > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
-                                        <span>Potongan Alpha</span>
+                                        <span>Potongan Alpha (5%)</span>
                                         <span>- ${getSlipDetails(currentSlipData).potonganAlpha.toLocaleString()}</span>
                                     </div>
                                 )}
                                 {getSlipDetails(currentSlipData).potonganCuti > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
-                                        <span>Potongan Cuti/Izin</span>
+                                        <span>Potongan Cuti/Izin (2%)</span>
                                         <span>- ${getSlipDetails(currentSlipData).potonganCuti.toLocaleString()}</span>
+                                    </div>
+                                )}
+
+                                {/* 🚀 RENDER ADJUSTMENT MANUAL (BONUS / DENDA) DI SLIP RESMI */}
+                                {getSlipDetails(currentSlipData).adj !== 0 && (
+                                    <div className={cn("flex justify-between items-center text-sm font-bold uppercase italic", getSlipDetails(currentSlipData).adj > 0 ? "text-blue-600" : "text-red-500")}>
+                                        <span>{getSlipDetails(currentSlipData).adj > 0 ? 'Bonus' : 'Denda'}: {getSlipDetails(currentSlipData).reason}</span>
+                                        <span>{getSlipDetails(currentSlipData).adj > 0 ? '+' : '-'} ${Math.abs(getSlipDetails(currentSlipData).adj).toLocaleString()}</span>
                                     </div>
                                 )}
                             </div>

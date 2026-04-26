@@ -30,21 +30,17 @@ export default function SectionAdminPayroll() {
     const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT' | 'REKAP'>('PENDING');
     const [adminSession, setAdminSession] = useState<any>(null);
 
-    // STATE PAGINASI
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6;
 
-    // 🚀 STATE BONUS / DENDA MANUAL
     const [manualAdjustments, setManualAdjustments] = useState<Record<string, { amount: number, reason: string }>>({});
     const [adjInputs, setAdjInputs] = useState<Record<string, { amount: string, reason: string }>>({});
 
-    // --- PREVIEW STATES ---
     const [currentSlipData, setCurrentSlipData] = useState<any>(null);
     const [capturedImg, setCapturedImg] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTransmitting, setIsTransmitting] = useState(false);
 
-    // DELETE MODAL STATE
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
     const [confirmInput, setConfirmInput] = useState("");
 
@@ -78,11 +74,62 @@ export default function SectionAdminPayroll() {
         }
     }, []);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [activeTab]);
+    useEffect(() => { setCurrentPage(1); }, [activeTab]);
 
-    // 🚀 ENGINE SUPER KALKULASI DENGAN ATURAN BARU (ALPHA 5%, CUTI 2%, MANUAL ADJ)
+    // 🚀 ENGINE VALIDATOR PANGKAT: HANYA PERCAYA LIST INI (MEMBUNUH BUG 145K ABRIPTU)
+    const getGajiByRank = (pangkat: string) => {
+        const p = pangkat?.toUpperCase().trim() || "";
+        switch (p) {
+            case "JENDRAL": return 190000;
+            case "WAKAPOLRI": return 185000;
+            case "KAPOLRI": return 190000;
+            case "KOMJEN": return 180000;
+            case "IRJEN": return 175000;
+            case "BRIGJEN": return 170000;
+            case "KOMBESPOL":
+            case "KOMBES": return 165000;
+            case "AKBP": return 160000;
+            case "KOMPOL": return 155000;
+            case "AKP": return 150000;
+            case "IPTU": return 145000;
+            case "IPDA": return 140000;
+            case "AIPTU": return 135000;
+            case "AIPDA": return 130000;
+            case "BRIPKA": return 125000;
+            case "BRIGPOL": return 120000;
+            case "BRIPTU": return 115000;
+            case "BRIPDA": return 110000;
+            case "BHARATU": return 105000;
+            case "BHARADA": return 100000;
+            default: return 110000;
+        }
+    };
+
+    // 🚀 ENGINE EKSTRAKTOR SLIP RESMI
+    const getSlipDetails = (slip: any) => {
+        const notes = slip.keterangan_admin || "";
+        const extract = (key: string) => {
+            const match = notes.match(new RegExp(`${key}:([-]?\\d+)`));
+            return match ? parseInt(match[1]) : 0;
+        };
+        const extractReason = () => {
+            const match = notes.match(/RSN:(.*?)( - BASE:|$)/);
+            return match ? match[1].trim() : 'Penyesuaian Manual';
+        };
+
+        const legacyBons = extract('BONS'); // Untuk data lama
+        const adjAmount = extract('ADJ');
+
+        return {
+            potonganAlpha: extract('ALPH'),
+            potonganCuti: extract('CUTI'),
+            adj: adjAmount !== 0 ? adjAmount : legacyBons,
+            reason: extractReason(),
+            base: extract('BASE') || slip.jumlah_gaji
+        };
+    };
+
+    // 🚀 ENGINE SUPER KALKULASI: ADMIN AUTHORITY
     const augmentedRequests = useMemo(() => {
         return requests.map(req => {
             const start = startOfDay(new Date(req.tanggal_mulai));
@@ -90,45 +137,71 @@ export default function SectionAdminPayroll() {
             const daysInPeriod = eachDayOfInterval({ start, end });
             const discordId = req.user_id_discord;
 
-            let hadirCount = 0;
-            let cutiCount = 0;
+            let hadirCount = 0; let cutiCount = 0;
 
             daysInPeriod.forEach(day => {
                 const targetStr = format(day, 'yyyy-MM-dd');
                 const isHadir = duties.some(d => d.user_id_discord === discordId && format(new Date(d.start_time), 'yyyy-MM-dd') === targetStr);
 
-                if (isHadir) {
-                    hadirCount++;
-                } else {
+                if (isHadir) hadirCount++;
+                else {
                     const isCuti = cutis.some(c => c.status === 'APPROVED' && c.user_id_discord === discordId && day >= startOfDay(new Date(c.tanggal_mulai)) && day <= startOfDay(new Date(c.tanggal_selesai)));
                     if (isCuti) cutiCount++;
                 }
             });
 
             const alphaCount = Math.max(0, daysInPeriod.length - hadirCount - cutiCount);
-
             const tilangData = laporans.filter(l => l.user_id_discord === discordId && new Date(l.created_at) >= start && new Date(l.created_at) <= end);
             const isTargetMet = tilangData.length >= 15;
             const isSatlantas = (req.divisi || "").toUpperCase().includes('SATLANTAS');
-
-            // Cek apakah dia petinggi
             const pangkatUser = (req.pangkat || "").toUpperCase();
             const isPetinggi = PETINGGI_RANKS.some(rank => pangkatUser.includes(rank));
 
-            const baseGaji = Number(req.jumlah_gaji);
+            const isPAID = req.status === 'PAID' || req.status === 'REJECTED';
+            const details = getSlipDetails(req);
 
-            // 🚀 LOGIKA POTONGAN BARU (PERSENTASE)
-            const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGaji * 0.05));
-            const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGaji * 0.02));
+            // 🚀 BILA SUDAH DIBAYAR: KUNCI DATA, JANGAN HITUNG ULANG! (BUNUH BUG DOUBLE-SUBTRACTION)
+            if (isPAID) {
+                return {
+                    ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
+                    total_hari: daysInPeriod.length, tilangCount: tilangData.length,
+                    isTargetMet, isSatlantas, isPetinggi,
+                    baseGaji: details.base,
+                    potonganAlpha: details.potonganAlpha,
+                    potonganCuti: details.potonganCuti,
+                    totalPotongan: details.potonganAlpha + details.potonganCuti,
+                    adjustment: { amount: details.adj, reason: details.reason },
+                    finalGaji: Number(req.jumlah_gaji) // Menggunakan Payout Akhir dari Database
+                };
+            }
+
+            // 🚀 BILA MASIH PENDING: ADMIN MENGHITUNG ULANG PAKSA DARI AWAL
+            const weeksCount = daysInPeriod.length >= 13 ? 2 : 1;
+            const baseGajiPokok = getGajiByRank(req.pangkat) * weeksCount;
+
+            const divisiUser = (req.divisi || "").toUpperCase();
+            let earnedBonus = 0;
+            if (isTargetMet) {
+                if (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) earnedBonus = 35000;
+                else if (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) earnedBonus = 50000;
+            }
+
+            // Ini adalah Base Gaji Gabungan (Pokok + Bonus Otomatis)
+            const baseGajiSubmit = baseGajiPokok + earnedBonus;
+
+            // Potongan selalu dihitung dari Gaji Pokok Murni, BUKAN gaji yang ada bonusnya
+            const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGajiPokok * 0.05));
+            const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGajiPokok * 0.02));
             const totalPotongan = potonganAlpha + potonganCuti;
 
             const adjustment = manualAdjustments[req.id] || { amount: 0, reason: 'Penyesuaian Manual' };
-            const finalGaji = baseGaji - totalPotongan + adjustment.amount;
+            const finalGaji = baseGajiSubmit - totalPotongan + adjustment.amount;
 
             return {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
-                isTargetMet, isSatlantas, isPetinggi, baseGaji,
+                isTargetMet, isSatlantas, isPetinggi,
+                baseGaji: baseGajiSubmit, // Menampilkan Base + Auto Bonus (misal: Brigjen 170k + 50k = 220k)
                 potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
             };
         });
@@ -221,7 +294,6 @@ export default function SectionAdminPayroll() {
         } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
     };
 
-    // 🚀 ENGINE APPROVAL & CATATAN ADMIN (TERMASUK ADJUSTMENT)
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
@@ -265,38 +337,12 @@ export default function SectionAdminPayroll() {
         } catch (e) { toast.error("Gagal menghapus data!"); }
     };
 
-    // 🚀 ENGINE EKSTRAKTOR DARI CATATAN ADMIN (SLIP BUILDER)
     const getAdminName = (notes: string) => {
         if (!notes) return 'HIGH COMMAND';
         let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');
         const alphIndex = str.indexOf('- ALPH:');
-        if (alphIndex !== -1) {
-            str = str.substring(0, alphIndex);
-        }
+        if (alphIndex !== -1) str = str.substring(0, alphIndex);
         return str.trim();
-    };
-
-    const getSlipDetails = (slip: any) => {
-        const notes = slip.keterangan_admin || "";
-        const extract = (key: string) => {
-            const match = notes.match(new RegExp(`${key}:([-]?\\d+)`));
-            return match ? parseInt(match[1]) : 0;
-        };
-        const extractReason = () => {
-            const match = notes.match(/RSN:(.*?)( - BASE:|$)/);
-            return match ? match[1].trim() : 'Penyesuaian Manual';
-        };
-
-        const legacyBons = extract('BONS'); // Untuk kompatibilitas format lama
-        const adjAmount = extract('ADJ');
-
-        return {
-            potonganAlpha: extract('ALPH'),
-            potonganCuti: extract('CUTI'),
-            adj: adjAmount !== 0 ? adjAmount : legacyBons,
-            reason: extractReason(),
-            base: extract('BASE') || slip.jumlah_gaji
-        };
     };
 
     const PaginationControls = () => {
@@ -459,7 +505,10 @@ export default function SectionAdminPayroll() {
                                         </div>
 
                                         <div className="border-t-2 border-dashed border-slate-300 pt-3 space-y-1">
-                                            <div className="flex justify-between text-[10px] font-black uppercase opacity-60"><span>Gaji Pokok / Awal</span><span>${req.baseGaji.toLocaleString()}</span></div>
+                                            <div className="flex justify-between text-[10px] font-black uppercase opacity-60">
+                                                <span>Gaji Awal {req.isTargetMet ? '(Incl. Bonus Target)' : '(Pokok)'}</span>
+                                                <span>${req.baseGaji.toLocaleString()}</span>
+                                            </div>
 
                                             {/* RENDER RINCIAN POTONGAN DI KARTU */}
                                             {req.potonganAlpha > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5% x {req.alpha})</span><span>- ${req.potonganAlpha.toLocaleString()}</span></div>}
@@ -478,11 +527,11 @@ export default function SectionAdminPayroll() {
                                             <div className="flex flex-col gap-2 justify-center border-t-2 border-black pt-3">
                                                 {/* QUICK PRESET BUTTONS */}
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 35000, reason: 'Bonus Target Divisi' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
-                                                        <PlusCircle size={12} /> $35k (Lantas/Sab)
+                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 35000, reason: 'Bonus Tambahan' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
+                                                        <PlusCircle size={12} /> + $35k (Manual)
                                                     </button>
-                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 50000, reason: 'Bonus Target Divisi' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
-                                                        <PlusCircle size={12} /> $50k (Brimob/Pro)
+                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 50000, reason: 'Bonus Ekstra' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
+                                                        <PlusCircle size={12} /> + $50k (Manual)
                                                     </button>
                                                 </div>
 

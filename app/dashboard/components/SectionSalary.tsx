@@ -45,27 +45,31 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         setNotif({ show: true, title, message, type });
     };
 
+    // 🚀 PERBAIKAN LOGIKA GAJI: MENGGUNAKAN EXACT MATCH (SWITCH CASE)
     const getGajiByRank = (pangkat: string) => {
-        const p = pangkat?.toUpperCase() || "";
-        if (p.includes("JENDRAL")) return 190000;
-        if (p.includes("KOMJEN")) return 180000;
-        if (p.includes("IRJEN")) return 175000;
-        if (p.includes("BRIGJEN")) return 170000;
-        if (p.includes("KOMBES")) return 165000;
-        if (p.includes("AKBP")) return 160000;
-        if (p.includes("KOMPOL")) return 155000;
-        if (p.includes("AKP")) return 150000;
-        if (p.includes("IPTU")) return 145000;
-        if (p.includes("IPDA")) return 140000;
-        if (p.includes("AIPTU")) return 135000;
-        if (p.includes("AIPDA")) return 130000;
-        if (p.includes("BRIPKA")) return 125000;
-        if (p.includes("BRIGPOL")) return 120000;
-        if (p.includes("BRIPTU")) return 115000;
-        if (p.includes("BRIPDA")) return 110000;
-        if (p.includes("BHARATU")) return 105000;
-        if (p.includes("BHARADA")) return 100000;
-        return 110000;
+        const p = pangkat?.toUpperCase().trim() || "";
+        switch (p) {
+            case "JENDRAL": return 190000;
+            case "KOMJEN": return 180000;
+            case "IRJEN": return 175000;
+            case "BRIGJEN": return 170000;
+            case "KOMBESPOL": return 165000;
+            case "KOMBES": return 165000;
+            case "AKBP": return 160000;
+            case "KOMPOL": return 155000;
+            case "AKP": return 150000;
+            case "IPTU": return 145000;
+            case "IPDA": return 140000;
+            case "AIPTU": return 135000;
+            case "AIPDA": return 130000;
+            case "BRIPKA": return 125000;
+            case "BRIGPOL": return 120000;
+            case "BRIPTU": return 115000;
+            case "BRIPDA": return 110000;
+            case "BHARATU": return 105000;
+            case "BHARADA": return 100000;
+            default: return 110000; // 🚀 Jika pangkat tidak ada di atas (termasuk ABRIPTU), otomatis dapat 110rb
+        }
     };
 
     const baseSalary = useMemo(() => getGajiByRank(realtimeData?.pangkat), [realtimeData?.pangkat]);
@@ -88,7 +92,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
     useEffect(() => { fetchHistoryAndReports(); }, []);
 
-    // 🚀 LOGIKA DIVISI SATLANTAS
+    // 🚀 LOGIKA BONUS & TARGET TRACKER
     const divisiUser = realtimeData?.divisi?.toUpperCase() || "";
     const isSatlantas = divisiUser.includes('SATLANTAS');
 
@@ -109,13 +113,16 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     const isTargetMet = isSatlantas ? targetProgress >= TARGET_TILANG : false;
     const earnedBonus = isTargetMet ? bonusPotential : 0;
 
-    // 🚀 MULTIPLIER GAJI (x2 MINGGU)
+    // PERHITUNGAN FINAL SALARY BERDASARKAN RENTANG MINGGU YG DIPILIH
     const selectedWeeksCount = useMemo(() => {
         if (!range.from || !range.to) return 1;
-        const diffDays = differenceInDays(startOfDay(range.to), startOfDay(range.from)) + 1;
+        const startDayObj = startOfDay(range.from);
+        const endDayObj = startOfDay(range.to);
+        const diffDays = differenceInDays(endDayObj, startDayObj) + 1;
         return diffDays === 14 ? 2 : 1;
     }, [range]);
 
+    // Jika x2 minggu, base salary dikali 2. (Bonus tetap dihitung per total yang ada)
     const finalSalary = (baseSalary * selectedWeeksCount) + earnedBonus;
 
     const days = useMemo(() => {
@@ -129,16 +136,13 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return rows;
     }, [currentMonth]);
 
-    // 🚀 LOGIKA PERIODE DINAMIS (MINGGU INI VS MINGGU LALU)
+    // 🚀 LOGIKA PERIODE DINAMIS (HANYA BISA KLAIM SETELAH HARI MINGGU)
     const activePeriod = useMemo(() => {
         const now = new Date();
-        const currentDay = getDay(now); // 0 = Minggu, 1 = Senin, dsb.
-
-        // Jika hari ini sudah Minggu (0), gunakan minggu ini. Jika belum (Senin-Sabtu), mundur 1 minggu.
-        const referenceDate = currentDay === 0 ? now : subWeeks(now, 1);
-
-        const start = startOfWeek(referenceDate, { weekStartsOn: 1 }); // Mulai Senin
-        const end = endOfWeek(referenceDate, { weekStartsOn: 1 }); // Berakhir Minggu
+        // getDay() = 0 adalah Minggu. Jika hari ini Minggu, referensinya minggu ini. Jika bukan, mundur 1 minggu.
+        const referenceDate = getDay(now) === 0 ? now : subWeeks(now, 1);
+        const start = startOfWeek(referenceDate, { weekStartsOn: 1 });
+        const end = endOfWeek(referenceDate, { weekStartsOn: 1 });
         return { start, end };
     }, []);
 
@@ -158,29 +162,29 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const startDayObj = startOfDay(range.from);
             const endDayObj = startOfDay(range.to);
 
-            // 1️⃣ VALIDASI HARI: Wajib Senin - Minggu
+            // 1. VALIDASI HARI: Harus mulai Senin, Berakhir Minggu
             if (getDay(startDayObj) !== 1 || getDay(endDayObj) !== 0) {
-                showNotif("PILIHAN HARI SALAH", "Pengajuan wajib dimulai dari hari SENIN dan berakhir di hari MINGGU.", "ERROR");
+                showNotif("PILIHAN HARI SALAH", "Pilih periode gaji hari Senin sampai Minggu.", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 2️⃣ VALIDASI DURASI: Wajib Kelipatan 7 Hari (Max 14)
+            // 2. VALIDASI DURASI: Harus 7 atau 14 hari
             const diffDays = differenceInDays(endDayObj, startDayObj) + 1;
             if (diffDays !== 7 && diffDays !== 14) {
-                showNotif("DURASI TIDAK VALID", "Durasi klaim wajib 1 Minggu (7 Hari) atau 2 Minggu (14 Hari).", "ERROR");
+                showNotif("DURASI TIDAK VALID", "Pengajuan gaji hanya bisa dilakukan per 1 minggu (7 hari) atau maksimal 2 minggu (14 hari).", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 3️⃣ VALIDASI PREMATUR: Mencegah klaim minggu ini jika belum hari Minggu
+            // 3. VALIDASI HARI KERJA (BELUM TERCAPAI):
             if (endDayObj > startOfDay(activePeriod.end)) {
-                showNotif("PERIODE BELUM TERCAPAI", "Anda tidak bisa mengklaim gaji untuk minggu kerja yang belum selesai. Klaim baru terbuka pada hari Minggu.", "ERROR");
+                showNotif("PERIODE BELUM TERCAPAI", "Anda belum bisa mengklaim gaji untuk minggu yang belum selesai. Klaim baru bisa dilakukan pada hari Minggu.", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 4️⃣ VALIDASI KADALUWARSA: Maksimal 2 Minggu ke belakang
+            // 4. VALIDASI MAKSIMAL KEBELAKANG (Max 2 minggu)
             const maxPastStart = subWeeks(activePeriod.start, 1);
             if (startDayObj < maxPastStart) {
-                showNotif("KLAIM KADALUWARSA", "Batas klaim maksimal adalah 2 minggu ke belakang (x2 Gaji).", "ERROR");
+                showNotif("KLAIM KADALUWARSA", "Batas maksimal pengambilan gaji telat adalah 2 minggu ke belakang (x2).", "ERROR");
                 setIsVerifying(false); return;
             }
 
@@ -278,15 +282,15 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     <h2 className="text-3xl font-[1000] italic">${(baseSalary * selectedWeeksCount).toLocaleString()}</h2>
                 </div>
 
-                {/* 🚀 TARGET BONUS (HANYA MUNCUL JIKA SATLANTAS) */}
-                {isSatlantas && (
-                    <div className="bg-slate-950 text-white p-5 flex flex-col border-t-[4px] border-black relative">
-                        <div className="flex justify-between items-center mb-2">
-                            <p className="text-[10px] font-black uppercase italic text-[#FFD100]">Performance Bonus</p>
-                            <span className="text-sm font-[1000] italic text-[#A3E635]">+${earnedBonus.toLocaleString()}</span>
-                        </div>
+                {/* Panel Target Bonus */}
+                <div className="bg-slate-950 text-white p-5 flex flex-col border-t-[4px] border-black relative">
+                    <div className="flex justify-between items-center mb-2">
+                        <p className="text-[10px] font-black uppercase italic text-[#FFD100]">Performance Bonus</p>
+                        <span className="text-sm font-[1000] italic text-[#A3E635]">+${earnedBonus.toLocaleString()}</span>
+                    </div>
 
-                        {range.from && range.to ? (
+                    {isSatlantas ? (
+                        range.from && range.to ? (
                             <div className="mt-2 space-y-1">
                                 <div className="flex justify-between text-[9px] font-bold uppercase text-slate-400">
                                     <span>Target {TARGET_TILANG} Tilang</span>
@@ -303,9 +307,14 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             </div>
                         ) : (
                             <p className="text-[9px] font-black uppercase text-slate-500 mt-1 border-2 border-slate-800 border-dashed p-2 text-center">Pilih rentang tanggal untuk kalkulasi bonus</p>
-                        )}
-                    </div>
-                )}
+                        )
+                    ) : (
+                        <div className="mt-2 border-2 border-slate-800 border-dashed p-2 flex items-center justify-center gap-2">
+                            <Lock size={12} className="text-slate-500" />
+                            <p className="text-[8px] font-black uppercase text-slate-500">System Locked (No Active Target)</p>
+                        </div>
+                    )}
+                </div>
 
                 <div className="bg-white p-4 flex justify-between items-end border-t-[4px] border-black">
                     <p className="text-[10px] font-[1000] uppercase italic opacity-60">Total Payout</p>
@@ -334,8 +343,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                         <p className="text-[10px] font-black uppercase italic tracking-widest text-[#A3E635]">Info Aturan Gaji</p>
                     </div>
                     <p className="text-[9px] font-black leading-relaxed uppercase mb-2">
-                        WAJIB pilih tanggal dari hari <b>SENIN sampai MINGGU</b> (Kelipatan 7 Hari).
-                        Periode gaji terbaru hanya bisa diklaim jika sudah mencapai Hari Minggu.
+                        WAJIB pilih tanggal dari hari <b>SENIN sampai MINGGU</b> (Kelipatan 1 atau 2 Minggu).
+                        Periode gaji terbaru hanya bisa diklaim jika sudah mencapai/melewati Hari Minggu.
                     </p>
                     <div className="bg-[#A3E635] text-black px-2 py-1 inline-block font-black text-[9px] uppercase italic border border-[#A3E635]">
                         Periode Dapat Diklaim: {format(activePeriod.start, 'dd MMM', { locale: id })} - {format(activePeriod.end, 'dd MMM yyyy', { locale: id })}
@@ -401,6 +410,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             {selectedSlip && (
                 <div style={{ position: 'absolute', top: '-4000px', left: '-4000px', zIndex: -100 }}>
                     <div ref={slipRef} className="bg-white w-[600px] border-[10px] border-black p-12 space-y-10 text-slate-950 font-mono">
+                        {/* Header */}
                         <div className="flex justify-between items-start border-b-[8px] border-black pb-8">
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 text-blue-600 mb-2 font-black italic text-sm tracking-[0.3em]"><Shield size={24} /> MPD HQ</div>
@@ -410,6 +420,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{selectedSlip.id.substring(0, 6).toUpperCase()}</div>
                         </div>
 
+                        {/* DETAIL LENGKAP */}
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-6">
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Lengkap</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{selectedSlip.nama_panggilan}</p></div>
@@ -421,11 +432,12 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(), 'dd MMMM yyyy', { locale: id })}</p></div>
                                 <div className="bg-slate-50 border-4 border-dashed border-black p-4 rounded-xl text-center">
                                     <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
-                                    <p className="text-[11px] font-black uppercase leading-none">{selectedSlip.keterangan_admin?.split(' |')[0]?.replace('AUTH BY ', '') || 'HIGH COMMAND'}</p>
+                                    <p className="text-[11px] font-black uppercase leading-none">{selectedSlip.keterangan_admin?.replace('AUTH BY ', '') || 'HIGH COMMAND'}</p>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Payout & QR */}
                         <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676]">
                             <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(selectedSlip.jumlah_gaji).toLocaleString()}</h3></div>
                             <div className="bg-white p-2 border-4 border-black">

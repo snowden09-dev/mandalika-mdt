@@ -18,26 +18,31 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 const inputStyle = `w-full bg-[#f1f5f9] border-[2.5px] md:border-[3px] border-slate-950 rounded-lg md:rounded-xl px-2.5 py-2 md:px-4 md:py-3 text-[10px] md:text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000] md:shadow-[3px_3px_0px_#000] appearance-none`;
 
-// 🚀 DAFTAR PANGKAT & KEBUTUHAN POINT PRP (Bisa disesuaikan nominalnya)
-const RANK_SYSTEM = [
-    { rank: "BHARADA", req: 0 },
-    { rank: "BRIPDA", req: 50 },
-    { rank: "BRIPTU", req: 100 },
-    { rank: "ABRIGPOL", req: 150 },
-    { rank: "BRIGPOL", req: 200 },
-    { rank: "BRIPKA", req: 300 },
-    { rank: "AIPDA", req: 400 },
-    { rank: "AIPTU", req: 500 },
-    { rank: "IPDA", req: 650 },
-    { rank: "IPTU", req: 800 },
-    { rank: "AKP", req: 1000 },
-    { rank: "KOMPOL", req: 1250 },
-    { rank: "AKBP", req: 1500 },
-    { rank: "KOMBESPOL", req: 2000 },
-    { rank: "BRIGJEN", req: 2500 },
-    { rank: "IRJEN", req: 3000 },
-    { rank: "KOMJEN", req: 4000 },
-    { rank: "JENDRAL", req: 5000 }
+// 🚀 DATABASE PANGKAT TERBARU (Sesuai Arahan Jendral)
+const RANKS_DB = [
+    { name: "CASIS", prp: 0, hrs: 0 },
+    { name: "RECRUIT", prp: 0, hrs: 0 },
+    { name: "BHARADA", prp: 0, hrs: 0 },
+    { name: "BHARATU", prp: 50, hrs: 10 },
+    { name: "BHARAKA", prp: 100, hrs: 15 },
+    { name: "ABRIGPOL", prp: 150, hrs: 20 },
+    { name: "ABRIPTU", prp: 200, hrs: 25 },
+    { name: "ABRIPDA", prp: 250, hrs: 30 },
+    { name: "BRIPDA", prp: 300, hrs: 40 },
+    { name: "BRIPTU", prp: 400, hrs: 50 },
+    { name: "BRIPKA", prp: 500, hrs: 65 },
+    { name: "AIPDA", prp: 650, hrs: 80 },
+    { name: "AIPTU", prp: 800, hrs: 100 },
+    { name: "IPDA", prp: 1000, hrs: 120 },
+    { name: "IPTU", prp: 1250, hrs: 150 },
+    { name: "AKP", prp: 1500, hrs: 180 },
+    { name: "KOMPOL", prp: 1800, hrs: 220 },
+    { name: "AKBP", prp: 2200, hrs: 260 },
+    { name: "KOMBESPOL", prp: 2700, hrs: 320 },
+    { name: "BRIGJEN", prp: 5000, hrs: 500 },
+    { name: "IRJEN", prp: 7500, hrs: 750 },
+    { name: "KOMJEN", prp: 10000, hrs: 1000 },
+    { name: "JENDRAL", prp: 15000, hrs: 1500 },
 ];
 
 export default function SectionAdminPersonnel() {
@@ -46,7 +51,7 @@ export default function SectionAdminPersonnel() {
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedDivisi, setSelectedDivisi] = useState("ALL"); // STATE FILTER DIVISI
+    const [selectedDivisi, setSelectedDivisi] = useState("ALL");
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
     // MODAL STATE
@@ -107,31 +112,42 @@ export default function SectionAdminPersonnel() {
         return matchSearch && matchDivisi;
     });
 
-    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT
-    const getRankProgress = (pangkat: string, currentPrp: number) => {
-        const p = pangkat?.toUpperCase().trim() || "BHARADA";
-        const currentIndex = RANK_SYSTEM.findIndex(r => r.rank === p);
+    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT (Telah disesuaikan dengan RANKS_DB)
+    const getRankProgress = (pangkat: string, currentPrp: number, currentHrs: number) => {
+        const p = pangkat?.toUpperCase().trim() || "CASIS";
+        const currentIndex = RANKS_DB.findIndex(r => r.name === p);
 
-        if (currentIndex === -1 || currentIndex === RANK_SYSTEM.length - 1) {
-            return { nextRank: "MAX RANK", progress: 100, isReady: false, reqStr: "MAX" };
+        // Jika tidak ketemu atau sudah pangkat tertinggi
+        if (currentIndex === -1 || currentIndex === RANKS_DB.length - 1) {
+            return { nextRank: "MAX RANK", progress: 100, isReady: false, reqStr: "MAX LEVEL" };
         }
 
-        const currentRank = RANK_SYSTEM[currentIndex];
-        const nextRank = RANK_SYSTEM[currentIndex + 1];
+        const currentRank = RANKS_DB[currentIndex];
+        const nextRank = RANKS_DB[currentIndex + 1];
 
         const prpTersimpan = currentPrp || 0;
-        const gapTotal = nextRank.req - currentRank.req;
-        const gapDidapat = Math.max(0, prpTersimpan - currentRank.req);
+        const hrsTersimpan = currentHrs || 0;
 
-        let progressPercent = (gapDidapat / gapTotal) * 100;
-        const isReady = progressPercent >= 100;
+        const gapTotal = nextRank.prp - currentRank.prp;
+        let progressPercent = 0;
+
+        if (gapTotal > 0) {
+            const gapDidapat = Math.max(0, prpTersimpan - currentRank.prp);
+            progressPercent = (gapDidapat / gapTotal) * 100;
+        } else {
+            progressPercent = 100; // Untuk bypass pangkat tanpa syarat (CASIS -> RECRUIT -> BHARADA)
+        }
+
         if (progressPercent > 100) progressPercent = 100;
 
+        // Harus memenuhi PRP dan Jam Duty untuk siap naik pangkat
+        const isReady = prpTersimpan >= nextRank.prp && hrsTersimpan >= nextRank.hrs;
+
         return {
-            nextRank: nextRank.rank,
+            nextRank: nextRank.name,
             progress: progressPercent,
             isReady,
-            reqStr: `${prpTersimpan} / ${nextRank.req}`
+            reqStr: `${prpTersimpan}/${nextRank.prp} PRP • ${hrsTersimpan.toFixed(1)}/${nextRank.hrs} HRS`
         };
     };
 
@@ -197,7 +213,7 @@ export default function SectionAdminPersonnel() {
     const openAddModal = () => {
         setIsAddMode(true); setOriginalDiscordId(""); setEditingUser({});
         setEditForm({
-            name: '', discord_id: '', pangkat: 'BHARADA', divisi: 'SABHARA',
+            name: '', discord_id: '', pangkat: 'CASIS', divisi: 'SABHARA',
             point_prp: 0, total_jam_duty: 0, is_highadmin: false, is_admin: false
         });
     };
@@ -284,7 +300,7 @@ export default function SectionAdminPersonnel() {
                         <div className="col-span-full py-10 text-center text-slate-400 font-black uppercase italic text-sm">Tidak ada personel yang sesuai filter.</div>
                     )}
                     {filteredPersonnel.map((p) => {
-                        const promoProgress = getRankProgress(p.pangkat, p.point_prp);
+                        const promoProgress = getRankProgress(p.pangkat, p.point_prp, p.total_jam_duty);
 
                         return (
                             <div key={p.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] flex flex-col overflow-hidden relative group`}>
@@ -328,7 +344,8 @@ export default function SectionAdminPersonnel() {
                                             )}
                                         />
                                     </div>
-                                    <p className="text-[8px] font-bold text-right mt-1 text-slate-400 italic">{promoProgress.reqStr} PRP</p>
+                                    {/* Indikator Target PRP & JAM yang rapi */}
+                                    <p className="text-[8px] font-bold text-right mt-1.5 text-slate-500 italic tracking-tighter">Target: {promoProgress.reqStr}</p>
                                 </div>
 
                                 <div className="p-4 grid grid-cols-2 gap-3 flex-1">
@@ -385,13 +402,11 @@ export default function SectionAdminPersonnel() {
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">PANGKAT</label>
+                                            {/* 🚀 Dynamic Dropdown Option berdasarkan RANKS_DB */}
                                             <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
-                                                <option value="BHARADA">BHARADA</option><option value="BRIPDA">BRIPDA</option><option value="BRIPTU">BRIPTU</option>
-                                                <option value="ABRIGPOL">ABRIGPOL</option><option value="BRIGPOL">BRIGPOL</option><option value="BRIPKA">BRIPKA</option><option value="AIPDA">AIPDA</option>
-                                                <option value="AIPTU">AIPTU</option><option value="IPDA">IPDA</option><option value="IPTU">IPTU</option>
-                                                <option value="AKP">AKP</option><option value="KOMPOL">KOMPOL</option><option value="AKBP">AKBP</option>
-                                                <option value="KOMBESPOL">KOMBESPOL</option><option value="BRIGJEN">BRIGJEN</option><option value="IRJEN">IRJEN</option>
-                                                <option value="KOMJEN">KOMJEN</option><option value="JENDRAL">JENDRAL</option>
+                                                {RANKS_DB.map((r) => (
+                                                    <option key={r.name} value={r.name}>{r.name}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div>

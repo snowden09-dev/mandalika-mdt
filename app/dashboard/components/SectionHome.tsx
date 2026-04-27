@@ -174,24 +174,25 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         return { emoji: "🐕‍🦺", text: "SIAP NDAN!" };
     }, [progress.isReady, isSatlantas, totalTilang, userData.total_jam_duty, isCasis]);
 
-    // 🎨 INLINE STYLE UNTUK RPG BAR (Memastikan selalu render)
+    // 🎨 INLINE STYLE UNTUK RPG BAR
     const stripeBg = {
         backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)',
         backgroundSize: '20px 20px'
     };
 
     return (
-        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative pt-10">
+        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative pt-4 md:pt-8">
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] group`} style={{ zIndex: 10 }}>
+            {/* 🚀 TWEAK RUANG UDARA: Tambah mt-12 md:mt-16 agar kotak Hero ini turun dan Maskot bebas melompat */}
+            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] mt-12 md:mt-16 group`} style={{ zIndex: 10 }}>
 
-                {/* 🚀 ANIMATED MASCOT (SUPER AGGRESIF) */}
+                {/* 🚀 ANIMATED MASCOT */}
                 <motion.div
-                    animate={{ y: [0, -25, 0], rotate: [0, 10, -10, 0] }}
+                    animate={{ y: [0, -20, 0], rotate: [0, 8, -8, 0] }}
                     transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                    className="absolute -top-16 right-2 md:-top-20 md:right-10 z-[100] drop-shadow-[0_15px_15px_rgba(0,0,0,0.5)] pointer-events-none"
+                    className="absolute -top-16 right-2 md:-top-20 md:right-8 z-[100] drop-shadow-[0_15px_15px_rgba(0,0,0,0.5)] pointer-events-none"
                 >
                     <div className="relative">
                         <motion.div
@@ -222,7 +223,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
 
                     <div className="flex flex-wrap gap-2 md:gap-3">
                         <span className="relative overflow-hidden bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
-                            {/* 🚀 Shimmer Effect yang Lebih Terang */}
                             <motion.div animate={{ x: ["-100%", "200%"] }} transition={{ repeat: Infinity, duration: 2.5, ease: "linear", repeatDelay: 1 }} className="absolute inset-0 w-full bg-white/70 skew-x-12" />
                             {userData.pangkat || 'NO RANK'}
                         </span>

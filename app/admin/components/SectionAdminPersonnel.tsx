@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield, Zap, Clock, Search, Edit, UserMinus, AlertTriangle,
-    ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock
+    ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock, ChevronRight, TrendingUp
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Image from 'next/image';
@@ -16,8 +16,29 @@ const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
-// 🚀 TWEAK: Input style diperkecil paddingnya agar muat berdampingan di HP
 const inputStyle = `w-full bg-[#f1f5f9] border-[2.5px] md:border-[3px] border-slate-950 rounded-lg md:rounded-xl px-2.5 py-2 md:px-4 md:py-3 text-[10px] md:text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000] md:shadow-[3px_3px_0px_#000] appearance-none`;
+
+// 🚀 DAFTAR PANGKAT & KEBUTUHAN POINT PRP (Bisa disesuaikan nominalnya)
+const RANK_SYSTEM = [
+    { rank: "BHARADA", req: 0 },
+    { rank: "BRIPDA", req: 50 },
+    { rank: "BRIPTU", req: 100 },
+    { rank: "ABRIGPOL", req: 150 },
+    { rank: "BRIGPOL", req: 200 },
+    { rank: "BRIPKA", req: 300 },
+    { rank: "AIPDA", req: 400 },
+    { rank: "AIPTU", req: 500 },
+    { rank: "IPDA", req: 650 },
+    { rank: "IPTU", req: 800 },
+    { rank: "AKP", req: 1000 },
+    { rank: "KOMPOL", req: 1250 },
+    { rank: "AKBP", req: 1500 },
+    { rank: "KOMBESPOL", req: 2000 },
+    { rank: "BRIGJEN", req: 2500 },
+    { rank: "IRJEN", req: 3000 },
+    { rank: "KOMJEN", req: 4000 },
+    { rank: "JENDRAL", req: 5000 }
+];
 
 export default function SectionAdminPersonnel() {
     const router = useRouter();
@@ -25,6 +46,7 @@ export default function SectionAdminPersonnel() {
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedDivisi, setSelectedDivisi] = useState("ALL"); // STATE FILTER DIVISI
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
     // MODAL STATE
@@ -78,11 +100,40 @@ export default function SectionAdminPersonnel() {
         return { total, distribution };
     }, [personnel]);
 
-    const filteredPersonnel = personnel.filter(p =>
-        p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.pangkat?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.divisi?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // 🚀 ENGINE FILTER PENCARIAN & DIVISI
+    const filteredPersonnel = personnel.filter(p => {
+        const matchSearch = p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.pangkat?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchDivisi = selectedDivisi === "ALL" || p.divisi?.toUpperCase() === selectedDivisi;
+        return matchSearch && matchDivisi;
+    });
+
+    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT
+    const getRankProgress = (pangkat: string, currentPrp: number) => {
+        const p = pangkat?.toUpperCase().trim() || "BHARADA";
+        const currentIndex = RANK_SYSTEM.findIndex(r => r.rank === p);
+
+        if (currentIndex === -1 || currentIndex === RANK_SYSTEM.length - 1) {
+            return { nextRank: "MAX RANK", progress: 100, isReady: false, reqStr: "MAX" };
+        }
+
+        const currentRank = RANK_SYSTEM[currentIndex];
+        const nextRank = RANK_SYSTEM[currentIndex + 1];
+
+        const prpTersimpan = currentPrp || 0;
+        const gapTotal = nextRank.req - currentRank.req;
+        const gapDidapat = Math.max(0, prpTersimpan - currentRank.req);
+
+        let progressPercent = (gapDidapat / gapTotal) * 100;
+        const isReady = progressPercent >= 100;
+        if (progressPercent > 100) progressPercent = 100;
+
+        return {
+            nextRank: nextRank.rank,
+            progress: progressPercent,
+            isReady,
+            reqStr: `${prpTersimpan} / ${nextRank.req}`
+        };
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -184,22 +235,43 @@ export default function SectionAdminPersonnel() {
                 </div>
             </div>
 
-            {/* HEADER & SEARCH BAR */}
-            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-[25px] flex flex-col md:flex-row gap-4 justify-between items-center`}>
-                <div className="text-center md:text-left">
-                    <h2 className="font-black italic uppercase text-xl md:text-2xl flex items-center justify-center md:justify-start gap-2 tracking-tighter"><Shield className="text-[#3B82F6]" /> Personnel Records</h2>
-                    <p className="text-[10px] font-black uppercase opacity-60 italic leading-none mt-1">{isSuperAdmin ? "Otoritas High Admin Aktif" : "Standard Management Mode"}</p>
-                </div>
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input type="text" placeholder="Cari Nama/Pangkat/Divisi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={cn(inputStyle, "pl-10 w-full md:w-64")} />
+            {/* HEADER & CONTROLS */}
+            <div className={`bg-white ${boxBorder} ${hardShadow} p-4 md:p-6 rounded-[25px] flex flex-col gap-4`}>
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-center w-full">
+                    <div className="text-center md:text-left w-full md:w-auto">
+                        <h2 className="font-black italic uppercase text-xl md:text-2xl flex items-center justify-center md:justify-start gap-2 tracking-tighter"><Shield className="text-[#3B82F6]" /> Personnel Records</h2>
+                        <p className="text-[10px] font-black uppercase opacity-60 italic leading-none mt-1">{isSuperAdmin ? "Otoritas High Admin Aktif" : "Standard Management Mode"}</p>
                     </div>
-                    {isSuperAdmin && (
-                        <button onClick={openAddModal} className="bg-[#A3E635] text-slate-950 border-[3px] border-slate-950 px-5 py-3 rounded-xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all flex items-center justify-center gap-2">
-                            <UserPlus size={16} strokeWidth={3} /> Tambah Personel
+                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input type="text" placeholder="Cari Nama/Pangkat..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={cn(inputStyle, "pl-10 w-full md:w-56")} />
+                        </div>
+                        {isSuperAdmin && (
+                            <button onClick={openAddModal} className="bg-[#A3E635] text-slate-950 border-[3px] border-slate-950 px-5 py-3 rounded-xl font-[1000] text-xs uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all flex items-center justify-center gap-2">
+                                <UserPlus size={16} strokeWidth={3} /> Tambah Personel
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* 🚀 FILTER DIVISI */}
+                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2 pt-2 border-t-2 border-dashed border-slate-200">
+                    <span className="text-[10px] font-black uppercase italic mr-2 text-slate-400 shrink-0">Filter:</span>
+                    {['ALL', 'SABHARA', 'SATLANTAS', 'BRIMOB', 'PROPAM', 'PETINGGI'].map((div) => (
+                        <button
+                            key={div}
+                            onClick={() => setSelectedDivisi(div)}
+                            className={cn(
+                                "px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap transition-all border-2",
+                                selectedDivisi === div
+                                    ? "bg-slate-950 text-white border-black shadow-[3px_3px_0px_#FFD100]"
+                                    : "bg-slate-100 text-slate-500 border-transparent hover:bg-slate-200"
+                            )}
+                        >
+                            {div}
                         </button>
-                    )}
+                    ))}
                 </div>
             </div>
 
@@ -208,43 +280,81 @@ export default function SectionAdminPersonnel() {
                 <div className="text-center py-20 font-black italic uppercase animate-pulse">Scanning Intelligence Database...</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredPersonnel.map((p) => (
-                        <div key={p.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] flex flex-col overflow-hidden relative group`}>
-                            <div className="absolute top-2 right-2 flex flex-col gap-1 items-end z-10">
-                                {p.is_highadmin && <div className="bg-[#A78BFA] text-slate-950 border-2 border-slate-950 px-2 py-1 rounded-md text-[8px] font-black uppercase italic shadow-[2px_2px_0px_#000] flex items-center gap-1"><Crown size={10} /> HIGH ADMIN</div>}
-                                {p.is_admin && !p.is_highadmin && <div className="bg-[#3B82F6] text-white border-2 border-slate-950 px-2 py-1 rounded-md text-[8px] font-black uppercase italic shadow-[2px_2px_0px_#000] flex items-center gap-1"><Shield size={10} /> STAFF ADMIN</div>}
-                            </div>
-                            <div className="bg-[#f8fafc] p-4 flex gap-4 items-center border-b-[3.5px] border-slate-950">
-                                <div className="w-14 h-14 shrink-0 border-[3px] border-slate-950 bg-[#FFD100] shadow-[3px_3px_0px_#000] overflow-hidden rounded-xl flex items-center justify-center">
-                                    {p.image ? <Image src={p.image} alt="User" width={56} height={56} className="object-cover w-full h-full" /> : <ShieldAlert size={24} />}
+                    {filteredPersonnel.length === 0 && (
+                        <div className="col-span-full py-10 text-center text-slate-400 font-black uppercase italic text-sm">Tidak ada personel yang sesuai filter.</div>
+                    )}
+                    {filteredPersonnel.map((p) => {
+                        const promoProgress = getRankProgress(p.pangkat, p.point_prp);
+
+                        return (
+                            <div key={p.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] flex flex-col overflow-hidden relative group`}>
+                                <div className="absolute top-2 right-2 flex flex-col gap-1 items-end z-10">
+                                    {p.is_highadmin && <div className="bg-[#A78BFA] text-slate-950 border-2 border-slate-950 px-2 py-1 rounded-md text-[8px] font-black uppercase italic shadow-[2px_2px_0px_#000] flex items-center gap-1"><Crown size={10} /> HIGH ADMIN</div>}
+                                    {p.is_admin && !p.is_highadmin && <div className="bg-[#3B82F6] text-white border-2 border-slate-950 px-2 py-1 rounded-md text-[8px] font-black uppercase italic shadow-[2px_2px_0px_#000] flex items-center gap-1"><Shield size={10} /> STAFF ADMIN</div>}
                                 </div>
-                                <div className="flex-1 min-w-0 pr-16">
-                                    <h3 className="font-black text-sm uppercase truncate italic">{p.name?.split('|').pop()?.trim() || 'UNKNOWN'}</h3>
-                                    <p className="text-[10px] font-bold text-[#3B82F6] uppercase tracking-tighter">{p.pangkat} • {p.divisi}</p>
+
+                                <div className="bg-[#f8fafc] p-4 flex gap-4 items-center border-b-[3.5px] border-slate-950 relative overflow-hidden">
+                                    <div className="w-14 h-14 shrink-0 border-[3px] border-slate-950 bg-[#FFD100] shadow-[3px_3px_0px_#000] overflow-hidden rounded-xl flex items-center justify-center relative z-10">
+                                        {p.image ? <Image src={p.image} alt="User" width={56} height={56} className="object-cover w-full h-full" /> : <ShieldAlert size={24} />}
+                                    </div>
+                                    <div className="flex-1 min-w-0 pr-16 relative z-10">
+                                        <h3 className="font-black text-sm uppercase truncate italic">{p.name?.split('|').pop()?.trim() || 'UNKNOWN'}</h3>
+                                        <p className="text-[10px] font-bold text-[#3B82F6] uppercase tracking-tighter">{p.pangkat} • {p.divisi}</p>
+                                    </div>
+                                </div>
+
+                                {/* 🚀 PROGRESS BAR PANGKAT SECTION */}
+                                <div className="bg-white border-b-[3.5px] border-slate-950 p-4">
+                                    <div className="flex justify-between items-end mb-2">
+                                        <div className="flex items-center gap-1">
+                                            <TrendingUp size={12} className={promoProgress.isReady ? "text-green-500" : "text-slate-400"} />
+                                            <span className="text-[9px] font-black uppercase italic text-slate-500">
+                                                Next: <span className={promoProgress.isReady ? "text-green-600" : "text-slate-900"}>{promoProgress.nextRank}</span>
+                                            </span>
+                                        </div>
+                                        <span className={cn("text-[9px] font-black uppercase tracking-wider", promoProgress.isReady ? "text-green-600 animate-pulse" : "text-slate-400")}>
+                                            {promoProgress.isReady ? "SIAP PROMOSI!" : `${promoProgress.progress.toFixed(0)}%`}
+                                        </span>
+                                    </div>
+
+                                    <div className="w-full h-3 bg-slate-200 rounded-full border-2 border-slate-950 overflow-hidden relative">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${promoProgress.progress}%` }}
+                                            transition={{ duration: 1, ease: "easeOut" }}
+                                            className={cn(
+                                                "h-full rounded-full border-r-2 border-slate-950",
+                                                promoProgress.isReady ? "bg-[#00E676]" : "bg-[#FFD100]"
+                                            )}
+                                        />
+                                    </div>
+                                    <p className="text-[8px] font-bold text-right mt-1 text-slate-400 italic">{promoProgress.reqStr} PRP</p>
+                                </div>
+
+                                <div className="p-4 grid grid-cols-2 gap-3 flex-1">
+                                    <div className="bg-[#A3E635] border-[3px] border-slate-950 rounded-xl p-3 flex flex-col items-center justify-center shadow-[3px_3px_0px_#000]">
+                                        <Clock size={16} className="mb-1" />
+                                        <span className="font-black text-lg leading-none">{p.total_jam_duty ? Number(p.total_jam_duty).toFixed(1) : '0'}</span>
+                                        <span className="text-[8px] font-bold uppercase mt-1 opacity-70">Jam Duty</span>
+                                    </div>
+                                    <div className="bg-slate-100 border-[3px] border-slate-950 rounded-xl p-3 flex flex-col items-center justify-center shadow-[3px_3px_0px_#000]">
+                                        <Zap size={16} className="mb-1 text-slate-500" />
+                                        <span className="font-black text-lg leading-none">{p.point_prp || 0}</span>
+                                        <span className="text-[8px] font-bold uppercase mt-1 opacity-70">Total PRP</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-950 p-3 grid grid-cols-3 gap-2">
+                                    <button onClick={() => openEditModal(p)} className="bg-white col-span-2 border-2 border-transparent hover:border-white text-slate-950 py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center gap-2 transition-all italic tracking-tighter"><Edit size={14} /> KELOLA</button>
+                                    <button onClick={() => handleTerminate(p.discord_id, p.name)} className="bg-[#FF4D4D] border-2 border-transparent hover:border-white text-white py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center transition-all"><UserMinus size={14} /></button>
                                 </div>
                             </div>
-                            <div className="p-4 grid grid-cols-2 gap-3 flex-1">
-                                <div className="bg-[#A3E635] border-[3px] border-slate-950 rounded-xl p-3 flex flex-col items-center justify-center shadow-[3px_3px_0px_#000]">
-                                    <Clock size={16} className="mb-1" />
-                                    <span className="font-black text-lg leading-none">{p.total_jam_duty ? Number(p.total_jam_duty).toFixed(1) : '0'}</span>
-                                    <span className="text-[8px] font-bold uppercase mt-1 opacity-70">Jam Duty</span>
-                                </div>
-                                <div className="bg-[#FFD100] border-[3px] border-slate-950 rounded-xl p-3 flex flex-col items-center justify-center shadow-[3px_3px_0px_#000]">
-                                    <Zap size={16} className="mb-1" />
-                                    <span className="font-black text-lg leading-none">{p.point_prp || 0}</span>
-                                    <span className="text-[8px] font-bold uppercase mt-1 opacity-70">Point PRP</span>
-                                </div>
-                            </div>
-                            <div className="bg-slate-950 p-3 grid grid-cols-3 gap-2">
-                                <button onClick={() => openEditModal(p)} className="bg-white col-span-2 border-2 border-transparent hover:border-white text-slate-950 py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center gap-2 transition-all italic tracking-tighter"><Edit size={14} /> KELOLA</button>
-                                <button onClick={() => handleTerminate(p.discord_id, p.name)} className="bg-[#FF4D4D] border-2 border-transparent hover:border-white text-white py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center transition-all"><UserMinus size={14} /></button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
-            {/* 🚀 MODAL ADD / EDIT (ULTRA-COMPACT GRID FOR MOBILE) */}
+            {/* 🚀 MODAL ADD / EDIT */}
             <AnimatePresence>
                 {editingUser && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -254,17 +364,13 @@ export default function SectionAdminPersonnel() {
                             exit={{ scale: 0.95, opacity: 0 }}
                             className={`w-full max-w-lg bg-white ${boxBorder} rounded-[25px] md:rounded-[30px] flex flex-col text-slate-950 shadow-[10px_10px_0px_#000]`}
                         >
-                            {/* HEADER */}
                             <div className={`${isAddMode ? 'bg-[#A3E635]' : 'bg-[#FFD100]'} p-4 border-b-[3.5px] border-slate-950 flex justify-between items-center rounded-t-[21px] md:rounded-t-[26px] shrink-0`}>
                                 <h3 className="font-black italic uppercase text-sm md:text-lg leading-none">{isAddMode ? 'REKRUTMEN BARU' : 'DOSSIER MODIFICATION'}</h3>
                                 <button onClick={() => setEditingUser(null)} className="p-1.5 bg-white border-2 border-slate-950 rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none"><X size={16} /></button>
                             </div>
 
-                            {/* BODY FORM (Grid 2 Kolom Aktif di HP) */}
                             <div className="p-4 md:p-6 flex-1">
                                 <form id="personnelForm" onSubmit={handleSubmit} className="space-y-3 md:space-y-5">
-
-                                    {/* BARIS 1: NAMA & DISCORD ID */}
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">NAMA PERSONEL</label>
@@ -276,7 +382,6 @@ export default function SectionAdminPersonnel() {
                                         </div>
                                     </div>
 
-                                    {/* BARIS 2: PANGKAT & DIVISI */}
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">PANGKAT</label>
@@ -299,7 +404,6 @@ export default function SectionAdminPersonnel() {
                                         </div>
                                     </div>
 
-                                    {/* KONTROL OVERRIDE (Khusus Admin) */}
                                     {isSuperAdmin && (
                                         <div className="p-3 md:p-5 bg-slate-50 border-[2px] md:border-[3px] border-slate-950 rounded-xl md:rounded-[20px] space-y-3 shadow-inner">
                                             <div className="flex items-center justify-between border-b-2 border-slate-200 pb-1.5 md:pb-2">
@@ -343,6 +447,11 @@ export default function SectionAdminPersonnel() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+            `}</style>
         </div>
     );
 }

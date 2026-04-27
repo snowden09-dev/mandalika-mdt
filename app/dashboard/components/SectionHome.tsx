@@ -14,7 +14,7 @@ import TacticalTransition from './TacticalTransition';
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
 
-// 🚀 STRUKTUR PANGKAT BARU (Dari terendah ke tertinggi dengan estimasi Poin & Jam)
+// 🚀 STRUKTUR PANGKAT
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 },
@@ -41,7 +41,6 @@ const RANKS_DB = [
     { name: "JENDRAL", prp: 15000, hrs: 1500 },
 ];
 
-// 🚀 ROLE ID KHUSUS PETINGGI DARI DISCORD
 const PETINGGI_ROLE_ID = "1393377874077028493";
 
 export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
@@ -71,23 +70,18 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         const syncFreshData = async () => {
             const sessionData = localStorage.getItem('police_session');
             if (!sessionData) return;
-
             const parsed = JSON.parse(sessionData);
             const discordId = parsed.discord_id;
 
             if (discordId) {
-                // 🚀 PERBAIKAN FATAL: Memastikan payload sesuai dengan "userId" di API route!
                 try {
                     await fetch('/api/check-role', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: discordId }) // Sebelumnya "discord_id" yg membuat API gagal
+                        body: JSON.stringify({ userId: discordId })
                     });
-                } catch (err) {
-                    console.error("Gagal melakukan sync real-time ke Discord:", err);
-                }
+                } catch (err) { console.error("Sync Error:", err); }
 
-                // Setelah di-sync oleh API, tarik data terbarunya dari database
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -101,18 +95,14 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 }
             }
         };
-
         syncFreshData();
     }, []);
 
     const handleAction = (path: string, type: 'STAR' | 'COMPUTER') => {
         setNavState({ active: true, type });
-        setTimeout(() => {
-            router.push(path);
-        }, 3000);
+        setTimeout(() => { router.push(path); }, 3000);
     };
 
-    // 🚀 PEMBERSIHAN NICKNAME (Menghapus pangkat)
     const cleanName = useMemo(() => {
         const rawName = userData.name || nickname || "OFFICER";
         return rawName.includes('|') ? rawName.split('|').pop()?.trim() : rawName;
@@ -132,17 +122,15 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             prpPct: Math.min((currentPRP / nextR.prp) * 100 || 100, 100).toFixed(0),
             hrPct: Math.min((currentHRS / nextR.hrs) * 100 || 100, 100).toFixed(0),
             prpNeed: Math.max(nextR.prp - currentPRP, 0),
-            hrNeed: parseFloat(Math.max(nextR.hrs - currentHRS, 0).toFixed(1))
+            hrNeed: parseFloat(Math.max(nextR.hrs - currentHRS, 0).toFixed(1)),
+            isReady: currentPRP >= nextR.prp && currentHRS >= nextR.hrs
         };
     }, [userData]);
 
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
-
-    // 🚀 DETEKSI BADGE
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
 
-    // Tampilkan Divisi JIKA: Ada datanya, BUKAN tulisan "Petinggi", dan BUKAN "NON DIVISI"
     const cleanDivisi = userData.divisi &&
         userData.divisi.toUpperCase() !== 'PETINGGI' &&
         userData.divisi.toUpperCase() !== 'NON DIVISI'
@@ -160,7 +148,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     useEffect(() => {
         const fetchTilangMingguan = async () => {
             if (!isSatlantas || !userData.discord_id) return;
-
             const startStr = startW.toISOString();
             const endStr = endW.toISOString();
 
@@ -173,55 +160,82 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                 .gte('created_at', startStr)
                 .lte('created_at', endStr);
 
-            if (!error && count !== null) {
-                setTotalTilang(count);
-            }
+            if (!error && count !== null) setTotalTilang(count);
         };
-
         fetchTilangMingguan();
     }, [isSatlantas, userData.discord_id, startW, endW]);
 
+    // 🚀 ENGINE MASCOT LOGIC 
+    const mascotLogic = useMemo(() => {
+        if (progress.isReady && !isCasis) return { emoji: "🚀", text: "SIAP NAIK PANGKAT!" };
+        if (isSatlantas && totalTilang >= TARGET_TILANG) return { emoji: "🤑", text: "TARGET GACOR!" };
+        if (Number(userData.total_jam_duty) === 0 && !isCasis) return { emoji: "😴", text: "TIDUR BANG?" };
+        if (isCasis) return { emoji: "📚", text: "BELAJAR RAJIN!" };
+        return { emoji: "🐕‍🦺", text: "SIAP NDAN!" };
+    }, [progress.isReady, isSatlantas, totalTilang, userData.total_jam_duty, isCasis]);
+
+    // 🎨 INLINE STYLE UNTUK RPG BAR (Memastikan selalu render)
+    const stripeBg = {
+        backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)',
+        backgroundSize: '20px 20px'
+    };
+
     return (
-        <motion.div
-            variants={container} initial="hidden" animate="show"
-            className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative"
-        >
+        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative pt-10">
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative overflow-hidden flex flex-col justify-end min-h-[240px] group`}>
-                <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500">
+            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] group`} style={{ zIndex: 10 }}>
+
+                {/* 🚀 ANIMATED MASCOT (SUPER AGGRESIF) */}
+                <motion.div
+                    animate={{ y: [0, -25, 0], rotate: [0, 10, -10, 0] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                    className="absolute -top-16 right-2 md:-top-20 md:right-10 z-[100] drop-shadow-[0_15px_15px_rgba(0,0,0,0.5)] pointer-events-none"
+                >
+                    <div className="relative">
+                        <motion.div
+                            initial={{ scale: 0 }} animate={{ scale: [0, 1.1, 1] }} transition={{ type: "spring", delay: 0.5 }}
+                            className="absolute -top-8 -left-24 bg-white border-[3.5px] border-black px-4 py-2 rounded-2xl shadow-[5px_5px_0px_#000]"
+                        >
+                            <p className="text-[12px] font-[1000] italic whitespace-nowrap text-black">{mascotLogic.text}</p>
+                            <div className="absolute -bottom-2.5 right-6 w-4 h-4 bg-white border-b-[3.5px] border-r-[3.5px] border-black transform rotate-45"></div>
+                        </motion.div>
+                        <span className="text-[80px] md:text-[100px] leading-none">{mascotLogic.emoji}</span>
+                    </div>
+                </motion.div>
+
+                {/* Background Pattern */}
+                <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500 overflow-hidden">
                     <Fingerprint size={160} className="text-black" />
                 </div>
                 <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(black 1px, transparent 0)', backgroundSize: '20px 20px' }} />
 
-                <div className="relative z-10">
-                    <div className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676]">
+                <div className="relative z-10 mt-10 md:mt-0">
+                    <motion.div animate={{ opacity: [1, 0.7, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676] shadow-[0_0_15px_rgba(0,230,118,0.6)]">
                         {isCasis ? "Siswa Diklat Terdeteksi" : "Akses Terverifikasi"}
-                    </div>
+                    </motion.div>
 
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 drop-shadow-[3px_3px_0_#CCFF00]">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 text-white" style={{ textShadow: '4px 4px 0 #000, 2px 2px 0 #CCFF00' }}>
                         {cleanName}
                     </h1>
 
-                    {/* 🚀 TAMPILAN 3 ROLE PRIORITAS */}
                     <div className="flex flex-wrap gap-2 md:gap-3">
-                        {/* 1. BADGE PANGKAT */}
-                        <span className="bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
+                        <span className="relative overflow-hidden bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
+                            {/* 🚀 Shimmer Effect yang Lebih Terang */}
+                            <motion.div animate={{ x: ["-100%", "200%"] }} transition={{ repeat: Infinity, duration: 2.5, ease: "linear", repeatDelay: 1 }} className="absolute inset-0 w-full bg-white/70 skew-x-12" />
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {/* 2. BADGE DIVISI (SABHARA, SATLANTAS, BRIMOB, PROPAM) */}
                         {cleanDivisi && (
                             <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                                 {cleanDivisi}
                             </span>
                         )}
 
-                        {/* 3. BADGE PETINGGI */}
                         {isPetinggi && (
                             <span className="bg-slate-950 text-[#00E676] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#00E676] flex items-center gap-1.5">
-                                <Star size={14} className="fill-[#00E676] text-[#00E676]" /> PETINGGI
+                                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }}><Star size={14} className="fill-[#00E676] text-[#00E676]" /></motion.div> PETINGGI
                             </span>
                         )}
                     </div>
@@ -230,48 +244,64 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
 
             {/* --- BIG STATS: REP POINTS --- */}
             <motion.div variants={item} className={`bg-[#FFD100] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
-                <div className="absolute -right-2 -top-2 opacity-10 group-hover:rotate-45 transition-transform">
+                <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 4 }} className="absolute -right-2 -top-2 opacity-15">
                     <Zap size={100} />
-                </div>
+                </motion.div>
                 <div className="flex justify-between items-center mb-4 relative z-10">
                     <p className="text-[10px] md:text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Reputation Points</p>
                     <TrendingUp size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{userData.point_prp || 0}</h2>
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate drop-shadow-[2px_2px_0_#fff]">
+                        {userData.point_prp || 0}
+                    </h2>
                     <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Points Collected</p>
                 </div>
                 <div className="mt-auto relative z-10">
                     <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                        <span>Progress</span>
-                        <span>{progress.prpPct}%</span>
+                        <span>Progress</span><span>{progress.prpPct}%</span>
                     </div>
-                    <div className="bg-black h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000]">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${progress.prpPct}%` }} className="h-full bg-[#00E676] border-r-2 border-black" />
+                    {/* 🚀 RPG EXP BAR PURE FRAMER MOTION */}
+                    <div className="bg-slate-900 h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000] rounded-sm overflow-hidden">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress.prpPct}%`, backgroundPosition: ["0px 0px", "40px 0px"] }}
+                            transition={{ width: { duration: 1.5, ease: "easeOut" }, backgroundPosition: { repeat: Infinity, duration: 1, ease: "linear" } }}
+                            style={stripeBg}
+                            className="h-full bg-[#00E676] border-r-[3px] border-black"
+                        />
                     </div>
                 </div>
             </motion.div>
 
             {/* --- BIG STATS: DUTY HOURS --- */}
             <motion.div variants={item} className={`bg-[#00E676] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
-                <div className="absolute -right-2 -top-2 opacity-10 group-hover:scale-110 transition-transform">
+                <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, -10, 10, 0] }} transition={{ repeat: Infinity, duration: 3, delay: 1 }} className="absolute -right-2 -top-2 opacity-15">
                     <Activity size={100} />
-                </div>
+                </motion.div>
                 <div className="flex justify-between items-center mb-4 relative z-10">
                     <p className="text-[10px] md:text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Duty Records</p>
                     <Clock size={24} className="hidden md:block" />
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate">{userData.total_jam_duty || 0}</h2>
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate drop-shadow-[2px_2px_0_#fff]">
+                        {userData.total_jam_duty || 0}
+                    </h2>
                     <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Total Hours</p>
                 </div>
                 <div className="mt-auto relative z-10">
                     <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                        <span>Active Time</span>
-                        <span>{progress.hrPct}%</span>
+                        <span>Active Time</span><span>{progress.hrPct}%</span>
                     </div>
-                    <div className="bg-black h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000]">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${progress.hrPct}%` }} className="h-full bg-[#FF4D4D] border-r-2 border-black" />
+                    {/* 🚀 RPG EXP BAR PURE FRAMER MOTION */}
+                    <div className="bg-slate-900 h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000] rounded-sm overflow-hidden">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress.hrPct}%`, backgroundPosition: ["0px 0px", "40px 0px"] }}
+                            transition={{ width: { duration: 1.5, ease: "easeOut" }, backgroundPosition: { repeat: Infinity, duration: 1, ease: "linear" } }}
+                            style={stripeBg}
+                            className="h-full bg-[#FF4D4D] border-r-[3px] border-black"
+                        />
                     </div>
                 </div>
             </motion.div>
@@ -282,14 +312,16 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     <Target size={180} />
                 </div>
                 <div className="flex items-center gap-4 md:gap-6 mb-6 relative z-10">
-                    <div className="bg-[#A78BFA] p-3 md:p-4 border-[4px] border-black shadow-[6px_6px_0_0_#000] -rotate-2 group-hover:rotate-0 transition-transform">
+                    <motion.div animate={progress.isReady ? { y: [0, -5, 0] } : {}} transition={{ repeat: Infinity, duration: 1 }} className="bg-[#A78BFA] p-3 md:p-4 border-[4px] border-black shadow-[6px_6px_0_0_#000] -rotate-2 group-hover:rotate-0 transition-transform">
                         <Award size={32} className="md:w-10 md:h-10" />
-                    </div>
+                    </motion.div>
                     <div className="overflow-hidden">
                         <p className="text-[10px] md:text-[11px] font-black opacity-50 italic uppercase leading-none mb-2">
-                            {isCasis ? "Kelulusan Siswa Diklat" : "Next Promotion Goal"}
+                            {progress.isReady ? "Status: MEMENUHI SYARAT" : (isCasis ? "Kelulusan Siswa Diklat" : "Next Promotion Goal")}
                         </p>
-                        <h3 className="text-2xl sm:text-3xl md:text-4xl font-[1000] italic leading-none tracking-tighter truncate">{progress.next}</h3>
+                        <h3 className={`text-2xl sm:text-3xl md:text-4xl font-[1000] italic leading-none tracking-tighter truncate ${progress.isReady ? 'text-[#00E676] drop-shadow-[2px_2px_0_#000]' : 'text-black'}`}>
+                            {progress.next}
+                        </h3>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 md:gap-5 relative z-10">
@@ -329,18 +361,20 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                         </div>
                         <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0px_#000] shrink-0 text-center transform group-hover:-translate-y-1 transition-transform">
                             <p className="text-[9px] md:text-[10px] font-black opacity-50 uppercase mb-1">Status Target</p>
-                            <p className={`text-lg md:text-xl font-[1000] italic uppercase leading-none ${totalTilang >= TARGET_TILANG ? 'text-[#00E676]' : 'text-[#FF4D4D]'}`}>
+                            <motion.p animate={totalTilang >= TARGET_TILANG ? { scale: [1, 1.1, 1] } : {}} transition={{ repeat: Infinity, duration: 1 }} className={`text-lg md:text-xl font-[1000] italic uppercase leading-none ${totalTilang >= TARGET_TILANG ? 'text-[#00E676]' : 'text-[#FF4D4D]'}`}>
                                 {totalTilang >= TARGET_TILANG ? 'ACHIEVED' : 'PENDING'}
-                            </p>
+                            </motion.p>
                         </div>
                     </div>
 
                     <div className="mt-auto relative z-10">
-                        <div className="bg-black h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000]">
+                        <div className="bg-slate-900 h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000] rounded-sm overflow-hidden">
                             <motion.div
                                 initial={{ width: 0 }}
-                                animate={{ width: `${tilangPct}%` }}
-                                className={`h-full border-r-2 border-black ${totalTilang >= TARGET_TILANG ? 'bg-[#00E676]' : 'bg-[#FFD100]'}`}
+                                animate={{ width: `${tilangPct}%`, backgroundPosition: ["0px 0px", "40px 0px"] }}
+                                transition={{ width: { duration: 1.5 }, backgroundPosition: { repeat: Infinity, duration: 1, ease: "linear" } }}
+                                style={stripeBg}
+                                className={`h-full border-r-[3px] border-black ${totalTilang >= TARGET_TILANG ? 'bg-[#00E676]' : 'bg-[#FFD100]'}`}
                             />
                         </div>
                     </div>
@@ -350,71 +384,43 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             {/* --- 🔥 CONDITIONAL ACTIONS: CASIS VS POLICE --- */}
             {isCasis ? (
                 <>
-                    {/* MODUL KHUSUS CASIS */}
-                    <motion.button
-                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAction('/absen-diklat', 'STAR')}
-                        className={`bg-[#A3E635] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
-                    >
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:rotate-12">
+                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen-diklat', 'STAR')} className={`bg-[#A3E635] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
+                        <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute bg-white/30 w-32 h-32 rounded-full blur-2xl z-0" />
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:rotate-12 relative z-10">
                             <GraduationCap size={40} className="md:w-12 md:h-12 text-black" />
                         </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#A3E635]">Absen Diklat</span>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#fff] relative z-10">Absen Diklat</span>
                     </motion.button>
 
-                    <motion.button
-                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAction('/izin-diklat', 'COMPUTER')}
-                        className={`bg-[#FFD100] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
-                    >
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:-rotate-12">
+                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/izin-diklat', 'COMPUTER')} className={`bg-[#FFD100] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
+                        <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ repeat: Infinity, duration: 2, delay: 1 }} className="absolute bg-white/30 w-32 h-32 rounded-full blur-2xl z-0" />
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:-rotate-12 relative z-10">
                             <HelpCircle size={40} className="md:w-12 md:h-12 text-black" />
                         </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#FFD100]">Izin/Sakit</span>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#fff] relative z-10">Izin/Sakit</span>
                     </motion.button>
-
-                    <motion.div variants={item} className="col-span-2 bg-slate-950 text-white p-4 border-[3px] border-black rounded-xl flex items-center gap-3">
-                        <AlertTriangle className="text-yellow-400 shrink-0" />
-                        <p className="text-[10px] font-black uppercase italic leading-tight">
-                            Peringatan Siswa: Hanya diperbolehkan melakukan Presensi saat Pelatihan Resmi dimulai.
-                        </p>
-                    </motion.div>
                 </>
             ) : (
                 <>
-                    {/* MODUL STANDAR POLISI */}
-                    <motion.button
-                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAction('/absen', 'STAR')}
-                        className={`bg-[#FF4D4D] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
-                    >
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12">
-                            <Radar size={40} className="md:w-12 md:h-12 animate-spin-slow text-black" />
+                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen', 'STAR')} className={`bg-[#FF4D4D] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
+                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.8, 0.3] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute bg-white/30 w-40 h-40 rounded-full blur-2xl z-0" />
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12 relative z-10">
+                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 6, ease: "linear" }}>
+                                <Radar size={40} className="md:w-12 md:h-12 text-black" />
+                            </motion.div>
                         </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Absensi</span>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000] relative z-10">Absensi</span>
                     </motion.button>
 
-                    <motion.button
-                        variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAction('/laporan', 'COMPUTER')}
-                        className={`bg-[#A78BFA] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group`}
-                    >
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12">
+                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/laporan', 'COMPUTER')} className={`bg-[#A78BFA] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
+                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.8, 0.3] }} transition={{ repeat: Infinity, duration: 2, delay: 1 }} className="absolute bg-white/30 w-40 h-40 rounded-full blur-2xl z-0" />
+                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12 relative z-10">
                             <FileText size={40} className="md:w-12 md:h-12 text-black" />
                         </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000]">Laporan</span>
+                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000] relative z-10">Laporan</span>
                     </motion.button>
                 </>
             )}
-
-            <style jsx global>{`
-                @keyframes spin-slow {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-                .animate-spin-slow { animation: spin-slow 8s linear infinite; }
-            `}</style>
-
         </motion.div>
     );
 }

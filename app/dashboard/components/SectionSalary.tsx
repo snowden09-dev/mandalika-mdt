@@ -21,9 +21,20 @@ import { supabase } from "@/lib/supabase";
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
+// 🚀 ENGINE MUTLAK WIB (UTC+7)
+const getWIBTime = () => {
+    const d = new Date();
+    const localTime = d.getTime();
+    const localOffset = d.getTimezoneOffset() * 60000;
+    const utc = localTime + localOffset;
+    const wibOffset = 7 * 3600000; // +7 Jam (WIB)
+    return new Date(utc + wibOffset);
+};
+
 export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
     const slipRef = useRef<HTMLDivElement>(null);
-    const [currentMonth, setCurrentMonth] = useState(new Date());
+    // 🚀 Acuan kalender kini menggunakan WIB
+    const [currentMonth, setCurrentMonth] = useState(getWIBTime());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
     const [history, setHistory] = useState<any[]>([]);
     const [userReports, setUserReports] = useState<any[]>([]);
@@ -45,7 +56,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         setNotif({ show: true, title, message, type });
     };
 
-    // 🚀 PERBAIKAN LOGIKA GAJI: MENGGUNAKAN EXACT MATCH (SWITCH CASE)
     const getGajiByRank = (pangkat: string) => {
         const p = pangkat?.toUpperCase().trim() || "";
         switch (p) {
@@ -68,7 +78,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             case "BRIPDA": return 110000;
             case "BHARATU": return 105000;
             case "BHARADA": return 100000;
-            default: return 110000; // 🚀 Jika pangkat tidak ada di atas (termasuk ABRIPTU), otomatis dapat 110rb
+            default: return 110000;
         }
     };
 
@@ -92,7 +102,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
     useEffect(() => { fetchHistoryAndReports(); }, []);
 
-    // 🚀 LOGIKA BONUS & TARGET TRACKER
     const divisiUser = realtimeData?.divisi?.toUpperCase() || "";
     const isSatlantas = divisiUser.includes('SATLANTAS');
 
@@ -113,7 +122,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     const isTargetMet = isSatlantas ? targetProgress >= TARGET_TILANG : false;
     const earnedBonus = isTargetMet ? bonusPotential : 0;
 
-    // PERHITUNGAN FINAL SALARY BERDASARKAN RENTANG MINGGU YG DIPILIH
     const selectedWeeksCount = useMemo(() => {
         if (!range.from || !range.to) return 1;
         const startDayObj = startOfDay(range.from);
@@ -122,7 +130,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return diffDays === 14 ? 2 : 1;
     }, [range]);
 
-    // Jika x2 minggu, base salary dikali 2. (Bonus tetap dihitung per total yang ada)
     const finalSalary = (baseSalary * selectedWeeksCount) + earnedBonus;
 
     const days = useMemo(() => {
@@ -136,11 +143,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return rows;
     }, [currentMonth]);
 
-    // 🚀 LOGIKA PERIODE DINAMIS (HANYA BISA KLAIM SETELAH HARI MINGGU)
+    // 🚀 LOGIKA PERIODE MENGGUNAKAN WIB MUTLAK
     const activePeriod = useMemo(() => {
-        const now = new Date();
-        // getDay() = 0 adalah Minggu. Jika hari ini Minggu, referensinya minggu ini. Jika bukan, mundur 1 minggu.
-        const referenceDate = getDay(now) === 0 ? now : subWeeks(now, 1);
+        const nowWIB = getWIBTime();
+        const referenceDate = getDay(nowWIB) === 0 ? nowWIB : subWeeks(nowWIB, 1);
         const start = startOfWeek(referenceDate, { weekStartsOn: 1 });
         const end = endOfWeek(referenceDate, { weekStartsOn: 1 });
         return { start, end };
@@ -162,26 +168,22 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const startDayObj = startOfDay(range.from);
             const endDayObj = startOfDay(range.to);
 
-            // 1. VALIDASI HARI: Harus mulai Senin, Berakhir Minggu
             if (getDay(startDayObj) !== 1 || getDay(endDayObj) !== 0) {
                 showNotif("PILIHAN HARI SALAH", "Pilih periode gaji hari Senin sampai Minggu.", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 2. VALIDASI DURASI: Harus 7 atau 14 hari
             const diffDays = differenceInDays(endDayObj, startDayObj) + 1;
             if (diffDays !== 7 && diffDays !== 14) {
                 showNotif("DURASI TIDAK VALID", "Pengajuan gaji hanya bisa dilakukan per 1 minggu (7 hari) atau maksimal 2 minggu (14 hari).", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 3. VALIDASI HARI KERJA (BELUM TERCAPAI):
             if (endDayObj > startOfDay(activePeriod.end)) {
                 showNotif("PERIODE BELUM TERCAPAI", "Anda belum bisa mengklaim gaji untuk minggu yang belum selesai. Klaim baru bisa dilakukan pada hari Minggu.", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 4. VALIDASI MAKSIMAL KEBELAKANG (Max 2 minggu)
             const maxPastStart = subWeeks(activePeriod.start, 1);
             if (startDayObj < maxPastStart) {
                 showNotif("KLAIM KADALUWARSA", "Batas maksimal pengambilan gaji telat adalah 2 minggu ke belakang (x2).", "ERROR");
@@ -190,17 +192,19 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
             const { data: { user } } = await supabase.auth.getUser();
             const discordId = user?.user_metadata?.provider_id || user?.id;
-            const startStr = range.from.toISOString();
-            const endStr = range.to.toISOString();
 
+            // 🚀 PARSING TANGGAL PAKSA KE WIB SEBELUM DIKIRIM KE SUPABASE
+            const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
+            const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
+
+            // 🚀 BUG FIXED: Hapus .not('status', 'eq', 'REJECTED') agar data rejected ikut menahan claim baru
             const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
-                .eq('user_id_discord', discordId)
-                .not('status', 'eq', 'REJECTED');
+                .eq('user_id_discord', discordId);
 
             const isOverlap = existing?.some(c => (range.from! <= new Date(c.tanggal_selesai) && range.to! >= new Date(c.tanggal_mulai)));
             if (isOverlap) {
-                showNotif("JANGAN OVER-CLAIM", "Anda sudah mengajukan gaji yang mencakup tanggal ini! Cek History Log.", "ERROR");
+                showNotif("JANGAN OVER-CLAIM", "Tanggal ini sudah pernah diajukan (Termasuk yang telah PENDING/PAID/DITOLAK). Cek History Log.", "ERROR");
                 setIsVerifying(false); return;
             }
 
@@ -282,7 +286,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     <h2 className="text-3xl font-[1000] italic">${(baseSalary * selectedWeeksCount).toLocaleString()}</h2>
                 </div>
 
-                {/* Panel Target Bonus */}
                 <div className="bg-slate-950 text-white p-5 flex flex-col border-t-[4px] border-black relative">
                     <div className="flex justify-between items-center mb-2">
                         <p className="text-[10px] font-black uppercase italic text-[#FFD100]">Performance Bonus</p>
@@ -325,7 +328,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             {/* CALENDAR BENTO */}
             <div className={`md:col-span-5 bg-[#FFD100] p-6 ${boxBorder} ${hardShadow} flex flex-col text-black`}>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b-4 border-black pb-4 gap-3">
-                    <h3 className="font-[1000] italic uppercase flex items-center gap-2"><Receipt size={20} /> PERIODE</h3>
+                    <h3 className="font-[1000] italic uppercase flex items-center gap-2"><Receipt size={20} /> PERIODE (WIB)</h3>
                     <div className="flex items-center gap-3">
                         <span className="text-sm font-[1000] uppercase tracking-widest bg-black text-[#FFD100] px-3 py-1 border-2 border-black">
                             {format(currentMonth, 'MMMM yyyy', { locale: id })}
@@ -383,7 +386,16 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                     <div className="relative z-10">
                                         <h4 className="text-2xl font-[1000] italic leading-none">${Number(log.jumlah_gaji).toLocaleString()}</h4>
                                         <p className="text-[10px] font-black opacity-40 italic mt-1 uppercase">Period: {format(new Date(log.tanggal_mulai), 'dd MMM')} - {format(new Date(log.tanggal_selesai), 'dd MMM')}</p>
-                                        <div className={cn("text-[8px] font-[1000] px-2 py-1 mt-2 inline-block italic border border-black shadow-[2px_2px_0_0_#000]", log.status === 'PAID' ? 'bg-[#00E676]' : 'bg-[#FFD100]')}>{log.status === 'PAID' ? 'SUCCESS PAID' : 'PENDING APPROVAL'}</div>
+
+                                        {/* 🚀 BUG FIXED: Indikator warna dan status log telah diperbarui */}
+                                        <div className={cn("text-[8px] font-[1000] px-2 py-1 mt-2 inline-block italic border border-black shadow-[2px_2px_0_0_#000]",
+                                            log.status === 'PAID' ? 'bg-[#00E676] text-black' :
+                                                log.status === 'REJECTED' ? 'bg-[#FF4D4D] text-white' : 'bg-[#FFD100] text-black')}
+                                        >
+                                            {log.status === 'PAID' ? 'SUCCESS PAID' :
+                                                log.status === 'REJECTED' ? 'REJECTED BY ADMIN' : 'PENDING APPROVAL'}
+                                        </div>
+
                                     </div>
                                     <button
                                         disabled={log.status !== 'PAID' || downloadingId === log.id}

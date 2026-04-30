@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2
+    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter
 } from 'lucide-react';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -18,6 +18,15 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 // 🚀 DAFTAR PANGKAT PETINGGI YANG KEBAL POTONGAN
 const PETINGGI_RANKS = ['JENDRAL', 'WAKAPOLRI', 'KAPOLRI', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBES', 'AKBP'];
+
+// 🚀 ENGINE PENYELAMAT TIMEZONE WITA/WIT
+const getLocalSafeDate = (isoString: string) => {
+    if (!isoString) return new Date();
+    const d = new Date(isoString);
+    // Dorong 12 Jam ke depan agar zona waktu UTC tidak bergeser ke hari sebelumnya di Indonesia
+    d.setHours(d.getHours() + 12);
+    return d;
+};
 
 export default function SectionAdminPayroll() {
     const slipRef = useRef<HTMLDivElement>(null);
@@ -32,6 +41,7 @@ export default function SectionAdminPayroll() {
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6;
+    const [selectedPeriod, setSelectedPeriod] = useState<string>('ALL');
 
     const [manualAdjustments, setManualAdjustments] = useState<Record<string, { amount: number, reason: string }>>({});
     const [adjInputs, setAdjInputs] = useState<Record<string, { amount: string, reason: string }>>({});
@@ -74,9 +84,9 @@ export default function SectionAdminPayroll() {
         }
     }, []);
 
-    useEffect(() => { setCurrentPage(1); }, [activeTab]);
+    useEffect(() => { setCurrentPage(1); }, [activeTab, selectedPeriod]);
 
-    // 🚀 ENGINE VALIDATOR PANGKAT: HANYA PERCAYA LIST INI (MEMBUNUH BUG 145K ABRIPTU)
+    // 🚀 ENGINE VALIDATOR PANGKAT
     const getGajiByRank = (pangkat: string) => {
         const p = pangkat?.toUpperCase().trim() || "";
         switch (p) {
@@ -105,35 +115,22 @@ export default function SectionAdminPayroll() {
         }
     };
 
-    // 🚀 ENGINE EKSTRAKTOR SLIP RESMI
-    const getSlipDetails = (slip: any) => {
-        const notes = slip.keterangan_admin || "";
-        const extract = (key: string) => {
-            const match = notes.match(new RegExp(`${key}:([-]?\\d+)`));
-            return match ? parseInt(match[1]) : 0;
-        };
-        const extractReason = () => {
-            const match = notes.match(/RSN:(.*?)( - BASE:|$)/);
-            return match ? match[1].trim() : 'Penyesuaian Manual';
-        };
-
-        const legacyBons = extract('BONS'); // Untuk data lama
-        const adjAmount = extract('ADJ');
-
-        return {
-            potonganAlpha: extract('ALPH'),
-            potonganCuti: extract('CUTI'),
-            adj: adjAmount !== 0 ? adjAmount : legacyBons,
-            reason: extractReason(),
-            base: extract('BASE') || slip.jumlah_gaji
-        };
-    };
+    // 🚀 DAFTAR PERIODE MINGGUAN (Untuk Tab Rekap)
+    const availablePeriods = useMemo(() => {
+        const periods = new Set<string>();
+        requests.filter(r => r.status === 'PAID' && r.tanggal_mulai && r.tanggal_selesai).forEach(r => {
+            const s = format(getLocalSafeDate(r.tanggal_mulai), 'yyyy-MM-dd');
+            const e = format(getLocalSafeDate(r.tanggal_selesai), 'yyyy-MM-dd');
+            periods.add(`${s}|${e}`);
+        });
+        return Array.from(periods).sort().reverse();
+    }, [requests]);
 
     // 🚀 ENGINE SUPER KALKULASI: ADMIN AUTHORITY
     const augmentedRequests = useMemo(() => {
         return requests.map(req => {
-            const start = startOfDay(new Date(req.tanggal_mulai));
-            const end = startOfDay(new Date(req.tanggal_selesai));
+            const start = startOfDay(getLocalSafeDate(req.tanggal_mulai));
+            const end = startOfDay(getLocalSafeDate(req.tanggal_selesai));
             const daysInPeriod = eachDayOfInterval({ start, end });
             const discordId = req.user_id_discord;
 
@@ -141,11 +138,11 @@ export default function SectionAdminPayroll() {
 
             daysInPeriod.forEach(day => {
                 const targetStr = format(day, 'yyyy-MM-dd');
-                const isHadir = duties.some(d => d.user_id_discord === discordId && format(new Date(d.start_time), 'yyyy-MM-dd') === targetStr);
+                const isHadir = duties.some(d => d.user_id_discord === discordId && format(getLocalSafeDate(d.start_time), 'yyyy-MM-dd') === targetStr);
 
                 if (isHadir) hadirCount++;
                 else {
-                    const isCuti = cutis.some(c => c.status === 'APPROVED' && c.user_id_discord === discordId && day >= startOfDay(new Date(c.tanggal_mulai)) && day <= startOfDay(new Date(c.tanggal_selesai)));
+                    const isCuti = cutis.some(c => c.status === 'APPROVED' && c.user_id_discord === discordId && day >= startOfDay(getLocalSafeDate(c.tanggal_mulai)) && day <= startOfDay(getLocalSafeDate(c.tanggal_selesai)));
                     if (isCuti) cutiCount++;
                 }
             });
@@ -158,20 +155,30 @@ export default function SectionAdminPayroll() {
             const isPetinggi = PETINGGI_RANKS.some(rank => pangkatUser.includes(rank));
 
             const isPAID = req.status === 'PAID' || req.status === 'REJECTED';
-            const details = getSlipDetails(req);
 
-            // 🚀 BILA SUDAH DIBAYAR: KUNCI DATA, JANGAN HITUNG ULANG! (BUNUH BUG DOUBLE-SUBTRACTION)
+            // Ekstraksi darurat untuk slip lama (Hanya dipanggil jika data sudah dibayar)
+            const extractLegacy = (key: string) => {
+                const match = (req.keterangan_admin || "").match(new RegExp(`${key}:\\s*(-?\\d+)`));
+                return match ? parseInt(match[1], 10) : 0;
+            };
+            const extractReason = () => {
+                const match = (req.keterangan_admin || "").match(/RSN:(.*?)( - BASE:|$)/);
+                return match ? match[1].trim() : 'Penyesuaian Manual';
+            };
+
+            // 🚀 BILA SUDAH DIBAYAR: KUNCI DATA, JANGAN HITUNG ULANG!
             if (isPAID) {
+                const legacyAdj = extractLegacy('ADJ') !== 0 ? extractLegacy('ADJ') : extractLegacy('BONS');
                 return {
                     ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                     total_hari: daysInPeriod.length, tilangCount: tilangData.length,
                     isTargetMet, isSatlantas, isPetinggi,
-                    baseGaji: details.base,
-                    potonganAlpha: details.potonganAlpha,
-                    potonganCuti: details.potonganCuti,
-                    totalPotongan: details.potonganAlpha + details.potonganCuti,
-                    adjustment: { amount: details.adj, reason: details.reason },
-                    finalGaji: Number(req.jumlah_gaji) // Menggunakan Payout Akhir dari Database
+                    baseGaji: extractLegacy('BASE') || req.jumlah_gaji,
+                    potonganAlpha: extractLegacy('ALPH'),
+                    potonganCuti: extractLegacy('CUTI'),
+                    totalPotongan: extractLegacy('ALPH') + extractLegacy('CUTI'),
+                    adjustment: { amount: legacyAdj, reason: extractReason() },
+                    finalGaji: Number(req.jumlah_gaji)
                 };
             }
 
@@ -186,10 +193,8 @@ export default function SectionAdminPayroll() {
                 else if (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) earnedBonus = 50000;
             }
 
-            // Ini adalah Base Gaji Gabungan (Pokok + Bonus Otomatis)
             const baseGajiSubmit = baseGajiPokok + earnedBonus;
 
-            // Potongan selalu dihitung dari Gaji Pokok Murni, BUKAN gaji yang ada bonusnya
             const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGajiPokok * 0.05));
             const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGajiPokok * 0.02));
             const totalPotongan = potonganAlpha + potonganCuti;
@@ -201,7 +206,7 @@ export default function SectionAdminPayroll() {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
                 isTargetMet, isSatlantas, isPetinggi,
-                baseGaji: baseGajiSubmit, // Menampilkan Base + Auto Bonus (misal: Brigjen 170k + 50k = 220k)
+                baseGaji: baseGajiSubmit,
                 potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
             };
         });
@@ -209,9 +214,23 @@ export default function SectionAdminPayroll() {
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return augmentedRequests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
-        if (activeTab === 'REKAP') return augmentedRequests.filter(r => r.status === 'PAID');
-        return augmentedRequests.filter(r => r.status === activeTab);
-    }, [augmentedRequests, activeTab]);
+
+        // 🔥 FILTER REKAP BERDASARKAN PERIODE
+        if (activeTab === 'REKAP') {
+            let data = augmentedRequests.filter(r => r.status === 'PAID');
+            if (selectedPeriod !== 'ALL') {
+                const [startTarget, endTarget] = selectedPeriod.split('|');
+                data = data.filter(r =>
+                    format(getLocalSafeDate(r.tanggal_mulai), 'yyyy-MM-dd') === startTarget &&
+                    format(getLocalSafeDate(r.tanggal_selesai), 'yyyy-MM-dd') === endTarget
+                );
+            }
+            return data;
+        }
+
+        if (activeTab === 'REJECTED') return augmentedRequests.filter(r => r.status === 'REJECTED');
+        return augmentedRequests.filter(r => r.status === 'PENDING');
+    }, [augmentedRequests, activeTab, selectedPeriod]);
 
     const paginatedData = useMemo(() => {
         return filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -313,7 +332,7 @@ export default function SectionAdminPayroll() {
 
         const { error } = await supabase.from('pengajuan_gaji').update({
             status,
-            jumlah_gaji: status === 'PAID' ? reqToApprove.finalGaji : reqToApprove.baseGaji,
+            jumlah_gaji: status === 'PAID' ? reqToApprove.finalGaji : 0, // Kalo REJECTED, payout 0
             keterangan_admin: adminNotes
         }).eq('id', id);
 
@@ -377,13 +396,31 @@ export default function SectionAdminPayroll() {
                 </div>
             </div>
 
-            <div className={`bg-white ${boxBorder} ${hardShadow} p-4 md:p-6 rounded-xl md:rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10 mb-6`}>
-                <div className="flex justify-between items-center w-full md:w-auto">
+            <div className={`bg-white ${boxBorder} ${hardShadow} p-4 md:p-6 rounded-xl md:rounded-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10 mb-6`}>
+                <div className="flex justify-between items-center w-full lg:w-auto">
                     <h2 className="font-[1000] text-xl md:text-2xl italic uppercase tracking-tighter text-slate-950">Payroll Command</h2>
                 </div>
 
-                <div className="flex w-full md:w-auto items-center gap-2">
-                    <div className="flex flex-1 md:flex-none bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
+                <div className="flex w-full lg:w-auto flex-col lg:flex-row items-center gap-3">
+                    {/* 🚀 DROPDOWN FILTER PERIODE KHUSUS REKAP */}
+                    {activeTab === 'REKAP' && (
+                        <div className="flex items-center gap-2 bg-slate-100 p-2 border-2 border-black rounded-xl w-full lg:w-auto">
+                            <Filter size={16} className="text-slate-500" />
+                            <select
+                                value={selectedPeriod}
+                                onChange={(e) => setSelectedPeriod(e.target.value)}
+                                className="bg-transparent font-black text-[10px] uppercase outline-none w-full cursor-pointer"
+                            >
+                                <option value="ALL">SEMUA PERIODE</option>
+                                {availablePeriods.map(p => {
+                                    const [s, e] = p.split('|');
+                                    return <option key={p} value={p}>{format(new Date(s), 'dd MMM')} - {format(new Date(e), 'dd MMM yyyy')}</option>
+                                })}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="flex flex-1 w-full lg:w-auto bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
                         {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED', 'REKAP'].map((t) => (
                             <button key={t} onClick={() => setActiveTab(t as any)} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap flex items-center gap-2", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>
                                 {t === 'REKAP' && <FileSpreadsheet size={14} />}
@@ -392,7 +429,7 @@ export default function SectionAdminPayroll() {
                         ))}
                     </div>
                     {activeTab !== 'PENDING' && (
-                        <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="bg-red-500 text-white p-2.5 rounded-xl border-2 border-black hover:scale-110 transition-all shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none"><Trash2 size={20} /></button>
+                        <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="bg-red-500 text-white p-2.5 rounded-xl border-2 border-black w-full lg:w-auto flex justify-center hover:scale-105 transition-all shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none"><Trash2 size={20} /></button>
                     )}
                 </div>
             </div>
@@ -423,7 +460,7 @@ export default function SectionAdminPayroll() {
                                                     <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat}</p>
                                                 </td>
                                                 <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
-                                                    {format(new Date(req.tanggal_mulai), 'dd/MM/yy')} - {format(new Date(req.tanggal_selesai), 'dd/MM/yy')}
+                                                    {format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM/yy')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM/yy')}
                                                 </td>
                                                 <td className="p-4 border-r-2 border-slate-100 text-center text-[10px] font-black tracking-widest">
                                                     <span className="text-green-500">{req.hadir}</span> / <span className="text-yellow-500">{req.cuti}</span> / <span className="text-red-500">{req.alpha}</span>
@@ -431,10 +468,9 @@ export default function SectionAdminPayroll() {
                                                 <td className="p-4 border-r-2 border-slate-100 text-right font-[1000] text-[#00E676] text-sm italic">
                                                     ${Number(req.jumlah_gaji).toLocaleString()}
                                                 </td>
-                                                <td className="p-4 text-center">
-                                                    <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-[#FF4D4D] bg-red-50 hover:bg-red-100 p-2 rounded-xl border-2 border-[#FF4D4D] active:scale-95 transition-all">
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                                <td className="p-4 text-center flex justify-center gap-2">
+                                                    <button onClick={() => handleOpenAndCapture(req)} className="text-blue-500 bg-blue-50 hover:bg-blue-100 p-2 rounded-xl border-2 border-blue-500 active:scale-95 transition-all"><Eye size={16} /></button>
+                                                    <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-[#FF4D4D] bg-red-50 hover:bg-red-100 p-2 rounded-xl border-2 border-[#FF4D4D] active:scale-95 transition-all"><Trash2 size={16} /></button>
                                                 </td>
                                             </tr>
                                         ))
@@ -470,7 +506,7 @@ export default function SectionAdminPayroll() {
                                         <div className="flex items-center gap-2 shrink-0">
                                             <div className="bg-slate-800 p-1.5 rounded-lg border-2 border-slate-700 text-[9px] font-black uppercase text-center shrink-0">
                                                 <p className="text-slate-400">Periode</p>
-                                                <p>{format(new Date(req.tanggal_mulai), 'dd/MM')} - {format(new Date(req.tanggal_selesai), 'dd/MM')}</p>
+                                                <p>{format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM')}</p>
                                             </div>
                                             <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="bg-[#FF4D4D] text-black p-2 rounded-lg border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 hover:scale-105 transition-all">
                                                 <Trash2 size={16} />
@@ -510,22 +546,20 @@ export default function SectionAdminPayroll() {
                                                 <span>${req.baseGaji.toLocaleString()}</span>
                                             </div>
 
-                                            {/* RENDER RINCIAN POTONGAN DI KARTU */}
                                             {req.potonganAlpha > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5% x {req.alpha})</span><span>- ${req.potonganAlpha.toLocaleString()}</span></div>}
                                             {req.potonganCuti > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Cuti/Izin (2% x {req.cuti})</span><span>- ${req.potonganCuti.toLocaleString()}</span></div>}
                                             {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-[10px] font-black uppercase text-green-600"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
 
-                                            {req.adjustment.amount !== 0 && (
-                                                <div className={cn("flex justify-between text-[10px] font-black uppercase", req.adjustment.amount > 0 ? "text-blue-600" : "text-red-600")}>
-                                                    <span className="truncate max-w-[200px]">Adj: {req.adjustment.reason}</span>
-                                                    <span>{req.adjustment.amount > 0 ? '+' : '-'} ${Math.abs(req.adjustment.amount).toLocaleString()}</span>
+                                            {req.adjustment?.amount !== 0 && (
+                                                <div className={cn("flex justify-between text-[10px] font-black uppercase", req.adjustment?.amount > 0 ? "text-blue-600" : "text-red-600")}>
+                                                    <span className="truncate max-w-[200px]">Adj: {req.adjustment?.reason}</span>
+                                                    <span>{req.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(req.adjustment?.amount || 0).toLocaleString()}</span>
                                                 </div>
                                             )}
                                         </div>
 
                                         {activeTab === 'PENDING' && (
                                             <div className="flex flex-col gap-2 justify-center border-t-2 border-black pt-3">
-                                                {/* QUICK PRESET BUTTONS */}
                                                 <div className="flex gap-2">
                                                     <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 35000, reason: 'Bonus Tambahan' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
                                                         <PlusCircle size={12} /> + $35k (Manual)
@@ -535,7 +569,6 @@ export default function SectionAdminPayroll() {
                                                     </button>
                                                 </div>
 
-                                                {/* 🚀 CUSTOM ADJUSTMENT INPUTS */}
                                                 <div className="flex gap-2 items-center">
                                                     <Settings2 size={16} className="text-slate-400 shrink-0" />
                                                     <input
@@ -558,9 +591,9 @@ export default function SectionAdminPayroll() {
                                                     >Apply</button>
                                                 </div>
 
-                                                {req.adjustment.amount !== 0 && (
+                                                {req.adjustment?.amount !== 0 && (
                                                     <div className="flex justify-between items-center bg-yellow-100 border border-yellow-400 p-1.5 rounded mt-1">
-                                                        <span className="text-[9px] font-black italic uppercase text-yellow-800">Aktif: {req.adjustment.reason}</span>
+                                                        <span className="text-[9px] font-black italic uppercase text-yellow-800">Aktif: {req.adjustment?.reason}</span>
                                                         <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} className="bg-red-500 text-white rounded p-1"><X size={10} /></button>
                                                     </div>
                                                 )}
@@ -674,7 +707,7 @@ export default function SectionAdminPayroll() {
                             <div className="space-y-6">
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Personel</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{currentSlipData.nama_panggilan}</p></div>
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Divisi</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{currentSlipData.pangkat} / {currentSlipData.divisi || 'UNIT'}</p></div>
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Periode Gaji</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(new Date(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Periode Gaji</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(getLocalSafeDate(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(getLocalSafeDate(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
                             <div className="space-y-6">
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(currentSlipData.updated_at || currentSlipData.created_at), 'dd MMMM yyyy', { locale: localeId })}</p></div>
@@ -687,33 +720,32 @@ export default function SectionAdminPayroll() {
                             </div>
                         </div>
 
+                        {/* 🚀 LOGIKA SLIP RESMI TELAH DIPERBARUI */}
                         <div className="border-4 border-black p-6 rounded-2xl relative z-10 bg-white">
                             <h4 className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-4">Rincian Kompensasi</h4>
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center text-sm font-bold uppercase italic">
                                     <span className="opacity-60">Gaji Awal / Pokok</span>
-                                    <span>${getSlipDetails(currentSlipData).base.toLocaleString()}</span>
+                                    <span>${currentSlipData.baseGaji.toLocaleString()}</span>
                                 </div>
 
-                                {/* 🚀 RENDER POTONGAN DI SLIP RESMI */}
-                                {getSlipDetails(currentSlipData).potonganAlpha > 0 && (
+                                {currentSlipData.potonganAlpha > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
                                         <span>Potongan Alpha (5%)</span>
-                                        <span>- ${getSlipDetails(currentSlipData).potonganAlpha.toLocaleString()}</span>
+                                        <span>- ${currentSlipData.potonganAlpha.toLocaleString()}</span>
                                     </div>
                                 )}
-                                {getSlipDetails(currentSlipData).potonganCuti > 0 && (
+                                {currentSlipData.potonganCuti > 0 && (
                                     <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
                                         <span>Potongan Cuti/Izin (2%)</span>
-                                        <span>- ${getSlipDetails(currentSlipData).potonganCuti.toLocaleString()}</span>
+                                        <span>- ${currentSlipData.potonganCuti.toLocaleString()}</span>
                                     </div>
                                 )}
 
-                                {/* 🚀 RENDER ADJUSTMENT MANUAL (BONUS / DENDA) DI SLIP RESMI */}
-                                {getSlipDetails(currentSlipData).adj !== 0 && (
-                                    <div className={cn("flex justify-between items-center text-sm font-bold uppercase italic", getSlipDetails(currentSlipData).adj > 0 ? "text-blue-600" : "text-red-500")}>
-                                        <span>{getSlipDetails(currentSlipData).adj > 0 ? 'Bonus' : 'Denda'}: {getSlipDetails(currentSlipData).reason}</span>
-                                        <span>{getSlipDetails(currentSlipData).adj > 0 ? '+' : '-'} ${Math.abs(getSlipDetails(currentSlipData).adj).toLocaleString()}</span>
+                                {currentSlipData.adjustment?.amount !== 0 && (
+                                    <div className={cn("flex justify-between items-center text-sm font-bold uppercase italic", currentSlipData.adjustment?.amount > 0 ? "text-blue-600" : "text-red-500")}>
+                                        <span>{currentSlipData.adjustment?.amount > 0 ? 'Bonus' : 'Denda'}: {currentSlipData.adjustment?.reason}</span>
+                                        <span>{currentSlipData.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(currentSlipData.adjustment?.amount || 0).toLocaleString()}</span>
                                     </div>
                                 )}
                             </div>

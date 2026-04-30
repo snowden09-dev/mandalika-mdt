@@ -20,17 +20,6 @@ const cardShadow = "shadow-[4px_4px_0px_#000]";
 const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-lg px-3 py-2 text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000]`;
 const labelStyle = "text-[9px] font-black uppercase tracking-widest text-slate-950 ml-1 mb-1.5 flex items-center gap-1.5 italic";
 
-// 🚀 ENGINE MUTLAK WIB (UTC+7)
-// Memaksa sistem membaca waktu sekarang dalam zona waktu Jakarta, tidak peduli HP user di WITA/WIT
-const getWIBTime = () => {
-    const d = new Date();
-    const localTime = d.getTime();
-    const localOffset = d.getTimezoneOffset() * 60000;
-    const utc = localTime + localOffset;
-    const wibOffset = 7 * 3600000; // +7 Jam (WIB)
-    return new Date(utc + wibOffset);
-};
-
 export default function AbsenPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'DUTY' | 'CUTI'>('DUTY');
@@ -38,8 +27,7 @@ export default function AbsenPage() {
     const [isNavigating, setIsNavigating] = useState(false);
     const [identity, setIdentity] = useState({ nama: 'MENDETEKSI...', pangkat: '...', divisi: '...', discordId: '' });
 
-    // 🚀 Default value sekarang berpatokan pada WIB
-    const [tanggalDuty, setTanggalDuty] = useState(format(getWIBTime(), 'yyyy-MM-dd'));
+    const [tanggalDuty, setTanggalDuty] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [jamAwal, setJamAwal] = useState('08:00');
     const [jamAkhir, setJamAkhir] = useState('16:00');
     const [mulaiCuti, setMulaiCuti] = useState('');
@@ -50,9 +38,8 @@ export default function AbsenPage() {
     const [previews, setPreviews] = useState<string[]>([]);
     const [previewModalInfo, setPreviewModalInfo] = useState<string | null>(null);
 
-    // 🚀 Batas hari (Today & H-3) dipaksa menggunakan WIB
-    const todayStr = format(getWIBTime(), 'yyyy-MM-dd');
-    const hMin3Str = format(addDays(getWIBTime(), -3), 'yyyy-MM-dd');
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
 
     useEffect(() => {
         async function getActiveUser() {
@@ -105,28 +92,24 @@ export default function AbsenPage() {
         if (!identity.discordId) return toast.error("Identitas belum terdeteksi!");
         if (!keterangan) return toast.error("Keterangan wajib diisi!");
 
-        // 🚀 Acuan 'Hari Ini' saat disubmit, mutlak menggunakan WIB
-        const todayWIB = getWIBTime();
-        todayWIB.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         if (activeTab === 'DUTY') {
             const selectedDutyDate = new Date(tanggalDuty);
             selectedDutyDate.setHours(0, 0, 0, 0);
-            const diffDutyDays = Math.round((todayWIB.getTime() - selectedDutyDate.getTime()) / (1000 * 60 * 60 * 24));
+            const diffDutyDays = Math.round((today.getTime() - selectedDutyDate.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen untuk besok (H+1) WIB!");
+            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen untuk besok (H+1)!");
             if (diffDutyDays > 3) return showErrorToast("Batas absen mundur maksimal 3 hari!");
             if (images.length === 0) return toast.error("Lampirkan 1 foto bukti!");
 
-            // 🚀 PARSING INPUT USER DENGAN +07:00 AGAR DIANGGAP SEBAGAI JAM WIB, BUKAN JAM LOKAL HP
-            let startObj = new Date(`${tanggalDuty}T${jamAwal}:00+07:00`);
-            let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00+07:00`);
-
+            let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
+            let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
             if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
 
-            // 🚀 Waktu saat ini (buffer 5 menit) dalam WIB
-            const nowWithBuffer = new Date(getWIBTime().getTime() + 5 * 60000);
-
+            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL (Cegah absen lupa ganti tanggal pas lewat jam 12 malam)
+            const nowWithBuffer = new Date(Date.now() + 5 * 60000); // Tambah buffer 5 menit toleransi
             if (startObj > nowWithBuffer) {
                 return showErrorToast("Jam Mulai ada di masa depan! Jika Anda shift malam dan sudah lewat jam 12, pastikan TANGGAL diubah mundur 1 hari.");
             }
@@ -134,6 +117,7 @@ export default function AbsenPage() {
                 return showErrorToast("Jam Selesai ada di masa depan! Anda tidak bisa absen sebelum shift benar-benar selesai.");
             }
 
+            // 🚀 PERTAHANAN 2: ANTI-OVERWORK (Blokir ketat > 7 jam)
             let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
             const durasiJam = parseFloat(diff.toFixed(2));
             if (durasiJam > 7) {
@@ -148,6 +132,7 @@ export default function AbsenPage() {
             const tId = toast.loading("Memverifikasi Keamanan Absen...");
 
             try {
+                // 🚀 PERTAHANAN 3: ANTI-OVERLAP (Cek persilangan jam dengan database)
                 const dStartSearch = new Date(startObj.getTime() - 24 * 60 * 60 * 1000).toISOString();
                 const dEndSearch = new Date(endObj.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -162,6 +147,7 @@ export default function AbsenPage() {
                     const hasOverlap = existingDuties.some(duty => {
                         const exStart = new Date(duty.start_time).getTime();
                         const exEnd = new Date(duty.end_time).getTime();
+                        // Logika overlap: MulaiBaru < SelesaiLama DAN SelesaiBaru > MulaiLama
                         return (startObj.getTime() < exEnd) && (endObj.getTime() > exStart);
                     });
 
@@ -199,6 +185,7 @@ export default function AbsenPage() {
                 }]);
                 if (insErr) throw insErr;
 
+                // Update Total Jam Duty
                 const { data: currentUserData } = await supabase.from('users').select('total_jam_duty').eq('discord_id', identity.discordId).maybeSingle();
                 const currentTotal = Number(currentUserData?.total_jam_duty || 0);
                 const additionalHours = Number((durasiMenitBulat / 60).toFixed(2));
@@ -229,9 +216,7 @@ export default function AbsenPage() {
             const selectedSelesaiCuti = new Date(selesaiCuti); selectedSelesaiCuti.setHours(0, 0, 0, 0);
 
             if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Tanggal selesai salah!");
-
-            // 🚀 Acuan selisih hari Cuti juga dipaksa menggunakan WIB
-            const diffMulaiDays = Math.round((todayWIB.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
+            const diffMulaiDays = Math.round((today.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
             if (diffMulaiDays < 0) return showErrorToast("Mulai cuti max hari ini!");
             if (diffMulaiDays > 3) return showErrorToast("Cuti mundur max H-3!");
 
@@ -274,6 +259,7 @@ export default function AbsenPage() {
             <TacticalTransition isVisible={isNavigating} />
             <Toaster position="top-center" />
 
+            {/* 🚀 MODAL PREVIEW GAMBAR FULLSCREEN */}
             <AnimatePresence>
                 {previewModalInfo && (
                     <motion.div
@@ -294,6 +280,7 @@ export default function AbsenPage() {
                 )}
             </AnimatePresence>
 
+            {/* 🚀 COMPACT HEADER DENGAN TOMBOL KEMBALI */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button onClick={() => handleNavigation('/dashboard')} className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all">
                     <ArrowLeft size={18} />
@@ -309,6 +296,7 @@ export default function AbsenPage() {
 
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
 
+                {/* 🚀 COMPACT IDENTITY BADGE */}
                 <div className="flex justify-between items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner">
                     <div className="truncate">
                         <p className="text-[8px] font-black text-slate-400 uppercase italic">Personnel</p>
@@ -320,6 +308,7 @@ export default function AbsenPage() {
                     </div>
                 </div>
 
+                {/* 🚀 COMPACT TAB SWITCHER */}
                 <div className="flex bg-slate-950 p-1 rounded-xl mb-5 gap-1">
                     <button type="button" onClick={() => setActiveTab('DUTY')} className={cn("flex-1 py-2 rounded-lg font-black uppercase italic text-[10px] transition-all", activeTab === 'DUTY' ? 'bg-[#A3E635] text-black' : 'text-white opacity-40')}>Duty Log</button>
                     <button type="button" onClick={() => setActiveTab('CUTI')} className={cn("flex-1 py-2 rounded-lg font-black uppercase italic text-[10px] transition-all", activeTab === 'CUTI' ? 'bg-[#FF4D4D] text-white' : 'text-white opacity-40')}>Izin Cuti</button>
@@ -330,13 +319,14 @@ export default function AbsenPage() {
                         {activeTab === 'DUTY' ? (
                             <motion.div key="duty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
                                 <div className="space-y-1">
-                                    <p className={labelStyle}><CalendarIcon size={12} /> Date (WIB)</p>
+                                    <p className={labelStyle}><CalendarIcon size={12} /> Date</p>
                                     <input type="date" value={tanggalDuty} min={hMin3Str} max={todayStr} onChange={e => setTanggalDuty(e.target.value)} className={inputStyle} />
                                 </div>
 
+                                {/* 🚀 24-HOUR CUSTOM DROPDOWNS */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
-                                        <p className={labelStyle}><Clock size={12} /> Start (WIB)</p>
+                                        <p className={labelStyle}><Clock size={12} /> Start</p>
                                         <div className="flex items-center gap-1">
                                             <select value={jamAwal.split(':')[0]} onChange={e => setJamAwal(`${e.target.value}:${jamAwal.split(':')[1]}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
                                                 {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
@@ -348,7 +338,7 @@ export default function AbsenPage() {
                                         </div>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className={labelStyle}><Clock size={12} /> End (WIB)</p>
+                                        <p className={labelStyle}><Clock size={12} /> End</p>
                                         <div className="flex items-center gap-1">
                                             <select value={jamAkhir.split(':')[0]} onChange={e => setJamAkhir(`${e.target.value}:${jamAkhir.split(':')[1]}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
                                                 {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
@@ -361,6 +351,7 @@ export default function AbsenPage() {
                                     </div>
                                 </div>
 
+                                {/* 🚀 HORIZONTAL SCROLL EVIDENCE DENGAN PREVIEW & FIX MOBILE UPLOAD */}
                                 <div className="space-y-1">
                                     <p className={labelStyle}><Camera size={12} /> Evidence</p>
                                     <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
@@ -399,8 +390,8 @@ export default function AbsenPage() {
                         ) : (
                             <motion.div key="cuti" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Mulai (WIB)</p><input type="date" value={mulaiCuti} min={hMin3Str} max={todayStr} onChange={e => setMulaiCuti(e.target.value)} className={inputStyle} /></div>
-                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Selesai (WIB)</p><input type="date" value={selesaiCuti} min={mulaiCuti || hMin3Str} onChange={e => setSelesaiCuti(e.target.value)} className={inputStyle} /></div>
+                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Mulai</p><input type="date" value={mulaiCuti} min={hMin3Str} max={todayStr} onChange={e => setMulaiCuti(e.target.value)} className={inputStyle} /></div>
+                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Selesai</p><input type="date" value={selesaiCuti} min={mulaiCuti || hMin3Str} onChange={e => setSelesaiCuti(e.target.value)} className={inputStyle} /></div>
                                 </div>
                             </motion.div>
                         )}

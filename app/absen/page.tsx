@@ -65,12 +65,12 @@ export default function AbsenPage() {
             <div className="bg-[#FF4D4D] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative z-50">
                 <div className="bg-slate-950 text-[#FF4D4D] p-2 rounded-lg shrink-0"><AlertTriangle size={20} /></div>
                 <div>
-                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">DITOLAK</h1>
+                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">UPS! ADA YANG SALAH</h1>
                     <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
                 </div>
                 <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100"><X size={12} className="text-slate-950" /></button>
             </div>
-        ), { duration: 5000 });
+        ), { duration: 7000 });
     };
 
     const showWarningToast = (pesan: string) => {
@@ -78,7 +78,7 @@ export default function AbsenPage() {
             <div className="bg-[#FFD100] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative z-50">
                 <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>
                 <div>
-                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">INFO MUNDUR</h1>
+                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">INFO ABSEN TELAT</h1>
                     <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
                 </div>
             </div>
@@ -89,8 +89,8 @@ export default function AbsenPage() {
         e.preventDefault();
         if (loading) return;
 
-        if (!identity.discordId) return toast.error("Identitas belum terdeteksi!");
-        if (!keterangan) return toast.error("Keterangan wajib diisi!");
+        if (!identity.discordId) return toast.error("Tunggu sebentar ya! Sistem masih mendeteksi nama kamu.");
+        if (!keterangan) return toast.error("Kolom Keterangan jangan dikosongin! Ketik dulu kamu kerjanya ngapain aja.");
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -100,39 +100,39 @@ export default function AbsenPage() {
             selectedDutyDate.setHours(0, 0, 0, 0);
             const diffDutyDays = Math.round((today.getTime() - selectedDutyDate.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (diffDutyDays < 0) return showErrorToast("Tidak bisa absen untuk besok (H+1)!");
-            if (diffDutyDays > 3) return showErrorToast("Batas absen mundur maksimal 3 hari!");
-            if (images.length === 0) return toast.error("Lampirkan 1 foto bukti!");
+            if (diffDutyDays < 0) return showErrorToast("Kamu nggak bisa absen buat hari besok ya! Absen cuma berlaku untuk hari ini atau hari kemarin.");
+            if (diffDutyDays > 3) return showErrorToast("Absennya telat banget! Kamu cuma boleh absen maksimal untuk 3 hari ke belakang. Kalau lebih, datanya hangus.");
+            if (images.length === 0) return toast.error("Wajib masukin foto bukti kerja dulu ya!");
 
             let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
             let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
             if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
 
-            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL (Cegah absen lupa ganti tanggal pas lewat jam 12 malam)
-            const nowWithBuffer = new Date(Date.now() + 5 * 60000); // Tambah buffer 5 menit toleransi
+            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL (BAHASA LEBIH MUDAH DIPAHAMI)
+            const nowWithBuffer = new Date(Date.now() + 5 * 60000);
             if (startObj > nowWithBuffer) {
-                return showErrorToast("Jam Mulai ada di masa depan! Jika Anda shift malam dan sudah lewat jam 12, pastikan TANGGAL diubah mundur 1 hari.");
+                return showErrorToast("Loh, kok jam mulainya aneh? Masa kamu absen di jam yang belum terjadi? Coba cek lagi jamnya.\n\nPENTING: Kalau kamu baru selesai dinas malam (lewat jam 12 malam), TANGGALNYA harus diganti ke HARI KEMARIN ya!");
             }
             if (endObj > nowWithBuffer) {
-                return showErrorToast("Jam Selesai ada di masa depan! Anda tidak bisa absen sebelum shift benar-benar selesai.");
+                return showErrorToast("Sabar! Kamu belum bisa absen pulang karena jam selesainya belum terlewati. Tunggu jamnya lewat dulu baru absen ya.");
             }
 
-            // 🚀 PERTAHANAN 2: ANTI-OVERWORK (Blokir ketat > 7 jam)
+            // 🚀 PERTAHANAN 2: ANTI-OVERWORK
             let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
             const durasiJam = parseFloat(diff.toFixed(2));
             if (durasiJam > 7) {
-                return showErrorToast(`Durasi ${durasiJam} Jam DITOLAK! Maksimal 1x absen adalah 7 jam. Silakan pecah absen Anda jika ada jeda off-duty.`);
+                return showErrorToast(`Kerjanya kelamaan nih sampai ${durasiJam} jam! Sekali absen maksimal cuma boleh 7 jam. Kalau ada istirahat, absennya dipisah jadi dua kali kirim ya.`);
             }
 
             if (diffDutyDays > 0 && diffDutyDays <= 3) {
-                showWarningToast(`Anda melakukan absen mundur (H-${diffDutyDays}).`);
+                showWarningToast(`Sistem mencatat kamu ngisi absen untuk ${diffDutyDays} hari yang lalu ya. Sip!`);
             }
 
             setLoading(true);
-            const tId = toast.loading("Memverifikasi Keamanan Absen...");
+            const tId = toast.loading("Mengecek Data Absen Kamu...");
 
             try {
-                // 🚀 PERTAHANAN 3: ANTI-OVERLAP (Cek persilangan jam dengan database)
+                // 🚀 PERTAHANAN 3: ANTI-OVERLAP
                 const dStartSearch = new Date(startObj.getTime() - 24 * 60 * 60 * 1000).toISOString();
                 const dEndSearch = new Date(endObj.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -147,18 +147,17 @@ export default function AbsenPage() {
                     const hasOverlap = existingDuties.some(duty => {
                         const exStart = new Date(duty.start_time).getTime();
                         const exEnd = new Date(duty.end_time).getTime();
-                        // Logika overlap: MulaiBaru < SelesaiLama DAN SelesaiBaru > MulaiLama
                         return (startObj.getTime() < exEnd) && (endObj.getTime() > exStart);
                     });
 
                     if (hasOverlap) {
                         toast.dismiss(tId);
                         setLoading(false);
-                        return showErrorToast("JAM BERSILANGAN! Waktu duty Anda bertabrakan dengan data absen yang sudah tercatat sebelumnya.");
+                        return showErrorToast("Waduh! Jam kerjanya tabrakan sama absen kamu yang sebelumnya. Coba dicek lagi, masa kamu kerja dua tugas di jam yang sama?");
                     }
                 }
 
-                toast.loading("Mengunggah Bukti Visual...", { id: tId });
+                toast.loading("Mengirim Foto Bukti...", { id: tId });
 
                 let photoUrls: string[] = [];
                 for (const file of images) {
@@ -185,7 +184,6 @@ export default function AbsenPage() {
                 }]);
                 if (insErr) throw insErr;
 
-                // Update Total Jam Duty
                 const { data: currentUserData } = await supabase.from('users').select('total_jam_duty').eq('discord_id', identity.discordId).maybeSingle();
                 const currentTotal = Number(currentUserData?.total_jam_duty || 0);
                 const additionalHours = Number((durasiMenitBulat / 60).toFixed(2));
@@ -197,8 +195,8 @@ export default function AbsenPage() {
                     <div className="bg-[#A3E635] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
                         <div className="bg-slate-950 text-[#A3E635] p-2 rounded-lg shrink-0"><CheckCircle2 size={20} /></div>
                         <div>
-                            <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">SUKSES</h1>
-                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Presensi dikirim.</p>
+                            <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">MANTAP! SUKSES</h1>
+                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Data absen kamu udah masuk sistem.</p>
                         </div>
                     </div>
                 ), { id: tId, duration: 3000 });
@@ -206,22 +204,22 @@ export default function AbsenPage() {
                 setTimeout(() => handleNavigation('/dashboard'), 2000);
 
             } catch (err: any) {
-                toast.error(`ERROR: ${err.message}`, { id: tId });
+                toast.error(`ERROR SISTEM: ${err.message}`, { id: tId });
                 setLoading(false);
             }
 
         } else if (activeTab === 'CUTI') {
-            if (!mulaiCuti || !selesaiCuti) return toast.error("Lengkapi tanggal cuti!");
+            if (!mulaiCuti || !selesaiCuti) return toast.error("Isi dulu tanggal cutinya ya! Dari kapan sampai kapannya.");
             const selectedMulaiCuti = new Date(mulaiCuti); selectedMulaiCuti.setHours(0, 0, 0, 0);
             const selectedSelesaiCuti = new Date(selesaiCuti); selectedSelesaiCuti.setHours(0, 0, 0, 0);
 
-            if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Tanggal selesai salah!");
+            if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Loh kok aneh? Masa tanggal selesai cutinya lebih cepat dari tanggal mulainya? Dibenerin dulu ya!");
             const diffMulaiDays = Math.round((today.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
-            if (diffMulaiDays < 0) return showErrorToast("Mulai cuti max hari ini!");
-            if (diffMulaiDays > 3) return showErrorToast("Cuti mundur max H-3!");
+            if (diffMulaiDays < 0) return showErrorToast("Lewat sini, kamu cuma bisa ngajuin cuti untuk hari ini atau hari yang udah lewat (telat ngabarin).");
+            if (diffMulaiDays > 3) return showErrorToast("Ngajuin cuti telat cuma dikasih toleransi maksimal 3 hari ke belakang ya!");
 
             setLoading(true);
-            const tId = toast.loading("Transmitting Cuti...");
+            const tId = toast.loading("Mengirim Surat Izin Cuti...");
 
             try {
                 const { error: cutiErr } = await supabase.from('pengajuan_cuti').insert([{
@@ -241,14 +239,14 @@ export default function AbsenPage() {
                         <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>
                         <div>
                             <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">CUTI TERKIRIM</h1>
-                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Menunggu ACC.</p>
+                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Surat udah di meja komandan, tunggu di-ACC ya.</p>
                         </div>
                     </div>
                 ), { id: tId, duration: 3000 });
 
                 setTimeout(() => handleNavigation('/dashboard'), 2000);
             } catch (err: any) {
-                toast.error(`ERROR: ${err.message}`, { id: tId });
+                toast.error(`ERROR SISTEM: ${err.message}`, { id: tId });
                 setLoading(false);
             }
         }

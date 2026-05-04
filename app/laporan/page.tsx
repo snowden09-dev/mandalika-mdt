@@ -314,8 +314,8 @@ export default function LaporanMultiForm() {
                                             <input name="keterangan_1" placeholder="cth. Administrasi berjalan dengan tertib" required onChange={handleInputChange} className={inputStyle} />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className={labelStyle}>Keterangan 2</label>
-                                            <input name="keterangan_2" placeholder="cth. Tidak ditemukan pelanggaran" required onChange={handleInputChange} className={inputStyle} />
+                                            <label className={labelStyle}>Keterangan 2 (Opsional)</label>
+                                            <input name="keterangan_2" placeholder="cth. Tidak ditemukan pelanggaran" onChange={handleInputChange} className={inputStyle} />
                                         </div>
                                     </>
                                 )}

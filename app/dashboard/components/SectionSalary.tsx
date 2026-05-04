@@ -33,7 +33,6 @@ const getWIBTime = () => {
 
 export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
     const slipRef = useRef<HTMLDivElement>(null);
-    // 🚀 Acuan kalender kini menggunakan WIB
     const [currentMonth, setCurrentMonth] = useState(getWIBTime());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
     const [history, setHistory] = useState<any[]>([]);
@@ -143,7 +142,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return rows;
     }, [currentMonth]);
 
-    // 🚀 LOGIKA PERIODE MENGGUNAKAN WIB MUTLAK
     const activePeriod = useMemo(() => {
         const nowWIB = getWIBTime();
         const referenceDate = getDay(nowWIB) === 0 ? nowWIB : subWeeks(nowWIB, 1);
@@ -193,11 +191,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const { data: { user } } = await supabase.auth.getUser();
             const discordId = user?.user_metadata?.provider_id || user?.id;
 
-            // 🚀 PARSING TANGGAL PAKSA KE WIB SEBELUM DIKIRIM KE SUPABASE
+            // 🚀 BUG FIXED: Format jam untuk range.to dikunci di 00:00:00 untuk mencegah Admin System membaca sebagai hari ke-8
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
-            const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
+            const endStr = format(range.to, 'yyyy-MM-dd') + "T00:00:00+07:00";
 
-            // 🚀 BUG FIXED: Hapus .not('status', 'eq', 'REJECTED') agar data rejected ikut menahan claim baru
             const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
                 .eq('user_id_discord', discordId);
@@ -387,7 +384,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                         <h4 className="text-2xl font-[1000] italic leading-none">${Number(log.jumlah_gaji).toLocaleString()}</h4>
                                         <p className="text-[10px] font-black opacity-40 italic mt-1 uppercase">Period: {format(new Date(log.tanggal_mulai), 'dd MMM')} - {format(new Date(log.tanggal_selesai), 'dd MMM')}</p>
 
-                                        {/* 🚀 BUG FIXED: Indikator warna dan status log telah diperbarui */}
                                         <div className={cn("text-[8px] font-[1000] px-2 py-1 mt-2 inline-block italic border border-black shadow-[2px_2px_0_0_#000]",
                                             log.status === 'PAID' ? 'bg-[#00E676] text-black' :
                                                 log.status === 'REJECTED' ? 'bg-[#FF4D4D] text-white' : 'bg-[#FFD100] text-black')}

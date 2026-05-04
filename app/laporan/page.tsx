@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldAlert, Target, Zap, Search,
     Camera, Clock, Calendar as CalendarIcon, ArrowLeft,
-    ShieldCheck, X, Ticket
+    ShieldCheck, X, Ticket, ClipboardList
 } from 'lucide-react';
 import { format, parseISO } from "date-fns";
 import { toast, Toaster } from "sonner";
@@ -33,7 +33,9 @@ export default function LaporanMultiForm() {
         nama_petugas: "", pangkat: "", tanggal: new Date(), waktu_shift: "",
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
         divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
-        kendaraan: "", masa_penilangan: "", denda: "", kesalahan: ""
+        kendaraan: "", masa_penilangan: "", denda: "", kesalahan: "",
+        // 🚀 NEW FIELDS UNTUK ADMINISTRASI
+        jam_buka: "", jam_tutup: "", kendala_1: "", kendala_2: "", keterangan_1: "", keterangan_2: ""
     });
 
     const [foto, setFoto] = useState<File | null>(null);
@@ -47,7 +49,8 @@ export default function LaporanMultiForm() {
         kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
         patroli: { color: "#3b82f6", label: "Patroli", poin: 5, icon: Search },
         backup: { color: "#ef4444", label: "Backup", poin: 3, icon: Zap },
-        tilang: { color: "#f97316", label: "Penilangan", poin: 2, icon: Ticket }
+        tilang: { color: "#f97316", label: "Penilangan", poin: 2, icon: Ticket },
+        admin: { color: "#8b5cf6", label: "Administrasi", poin: 6, icon: ClipboardList } // 🚀 NEW MENU
     };
 
     const getFormatMessage = (d: any) => {
@@ -57,6 +60,7 @@ export default function LaporanMultiForm() {
         if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\`\n${MENTION_ROLE}`;
     };
 
     // --- SYNC SESSION DATA ---
@@ -82,7 +86,7 @@ export default function LaporanMultiForm() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // --- 🚀 LOGIKA SUBMIT (DINAMIS KE MASING-MASING WEBHOOK/THREAD) ---
+    // --- 🚀 LOGIKA SUBMIT ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
         if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
@@ -95,66 +99,49 @@ export default function LaporanMultiForm() {
         try {
             const tId = toast.loading("Mengirim Laporan ke HQ Discord...");
 
-            // 1. Ambil Semua Config dari Database
             const { data: configData } = await supabase.from('admin_config').select('*');
 
-            // 2. Mapping tipe laporan ke format Key di Database
             const typeMapping: any = {
                 tangkap: 'penangkapan',
                 kasus: 'kasus_besar',
                 patroli: 'patroli',
                 backup: 'backup',
-                tilang: 'penilangan'
+                tilang: 'penilangan',
+                admin: 'admin' // 🚀 MAPPING WEBHOOK & THREAD ADMIN
             };
             const configKeyPrefix = typeMapping[tipe];
 
-            // 3. Cari Webhook URL dan Thread ID Spesifik untuk tipe laporan ini
             const webhookUrlData = configData?.find(c => c.key === `webhook_${configKeyPrefix}`)?.value;
             const threadIdData = configData?.find(c => c.key === `thread_${configKeyPrefix}`)?.value;
 
             if (!webhookUrlData) throw new Error(`Webhook Discord untuk ${conf.label} belum disetting di Admin Panel!`);
 
-            // Wajib tambah ?wait=true agar Discord mengirim balik URL gambarnya
             let finalWebhookUrl = webhookUrlData.includes('?') ? `${webhookUrlData}&wait=true` : `${webhookUrlData}?wait=true`;
-
-            // Tambahkan Thread ID jika disetting
             if (threadIdData && threadIdData.trim() !== '') {
                 finalWebhookUrl += `&thread_id=${threadIdData.trim()}`;
             }
 
-            // 4. Tembak Foto & Teks Laporan ke Discord Webhook
             const formDataDiscord = new FormData();
             formDataDiscord.append("file", foto);
+            formDataDiscord.append("payload_json", JSON.stringify({ content: formattedReport }));
 
-            // 🚀 PERBAIKAN: Hapus username override agar Webhook Discord menggunakan nama & avatar aslinya!
-            formDataDiscord.append("payload_json", JSON.stringify({
-                content: formattedReport
-            }));
-
-            const discordResponse = await fetch(finalWebhookUrl, {
-                method: "POST",
-                body: formDataDiscord,
-            });
-
+            const discordResponse = await fetch(finalWebhookUrl, { method: "POST", body: formDataDiscord });
             if (!discordResponse.ok) throw new Error("Discord Webhook menolak laporan! Cek kembali URL/Thread ID.");
 
-            // 5. Ambil URL Gambar dari Server Discord
             const discordData = await discordResponse.json();
             const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
-
             if (!discordImageUrl) throw new Error("Gagal mengekstrak URL Foto dari Discord!");
 
             toast.loading("Mencatat Laporan ke Arsip Markas...", { id: tId });
 
-            // 6. 🚀 PERBAIKAN: Masukkan ke Database SESUAI SKEMA (Tanpa kolom 'poin')
             const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                 user_id_discord: sessionData.discord_id,
                 jenis_laporan: conf.label,
                 isi_laporan: formattedReport,
-                poin_estimasi: conf.poin,  // Simpan nilai poin estimasi (Sesuai Skema Database Jendral)
-                bukti_foto: discordImageUrl, // Simpan URL dari Discord
-                status: 'PENDING',          // Status Menunggu ACC Poin
-                is_sent_discord: true       // Tandai bahwa ini sudah masuk Discord
+                poin_estimasi: conf.poin,
+                bukti_foto: discordImageUrl,
+                status: 'PENDING',
+                is_sent_discord: true
             }]);
 
             if (insertError) throw insertError;
@@ -246,7 +233,7 @@ export default function LaporanMultiForm() {
                                     </div>
                                 </div>
 
-                                {/* 🚀 DYNAMIC FIELDS */}
+                                {/* 🚀 DYNAMIC FIELDS: TANGKAP */}
                                 {tipe === 'tangkap' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -261,6 +248,7 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
+                                {/* 🚀 DYNAMIC FIELDS: KASUS, PATROLI, BACKUP */}
                                 {(tipe === 'kasus' || tipe === 'patroli' || tipe === 'backup') && (
                                     <>
                                         {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Jenis Kasus</label><input name="jenis_kasus" placeholder="Misal: Perampokan..." required onChange={handleInputChange} className={inputStyle} /></div>}
@@ -296,6 +284,38 @@ export default function LaporanMultiForm() {
                                         <div className="space-y-1">
                                             <label className={labelStyle}>Kesalahan</label>
                                             <textarea name="kesalahan" placeholder="Tuliskan kesalahan pelanggar..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-[80px] resize-none")} />
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* 🚀 DYNAMIC FIELD: ADMINISTRASI */}
+                                {tipe === 'admin' && (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className={labelStyle}><Clock size={12} /> Jam Buka</label>
+                                                <input type="time" name="jam_buka" required onChange={handleInputChange} className={inputStyle} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className={labelStyle}><Clock size={12} /> Jam Tutup</label>
+                                                <input type="time" name="jam_tutup" required onChange={handleInputChange} className={inputStyle} />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className={labelStyle}>Kendala 1 (Kosongkan jika aman)</label>
+                                            <input name="kendala_1" placeholder="cth. Terjadi mati lampu..." onChange={handleInputChange} className={inputStyle} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className={labelStyle}>Kendala 2 (Kosongkan jika aman)</label>
+                                            <input name="kendala_2" placeholder="cth. Perusuh di lobi..." onChange={handleInputChange} className={inputStyle} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className={labelStyle}>Keterangan 1</label>
+                                            <input name="keterangan_1" placeholder="cth. Administrasi berjalan dengan tertib" required onChange={handleInputChange} className={inputStyle} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className={labelStyle}>Keterangan 2</label>
+                                            <input name="keterangan_2" placeholder="cth. Tidak ditemukan pelanggaran" required onChange={handleInputChange} className={inputStyle} />
                                         </div>
                                     </>
                                 )}

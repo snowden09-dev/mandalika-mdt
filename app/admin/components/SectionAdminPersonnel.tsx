@@ -18,18 +18,16 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 const inputStyle = `w-full bg-[#f1f5f9] border-[2.5px] md:border-[3px] border-slate-950 rounded-lg md:rounded-xl px-2.5 py-2 md:px-4 md:py-3 text-[10px] md:text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000] md:shadow-[3px_3px_0px_#000] appearance-none`;
 
-// 🚀 DATABASE PANGKAT TERBARU (Sesuai Arahan Jendral)
+// 🚀 DATABASE PANGKAT TERBARU (Sesuai Konfigurasi Server)
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 },
     { name: "BHARADA", prp: 0, hrs: 0 },
-    { name: "BHARATU", prp: 50, hrs: 10 },
-    { name: "BHARAKA", prp: 100, hrs: 15 },
-    { name: "ABRIGPOL", prp: 150, hrs: 20 },
-    { name: "ABRIPTU", prp: 200, hrs: 25 },
-    { name: "ABRIPDA", prp: 250, hrs: 30 },
-    { name: "BRIPDA", prp: 300, hrs: 40 },
-    { name: "BRIPTU", prp: 400, hrs: 50 },
+    { name: "ABRIPTU", prp: 50, hrs: 10 },
+    { name: "ABRIGPOL", prp: 100, hrs: 20 },
+    { name: "BRIPDA", prp: 150, hrs: 30 },
+    { name: "BRIPTU", prp: 250, hrs: 40 },
+    { name: "BRIGPOL", prp: 350, hrs: 50 },
     { name: "BRIPKA", prp: 500, hrs: 65 },
     { name: "AIPDA", prp: 650, hrs: 80 },
     { name: "AIPTU", prp: 800, hrs: 100 },
@@ -112,7 +110,7 @@ export default function SectionAdminPersonnel() {
         return matchSearch && matchDivisi;
     });
 
-    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT (Telah disesuaikan dengan RANKS_DB)
+    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT (Telah disesuaikan dengan RANKS_DB baru)
     const getRankProgress = (pangkat: string, currentPrp: number, currentHrs: number) => {
         const p = pangkat?.toUpperCase().trim() || "CASIS";
         const currentIndex = RANKS_DB.findIndex(r => r.name === p);
@@ -402,7 +400,7 @@ export default function SectionAdminPersonnel() {
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">PANGKAT</label>
-                                            {/* 🚀 Dynamic Dropdown Option berdasarkan RANKS_DB */}
+                                            {/* 🚀 Dynamic Dropdown Option berdasarkan RANKS_DB Baru */}
                                             <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
                                                 {RANKS_DB.map((r) => (
                                                     <option key={r.name} value={r.name}>{r.name}</option>

@@ -14,18 +14,16 @@ import TacticalTransition from './TacticalTransition';
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
 
-// 🚀 STRUKTUR PANGKAT
+// 🚀 STRUKTUR PANGKAT TERBARU (Sesuai Konfigurasi Server)
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 },
     { name: "BHARADA", prp: 0, hrs: 0 },
-    { name: "BHARATU", prp: 50, hrs: 10 },
-    { name: "BHARAKA", prp: 100, hrs: 15 },
-    { name: "ABRIGPOL", prp: 150, hrs: 20 },
-    { name: "ABRIPTU", prp: 200, hrs: 25 },
-    { name: "ABRIPDA", prp: 250, hrs: 30 },
-    { name: "BRIPDA", prp: 300, hrs: 40 },
-    { name: "BRIPTU", prp: 400, hrs: 50 },
+    { name: "ABRIPTU", prp: 50, hrs: 10 },
+    { name: "ABRIGPOL", prp: 100, hrs: 20 },
+    { name: "BRIPDA", prp: 150, hrs: 30 },
+    { name: "BRIPTU", prp: 250, hrs: 40 },
+    { name: "BRIGPOL", prp: 350, hrs: 50 },
     { name: "BRIPKA", prp: 500, hrs: 65 },
     { name: "AIPDA", prp: 650, hrs: 80 },
     { name: "AIPTU", prp: 800, hrs: 100 },
@@ -185,7 +183,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            {/* 🚀 TWEAK RUANG UDARA: Tambah mt-12 md:mt-16 agar kotak Hero ini turun dan Maskot bebas melompat */}
             <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] mt-12 md:mt-16 group`} style={{ zIndex: 10 }}>
 
                 {/* 🚀 ANIMATED MASCOT */}

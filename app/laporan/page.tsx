@@ -34,12 +34,12 @@ export default function LaporanMultiForm() {
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
         divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
         kendaraan: "", masa_penilangan: "", denda: "", kesalahan: "",
-        // 🚀 NEW FIELDS UNTUK ADMINISTRASI
         jam_buka: "", jam_tutup: "", kendala_1: "", kendala_2: "", keterangan_1: "", keterangan_2: ""
     });
 
-    const [foto, setFoto] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
+    // 🚀 UPGRADE: MENDUKUNG MULTI-FOTO
+    const [fotos, setFotos] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<string[]>([]);
 
     const MENTION_ROLE = "<@&1393366590942085220>";
 
@@ -50,7 +50,7 @@ export default function LaporanMultiForm() {
         patroli: { color: "#3b82f6", label: "Patroli", poin: 5, icon: Search },
         backup: { color: "#ef4444", label: "Backup", poin: 3, icon: Zap },
         tilang: { color: "#f97316", label: "Penilangan", poin: 2, icon: Ticket },
-        admin: { color: "#8b5cf6", label: "Administrasi", poin: 6, icon: ClipboardList } // 🚀 NEW MENU
+        admin: { color: "#8b5cf6", label: "Administrasi", poin: 6, icon: ClipboardList }
     };
 
     const getFormatMessage = (d: any) => {
@@ -81,6 +81,22 @@ export default function LaporanMultiForm() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+    // 🚀 MULTI FILE UPLOAD HANDLER
+    const handleFileChange = (e: any) => {
+        const files = Array.from(e.target.files) as File[];
+        if (files.length > 0) {
+            const newFotos = [...fotos, ...files].slice(0, 4); // Batasi max 4 foto agar webhook tidak jebol
+            setFotos(newFotos);
+            setPreviews(newFotos.map(f => URL.createObjectURL(f)));
+        }
+    };
+
+    const removeFoto = (index: number) => {
+        const newFotos = fotos.filter((_, i) => i !== index);
+        setFotos(newFotos);
+        setPreviews(newFotos.map(f => URL.createObjectURL(f)));
+    };
+
     const handleNavigation = (path: string) => {
         setIsNavigating(true);
         setTimeout(() => router.push(path), 3000);
@@ -89,7 +105,29 @@ export default function LaporanMultiForm() {
     // --- 🚀 LOGIKA SUBMIT ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
-        if (!foto) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
+
+        // 🚀 VALIDASI KHUSUS ADMINISTRASI
+        if (tipe === 'admin') {
+            if (fotos.length < 2) return toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan foto Jam Buka & Jam Tutup/Selesai." });
+            if (!formData.jam_buka || !formData.jam_tutup) return toast.error("JAM BUKA & TUTUP WAJIB DIISI!");
+
+            const [bukaH, bukaM] = formData.jam_buka.split(':').map(Number);
+            const [tutupH, tutupM] = formData.jam_tutup.split(':').map(Number);
+            let startMinutes = bukaH * 60 + bukaM;
+            let endMinutes = tutupH * 60 + tutupM;
+
+            // Jika shift melewati tengah malam (misal 23:00 s/d 01:00)
+            if (endMinutes <= startMinutes) {
+                endMinutes += 24 * 60;
+            }
+
+            const diffMinutes = endMinutes - startMinutes;
+            if (diffMinutes < 60) {
+                return toast.error("DURASI JAGA DITOLAK!", { description: "Minimal waktu jaga administrasi adalah 1 Jam (60 Menit)." });
+            }
+        } else {
+            if (fotos.length < 1) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
+        }
 
         setLoading(true);
         const conf = CONFIG[tipe];
@@ -102,12 +140,8 @@ export default function LaporanMultiForm() {
             const { data: configData } = await supabase.from('admin_config').select('*');
 
             const typeMapping: any = {
-                tangkap: 'penangkapan',
-                kasus: 'kasus_besar',
-                patroli: 'patroli',
-                backup: 'backup',
-                tilang: 'penilangan',
-                admin: 'admin' // 🚀 MAPPING WEBHOOK & THREAD ADMIN
+                tangkap: 'penangkapan', kasus: 'kasus_besar', patroli: 'patroli',
+                backup: 'backup', tilang: 'penilangan', admin: 'admin'
             };
             const configKeyPrefix = typeMapping[tipe];
 
@@ -121,16 +155,19 @@ export default function LaporanMultiForm() {
                 finalWebhookUrl += `&thread_id=${threadIdData.trim()}`;
             }
 
+            // 🚀 INJECT MULTIPLE FILES TO FORM DATA
             const formDataDiscord = new FormData();
-            formDataDiscord.append("file", foto);
+            fotos.forEach((file, index) => {
+                formDataDiscord.append(`file[${index}]`, file);
+            });
             formDataDiscord.append("payload_json", JSON.stringify({ content: formattedReport }));
 
             const discordResponse = await fetch(finalWebhookUrl, { method: "POST", body: formDataDiscord });
             if (!discordResponse.ok) throw new Error("Discord Webhook menolak laporan! Cek kembali URL/Thread ID.");
 
             const discordData = await discordResponse.json();
+            // Ambil URL foto pertama saja untuk cover di Database Website
             const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
-            if (!discordImageUrl) throw new Error("Gagal mengekstrak URL Foto dari Discord!");
 
             toast.loading("Mencatat Laporan ke Arsip Markas...", { id: tId });
 
@@ -139,14 +176,14 @@ export default function LaporanMultiForm() {
                 jenis_laporan: conf.label,
                 isi_laporan: formattedReport,
                 poin_estimasi: conf.poin,
-                bukti_foto: discordImageUrl,
+                bukti_foto: discordImageUrl, // Foto lain tetap aman & terkirim ke Discord
                 status: 'PENDING',
                 is_sent_discord: true
             }]);
 
             if (insertError) throw insertError;
 
-            toast.success(`LAPORAN ${conf.label.toUpperCase()} TERKIRIM! (Menunggu ACC)`, { id: tId });
+            toast.success(`LAPORAN ${conf.label.toUpperCase()} TERKIRIM!`, { id: tId });
             setTimeout(() => handleNavigation('/dashboard'), 1500);
 
         } catch (err: any) {
@@ -164,7 +201,15 @@ export default function LaporanMultiForm() {
             {/* 🚀 COMPACT HEADER */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button
-                    onClick={() => step === 0 ? handleNavigation('/dashboard') : setStep(0)}
+                    onClick={() => {
+                        if (step === 0) {
+                            handleNavigation('/dashboard');
+                        } else {
+                            setStep(0);
+                            setFotos([]); // Reset foto saat kembali
+                            setPreviews([]);
+                        }
+                    }}
                     className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all"
                 >
                     <ArrowLeft size={18} />
@@ -197,7 +242,6 @@ export default function LaporanMultiForm() {
                     ) : (
                         <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
 
-                            {/* 🚀 COMPACT IDENTITY BADGE */}
                             <div className="flex justify-between items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner">
                                 <div className="truncate flex-1">
                                     <p className="text-[8px] font-black text-slate-400 uppercase italic">Petugas Pelapor</p>
@@ -210,8 +254,6 @@ export default function LaporanMultiForm() {
                             </div>
 
                             <form onSubmit={submitLaporan} className="space-y-4">
-
-                                {/* 🚀 DATE & SHIFT GRID */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <label className={labelStyle}><CalendarIcon size={12} /> Tanggal</label>
@@ -233,7 +275,7 @@ export default function LaporanMultiForm() {
                                     </div>
                                 </div>
 
-                                {/* 🚀 DYNAMIC FIELDS: TANGKAP */}
+                                {/* 🚀 FIELDS TANGKAP */}
                                 {tipe === 'tangkap' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -248,7 +290,7 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 DYNAMIC FIELDS: KASUS, PATROLI, BACKUP */}
+                                {/* 🚀 FIELDS KASUS, PATROLI, BACKUP */}
                                 {(tipe === 'kasus' || tipe === 'patroli' || tipe === 'backup') && (
                                     <>
                                         {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Jenis Kasus</label><input name="jenis_kasus" placeholder="Misal: Perampokan..." required onChange={handleInputChange} className={inputStyle} /></div>}
@@ -259,7 +301,7 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 DYNAMIC FIELD: PENILANGAN */}
+                                {/* 🚀 FIELDS PENILANGAN */}
                                 {tipe === 'tilang' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -288,7 +330,7 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 DYNAMIC FIELD: ADMINISTRASI */}
+                                {/* 🚀 FIELDS ADMINISTRASI */}
                                 {tipe === 'admin' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -320,21 +362,26 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 COMPACT UPLOAD BUKTI */}
-                                <div className="space-y-1 pt-2">
-                                    <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL / SS</label>
-                                    <div className="flex gap-2 items-center">
-                                        {preview && (
-                                            <div className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>
-                                                <img src={preview} className="w-full h-full object-cover" />
-                                                <button type="button" onClick={() => { setFoto(null); setPreview(null); }} className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90"><X size={10} /></button>
+                                {/* 🚀 COMPACT UPLOAD BUKTI MULTI-FOTO */}
+                                <div className="space-y-2 pt-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL</label>
+                                        {tipe === 'admin' && <span className="text-[8px] font-black italic text-red-500 uppercase bg-red-100 px-1 rounded border border-red-200">Min. 2 Foto</span>}
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2 items-center">
+                                        {previews.map((prev, index) => (
+                                            <div key={index} className={`relative w-14 h-14 md:w-16 md:h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>
+                                                <img src={prev} className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => removeFoto(index)} className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90"><X size={10} /></button>
                                             </div>
-                                        )}
-                                        {!preview && (
-                                            <label className={`w-full h-16 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center gap-2 cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-100 transition-colors`}>
+                                        ))}
+
+                                        {previews.length < 4 && (
+                                            <label className={`w-14 h-14 md:w-16 md:h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-100 transition-colors`}>
                                                 <Camera size={16} className="text-slate-400" />
-                                                <span className="text-[10px] font-black italic text-slate-400 uppercase">Lampirkan Foto</span>
-                                                <input type="file" accept="image/*" required onChange={(e: any) => { const f = e.target.files[0]; if (f) { setFoto(f); setPreview(URL.createObjectURL(f)); } }} className="hidden" />
+                                                <span className="text-[7px] md:text-[8px] font-black italic text-slate-400 uppercase leading-none">Tambah</span>
+                                                <input type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" />
                                             </label>
                                         )}
                                     </div>

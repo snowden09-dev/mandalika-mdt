@@ -33,7 +33,7 @@ export async function POST(req: Request) {
             { name: "BRIPDA", id: "1393377097673736264" }, { name: "ABRIPDA", id: "1447257983729008823" },
             { name: "ABRIPTU", id: "1447257808595587173" }, { name: "ABRIGPOL", id: "1468235299346845726" },
             { name: "BHARAKA", id: "1468236252028469552" }, { name: "BHARATU", id: "1414436319873994863" },
-            { name: "BHARADA", id: "1414436059806302339" }
+            { name: "BHARADA", id: "1414436059806302339" }, { name: "BRIGPOL", id: "1428799768045420706" },
         ];
 
         let detectedPangkat = "RECRUIT";

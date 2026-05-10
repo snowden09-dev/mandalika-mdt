@@ -64,11 +64,9 @@ export default function SectionAdminSystem() {
         setIsAuthorized(true);
         if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
-        // 🚀 TAMBAHKAN is_highadmin DI QUERY AGAR BISA DIFILTER NANTI
         const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi, is_highadmin').order('pangkat', { ascending: false });
         if (users) setPersonnel(users);
 
-        // Fetch untuk Tabel Rekap (Berdasarkan Minggu yang dipilih)
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
         if (dutyData) setDuties(dutyData);
 
@@ -82,7 +80,6 @@ export default function SectionAdminSystem() {
 
     // --- 📡 LOGIKA RADAR: DETEKSI RANTAI ALPHA 4 HARI BERUNTUN ---
     const inactiveStats = useMemo(() => {
-        // 1. FILTER PETINGGI: Hapus High Admin & Pangkat Atas dari Radar
         const regularPersonnel = personnel.filter(p => {
             const isHigh = p.is_highadmin === true;
             const isTopRank = EXCLUDED_RANKS.includes(p.pangkat?.toUpperCase());
@@ -93,7 +90,6 @@ export default function SectionAdminSystem() {
         const inactive4: any[] = [];
 
         regularPersonnel.forEach(p => {
-            // Mapping status kehadiran per hari (Senin-Minggu)
             const attendanceMap = daysInWeek.map(day => {
                 const targetStr = format(day, 'yyyy-MM-dd');
                 const hasDuty = duties.some(d => d.user_id_discord === p.discord_id && format(new Date(d.start_time), 'yyyy-MM-dd') === targetStr);
@@ -104,18 +100,16 @@ export default function SectionAdminSystem() {
                     const cur = startOfDay(day);
                     return cur >= s && cur <= e;
                 });
-                return hasDuty || hasCuti; // true jika hadir/cuti, false jika Alpha
+                return hasDuty || hasCuti;
             });
 
             const totalPresence = attendanceMap.filter(a => a === true).length;
 
-            // Kategori 1: ALPHA FULL (7 Hari tidak ada jejak)
             if (totalPresence === 0) {
                 inactive7.push(p);
                 return;
             }
 
-            // Kategori 2: TEGURAN (Cek apakah ada false/Alpha sebanyak 4x berurutan)
             let maxStreak = 0;
             let currentStreak = 0;
             attendanceMap.forEach(isPresent => {
@@ -154,7 +148,6 @@ export default function SectionAdminSystem() {
         }, 800);
     };
 
-    // --- 🛠️ LOGIKA PEMBERSIHAN (PURGE & STORAGE) ---
     const executePurgeOperation = async () => {
         if (purgeInput !== "MANDALIKA") return toast.error("KODE OTORISASI SALAH!");
 
@@ -299,84 +292,105 @@ export default function SectionAdminSystem() {
                             </tr>
                         </thead>
                         <tbody>
-                            {personnel.map((p) => (
-                                <tr key={p.discord_id} className="border-b-2 border-slate-100 hover:bg-slate-50 transition-colors">
-                                    <td className="p-4 border-r-2 border-slate-100 font-black sticky left-0 bg-white group-hover:bg-slate-50 z-10 transition-colors">
-                                        <p className="text-xs uppercase leading-none">{p.name?.split('|').pop()}</p>
-                                        <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase italic opacity-70">{p.pangkat}</p>
-                                    </td>
-                                    {daysInWeek.map((day, idx) => {
-                                        const status = getDayStatus(p.discord_id, day);
-                                        return (
-                                            <td key={idx} className="p-3 border-r-2 border-slate-100 min-w-[150px] align-top">
-                                                {viewMode === 'DETAIL' ? (
-                                                    <>
-                                                        {status.type === 'DUTY' && (
-                                                            <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-start relative">
-                                                                <div className="border-b-2 border-black/20 pb-1 mb-2 flex flex-col items-center">
-                                                                    <div className="font-[1000] text-[11px] uppercase italic flex justify-between w-full text-slate-900">
-                                                                        <span>
-                                                                            {(() => {
-                                                                                const totalMinutes = status.data.reduce((acc: number, d: any) => acc + (d.durasi_menit || 0), 0);
-                                                                                return `${Math.floor(totalMinutes / 60)}H ${totalMinutes % 60}M`;
-                                                                            })()}
-                                                                        </span>
-                                                                        <Clock size={14} />
+                            {personnel.map((p) => {
+                                // 🚀 PARSING LOGIC: Pisah Nama dan Badge
+                                let rawName = p.name || 'UNKNOWN';
+                                if (rawName.includes('|')) {
+                                    rawName = rawName.split('|').pop()?.trim() || rawName;
+                                }
+
+                                let badgeNumber = "-";
+                                if (rawName.startsWith('#')) {
+                                    const spaceIndex = rawName.indexOf(' ');
+                                    if (spaceIndex !== -1) {
+                                        badgeNumber = rawName.substring(1, spaceIndex);
+                                        rawName = rawName.substring(spaceIndex + 1).trim();
+                                    } else {
+                                        badgeNumber = rawName.substring(1);
+                                        rawName = "OFFICER";
+                                    }
+                                }
+                                const cleanName = rawName.toUpperCase();
+
+                                return (
+                                    <tr key={p.discord_id} className="border-b-2 border-slate-100 hover:bg-slate-50 transition-colors">
+                                        <td className="p-4 border-r-2 border-slate-100 font-black sticky left-0 bg-white group-hover:bg-slate-50 z-10 transition-colors">
+                                            <p className="text-xs uppercase leading-none">{cleanName}</p>
+                                            <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase italic opacity-70">{p.pangkat} • #{badgeNumber}</p>
+                                        </td>
+                                        {daysInWeek.map((day, idx) => {
+                                            const status = getDayStatus(p.discord_id, day);
+                                            return (
+                                                <td key={idx} className="p-3 border-r-2 border-slate-100 min-w-[150px] align-top">
+                                                    {viewMode === 'DETAIL' ? (
+                                                        <>
+                                                            {status.type === 'DUTY' && (
+                                                                <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-start relative">
+                                                                    <div className="border-b-2 border-black/20 pb-1 mb-2 flex flex-col items-center">
+                                                                        <div className="font-[1000] text-[11px] uppercase italic flex justify-between w-full text-slate-900">
+                                                                            <span>
+                                                                                {(() => {
+                                                                                    const totalMinutes = status.data.reduce((acc: number, d: any) => acc + (d.durasi_menit || 0), 0);
+                                                                                    return `${Math.floor(totalMinutes / 60)}H ${totalMinutes % 60}M`;
+                                                                                })()}
+                                                                            </span>
+                                                                            <Clock size={14} />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex flex-col gap-2">
+                                                                        {status.data.map((duty: any) => (
+                                                                            <div key={duty.id} className="bg-black/10 border border-black/20 text-slate-900 p-2 rounded-lg flex flex-col gap-1.5 group/item relative">
+                                                                                <div className="flex justify-between items-center border-b border-black/10 pb-1 w-full">
+                                                                                    <span className="font-black text-[9px] uppercase tracking-widest">
+                                                                                        {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
+                                                                                    </span>
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        {duty.bukti_foto && duty.bukti_foto.length > 0 && (
+                                                                                            <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0 })} className="text-blue-700 hover:text-blue-900 transition-colors">
+                                                                                                <ImageIcon size={14} />
+                                                                                            </button>
+                                                                                        )}
+                                                                                        <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-red-600 hover:text-red-800 transition-colors opacity-0 group-hover/item:opacity-100">
+                                                                                            <X size={14} />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <p className="text-[8px] font-bold italic opacity-80 leading-tight whitespace-normal break-words line-clamp-3">
+                                                                                    {duty.catatan_duty || "Tidak ada laporan"}
+                                                                                </p>
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
                                                                 </div>
-
-                                                                <div className="flex flex-col gap-2">
-                                                                    {status.data.map((duty: any) => (
-                                                                        <div key={duty.id} className="bg-black/10 border border-black/20 text-slate-900 p-2 rounded-lg flex flex-col gap-1.5 group/item relative">
-                                                                            <div className="flex justify-between items-center border-b border-black/10 pb-1 w-full">
-                                                                                <span className="font-black text-[9px] uppercase tracking-widest">
-                                                                                    {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
-                                                                                </span>
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    {duty.bukti_foto && duty.bukti_foto.length > 0 && (
-                                                                                        <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0 })} className="text-blue-700 hover:text-blue-900 transition-colors">
-                                                                                            <ImageIcon size={14} />
-                                                                                        </button>
-                                                                                    )}
-                                                                                    <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-red-600 hover:text-red-800 transition-colors opacity-0 group-hover/item:opacity-100">
-                                                                                        <X size={14} />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </div>
-                                                                            <p className="text-[8px] font-bold italic opacity-80 leading-tight whitespace-normal break-words line-clamp-3">
-                                                                                {duty.catatan_duty || "Tidak ada laporan"}
-                                                                            </p>
-                                                                        </div>
-                                                                    ))}
+                                                            )}
+                                                            {status.type === 'CUTI' && (
+                                                                <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-center items-center text-center relative group/card">
+                                                                    <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
+                                                                    <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>
+                                                                    <div className="w-full mt-2 bg-yellow-400/30 p-2 rounded border border-black/10">
+                                                                        <p className="text-[9px] font-bold opacity-80 uppercase italic whitespace-normal break-words leading-tight">{status.data.alasan}</p>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                        {status.type === 'CUTI' && (
-                                                            <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-center items-center text-center relative group/card">
-                                                                <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
-                                                                <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>
-                                                                <div className="w-full mt-2 bg-yellow-400/30 p-2 rounded border border-black/10">
-                                                                    <p className="text-[9px] font-bold opacity-80 uppercase italic whitespace-normal break-words leading-tight">{status.data.alasan}</p>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <div className="flex justify-center items-center h-full">
-                                                        {status.type === 'DUTY' ? (
-                                                            <div className="bg-[#A3E635] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">DUTY</div>
-                                                        ) : status.type === 'CUTI' ? (
-                                                            <div className="bg-[#FFD100] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">CUTI</div>
-                                                        ) : (
-                                                            <div className="bg-[#FF4D4D] text-white font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic opacity-80">ALPHA</div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex justify-center items-center h-full">
+                                                            {status.type === 'DUTY' ? (
+                                                                <div className="bg-[#A3E635] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">DUTY</div>
+                                                            ) : status.type === 'CUTI' ? (
+                                                                <div className="bg-[#FFD100] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">CUTI</div>
+                                                            ) : (
+                                                                <div className="bg-[#FF4D4D] text-white font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic opacity-80">ALPHA</div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -534,12 +548,29 @@ export default function SectionAdminSystem() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {inactiveStats.inactive7.length > 0 ? (
-                                    inactiveStats.inactive7.map((p, i) => (
-                                        <div key={i} className="bg-white border-4 border-red-300 p-4 rounded-xl flex items-center justify-between">
-                                            <span className="font-[1000] text-lg uppercase truncate">{p.name?.split('|').pop()}</span>
-                                            <span className="bg-red-600 text-white px-2 py-1 text-[10px] font-black rounded">{p.pangkat}</span>
-                                        </div>
-                                    ))
+                                    inactiveStats.inactive7.map((p, i) => {
+                                        let rawName = p.name || 'UNKNOWN';
+                                        if (rawName.includes('|')) rawName = rawName.split('|').pop()?.trim() || rawName;
+                                        let badgeNumber = "-";
+                                        if (rawName.startsWith('#')) {
+                                            const spaceIndex = rawName.indexOf(' ');
+                                            if (spaceIndex !== -1) {
+                                                badgeNumber = rawName.substring(1, spaceIndex);
+                                                rawName = rawName.substring(spaceIndex + 1).trim();
+                                            } else {
+                                                badgeNumber = rawName.substring(1);
+                                                rawName = "OFFICER";
+                                            }
+                                        }
+                                        const cleanName = rawName.toUpperCase();
+
+                                        return (
+                                            <div key={i} className="bg-white border-4 border-red-300 p-4 rounded-xl flex items-center justify-between">
+                                                <span className="font-[1000] text-lg uppercase truncate">{cleanName}</span>
+                                                <span className="bg-red-600 text-white px-2 py-1 text-[10px] font-black rounded">{p.pangkat} • #{badgeNumber}</span>
+                                            </div>
+                                        )
+                                    })
                                 ) : (
                                     <div className="col-span-2 text-center py-4 font-black italic opacity-40 text-red-800">Nihil. Seluruh personel aman.</div>
                                 )}
@@ -554,12 +585,29 @@ export default function SectionAdminSystem() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {inactiveStats.inactive4.length > 0 ? (
-                                    inactiveStats.inactive4.map((p, i) => (
-                                        <div key={i} className="bg-white border-4 border-yellow-300 p-4 rounded-xl flex items-center justify-between">
-                                            <span className="font-[1000] text-lg uppercase truncate">{p.name?.split('|').pop()}</span>
-                                            <span className="bg-yellow-500 text-slate-900 px-2 py-1 text-[10px] font-black rounded">{p.pangkat}</span>
-                                        </div>
-                                    ))
+                                    inactiveStats.inactive4.map((p, i) => {
+                                        let rawName = p.name || 'UNKNOWN';
+                                        if (rawName.includes('|')) rawName = rawName.split('|').pop()?.trim() || rawName;
+                                        let badgeNumber = "-";
+                                        if (rawName.startsWith('#')) {
+                                            const spaceIndex = rawName.indexOf(' ');
+                                            if (spaceIndex !== -1) {
+                                                badgeNumber = rawName.substring(1, spaceIndex);
+                                                rawName = rawName.substring(spaceIndex + 1).trim();
+                                            } else {
+                                                badgeNumber = rawName.substring(1);
+                                                rawName = "OFFICER";
+                                            }
+                                        }
+                                        const cleanName = rawName.toUpperCase();
+
+                                        return (
+                                            <div key={i} className="bg-white border-4 border-yellow-300 p-4 rounded-xl flex items-center justify-between">
+                                                <span className="font-[1000] text-lg uppercase truncate">{cleanName}</span>
+                                                <span className="bg-yellow-500 text-slate-900 px-2 py-1 text-[10px] font-black rounded">{p.pangkat} • #{badgeNumber}</span>
+                                            </div>
+                                        )
+                                    })
                                 ) : (
                                     <div className="col-span-2 text-center py-4 font-black italic opacity-40 text-yellow-800">Nihil. Seluruh personel aman.</div>
                                 )}

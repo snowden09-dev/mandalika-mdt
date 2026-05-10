@@ -25,7 +25,7 @@ export default function AbsenPage() {
     const [activeTab, setActiveTab] = useState<'DUTY' | 'CUTI'>('DUTY');
     const [loading, setLoading] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
-    const [identity, setIdentity] = useState({ nama: 'MENDETEKSI...', pangkat: '...', divisi: '...', discordId: '' });
+    const [identity, setIdentity] = useState({ nama: 'MENDETEKSI...', pangkat: '...', badgeNumber: '...', divisi: '...', discordId: '' });
 
     const [tanggalDuty, setTanggalDuty] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [jamAwal, setJamAwal] = useState('08:00');
@@ -48,8 +48,28 @@ export default function AbsenPage() {
             const dId = user.user_metadata?.provider_id || user.id;
             const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', dId).maybeSingle();
             if (data) {
-                const cleanName = data.name.includes('|') ? data.name.split('|')[1].trim() : data.name;
-                setIdentity({ nama: cleanName.toUpperCase(), pangkat: data.pangkat.toUpperCase(), divisi: data.divisi?.toUpperCase() || 'UNIT', discordId: dId });
+                // 🚀 PARSING LOGIC: Pisah Nama dan Badge
+                let rawName = data.name.includes('|') ? data.name.split('|')[1].trim() : data.name;
+                let badge = "-";
+
+                if (rawName && rawName.startsWith('#')) {
+                    const spaceIndex = rawName.indexOf(' ');
+                    if (spaceIndex !== -1) {
+                        badge = rawName.substring(1, spaceIndex);
+                        rawName = rawName.substring(spaceIndex + 1).trim();
+                    } else {
+                        badge = rawName.substring(1);
+                        rawName = "OFFICER";
+                    }
+                }
+
+                setIdentity({
+                    nama: rawName.toUpperCase(),
+                    pangkat: data.pangkat.toUpperCase(),
+                    badgeNumber: badge,
+                    divisi: data.divisi?.toUpperCase() || 'UNIT',
+                    discordId: dId
+                });
             }
         }
         getActiveUser();
@@ -108,7 +128,7 @@ export default function AbsenPage() {
             let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
             if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
 
-            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL (BAHASA LEBIH MUDAH DIPAHAMI)
+            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL
             const nowWithBuffer = new Date(Date.now() + 5 * 60000);
             if (startObj > nowWithBuffer) {
                 return showErrorToast("Loh, kok jam mulainya aneh? Masa kamu absen di jam yang belum terjadi? Coba cek lagi jamnya.\n\nPENTING: Kalau kamu baru selesai dinas malam (lewat jam 12 malam), TANGGALNYA harus diganti ke HARI KEMARIN ya!");
@@ -295,14 +315,18 @@ export default function AbsenPage() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
 
                 {/* 🚀 COMPACT IDENTITY BADGE */}
-                <div className="flex justify-between items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner">
-                    <div className="truncate">
+                <div className="grid grid-cols-3 gap-2 items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner text-center">
+                    <div className="truncate text-left">
                         <p className="text-[8px] font-black text-slate-400 uppercase italic">Personnel</p>
-                        <p className="text-xs font-black uppercase truncate">{identity.nama}</p>
+                        <p className="text-[10px] md:text-xs font-black uppercase truncate">{identity.nama}</p>
                     </div>
-                    <div className="text-right shrink-0 ml-3">
+                    <div className="truncate border-x-2 border-slate-300 px-1">
                         <p className="text-[8px] font-black text-slate-400 uppercase italic">Rank</p>
-                        <p className="text-xs font-black uppercase text-blue-600">{identity.pangkat}</p>
+                        <p className="text-[10px] md:text-xs font-black uppercase text-blue-600 truncate">{identity.pangkat}</p>
+                    </div>
+                    <div className="truncate text-right">
+                        <p className="text-[8px] font-black text-slate-400 uppercase italic">Badge</p>
+                        <p className="text-[10px] md:text-xs font-black uppercase text-slate-800 truncate">#{identity.badgeNumber}</p>
                     </div>
                 </div>
 

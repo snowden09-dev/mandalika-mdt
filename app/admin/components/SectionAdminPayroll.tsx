@@ -23,7 +23,6 @@ const PETINGGI_RANKS = ['JENDRAL', 'WAKAPOLRI', 'KAPOLRI', 'KOMJEN', 'IRJEN', 'B
 const getLocalSafeDate = (isoString: string) => {
     if (!isoString) return new Date();
     const d = new Date(isoString);
-    // Dorong 12 Jam ke depan agar zona waktu UTC tidak bergeser ke hari sebelumnya di Indonesia
     d.setHours(d.getHours() + 12);
     return d;
 };
@@ -115,7 +114,6 @@ export default function SectionAdminPayroll() {
         }
     };
 
-    // 🚀 DAFTAR PERIODE MINGGUAN (Untuk Tab Rekap)
     const availablePeriods = useMemo(() => {
         const periods = new Set<string>();
         requests.filter(r => r.status === 'PAID' && r.tanggal_mulai && r.tanggal_selesai).forEach(r => {
@@ -133,6 +131,27 @@ export default function SectionAdminPayroll() {
             const end = startOfDay(getLocalSafeDate(req.tanggal_selesai));
             const daysInPeriod = eachDayOfInterval({ start, end });
             const discordId = req.user_id_discord;
+
+            // 🚀 PARSING NAMA DAN BADGE
+            let rawName = req.nama_panggilan || "OFFICER";
+            let badgeNumber = "-";
+
+            if (rawName.includes('|')) {
+                rawName = rawName.split('|').pop()?.trim() || rawName;
+            }
+
+            if (rawName.startsWith('#')) {
+                const spaceIndex = rawName.indexOf(' ');
+                if (spaceIndex !== -1) {
+                    badgeNumber = rawName.substring(1, spaceIndex);
+                    rawName = rawName.substring(spaceIndex + 1).trim();
+                } else {
+                    badgeNumber = rawName.substring(1);
+                    rawName = "OFFICER";
+                }
+            }
+
+            const cleanName = rawName.toUpperCase();
 
             let hadirCount = 0; let cutiCount = 0;
 
@@ -156,7 +175,6 @@ export default function SectionAdminPayroll() {
 
             const isPAID = req.status === 'PAID' || req.status === 'REJECTED';
 
-            // Ekstraksi darurat untuk slip lama (Hanya dipanggil jika data sudah dibayar)
             const extractLegacy = (key: string) => {
                 const match = (req.keterangan_admin || "").match(new RegExp(`${key}:\\s*(-?\\d+)`));
                 return match ? parseInt(match[1], 10) : 0;
@@ -166,13 +184,12 @@ export default function SectionAdminPayroll() {
                 return match ? match[1].trim() : 'Penyesuaian Manual';
             };
 
-            // 🚀 BILA SUDAH DIBAYAR: KUNCI DATA, JANGAN HITUNG ULANG!
             if (isPAID) {
                 const legacyAdj = extractLegacy('ADJ') !== 0 ? extractLegacy('ADJ') : extractLegacy('BONS');
                 return {
                     ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                     total_hari: daysInPeriod.length, tilangCount: tilangData.length,
-                    isTargetMet, isSatlantas, isPetinggi,
+                    isTargetMet, isSatlantas, isPetinggi, cleanName, badgeNumber,
                     baseGaji: extractLegacy('BASE') || req.jumlah_gaji,
                     potonganAlpha: extractLegacy('ALPH'),
                     potonganCuti: extractLegacy('CUTI'),
@@ -182,7 +199,6 @@ export default function SectionAdminPayroll() {
                 };
             }
 
-            // 🚀 BILA MASIH PENDING: ADMIN MENGHITUNG ULANG PAKSA DARI AWAL
             const weeksCount = daysInPeriod.length >= 13 ? 2 : 1;
             const baseGajiPokok = getGajiByRank(req.pangkat) * weeksCount;
 
@@ -205,7 +221,7 @@ export default function SectionAdminPayroll() {
             return {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
-                isTargetMet, isSatlantas, isPetinggi,
+                isTargetMet, isSatlantas, isPetinggi, cleanName, badgeNumber,
                 baseGaji: baseGajiSubmit,
                 potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
             };
@@ -214,8 +230,6 @@ export default function SectionAdminPayroll() {
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return augmentedRequests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
-
-        // 🔥 FILTER REKAP BERDASARKAN PERIODE
         if (activeTab === 'REKAP') {
             let data = augmentedRequests.filter(r => r.status === 'PAID');
             if (selectedPeriod !== 'ALL') {
@@ -227,7 +241,6 @@ export default function SectionAdminPayroll() {
             }
             return data;
         }
-
         if (activeTab === 'REJECTED') return augmentedRequests.filter(r => r.status === 'REJECTED');
         return augmentedRequests.filter(r => r.status === 'PENDING');
     }, [augmentedRequests, activeTab, selectedPeriod]);
@@ -287,7 +300,7 @@ export default function SectionAdminPayroll() {
             const THREAD_ID = configData?.find(c => c.key === 'thread_payroll')?.value || "1467455553214353440";
 
             const blob = await (await fetch(capturedImg)).blob();
-            const file = new File([blob], `Payslip_${currentSlipData.nama_panggilan}.png`, { type: 'image/png' });
+            const file = new File([blob], `Payslip_${currentSlipData.cleanName}.png`, { type: 'image/png' });
 
             const formData = new FormData();
             formData.append("file", file);
@@ -332,7 +345,7 @@ export default function SectionAdminPayroll() {
 
         const { error } = await supabase.from('pengajuan_gaji').update({
             status,
-            jumlah_gaji: status === 'PAID' ? reqToApprove.finalGaji : 0, // Kalo REJECTED, payout 0
+            jumlah_gaji: status === 'PAID' ? reqToApprove.finalGaji : 0,
             keterangan_admin: adminNotes
         }).eq('id', id);
 
@@ -356,12 +369,27 @@ export default function SectionAdminPayroll() {
         } catch (e) { toast.error("Gagal menghapus data!"); }
     };
 
+    // 🚀 ENGINE MEMBERSIHKAN NAMA ADMIN DI SLIP GAJI
     const getAdminName = (notes: string) => {
         if (!notes) return 'HIGH COMMAND';
         let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');
         const alphIndex = str.indexOf('- ALPH:');
         if (alphIndex !== -1) str = str.substring(0, alphIndex);
-        return str.trim();
+        str = str.trim();
+
+        // Parse jika admin name masih mengandung | atau #
+        if (str.includes('|')) {
+            str = str.split('|').pop()?.trim() || str;
+        }
+        if (str.startsWith('#')) {
+            const spaceIndex = str.indexOf(' ');
+            if (spaceIndex !== -1) {
+                str = str.substring(spaceIndex + 1).trim();
+            } else {
+                str = "ADMIN";
+            }
+        }
+        return str.toUpperCase();
     };
 
     const PaginationControls = () => {
@@ -402,7 +430,6 @@ export default function SectionAdminPayroll() {
                 </div>
 
                 <div className="flex w-full lg:w-auto flex-col lg:flex-row items-center gap-3">
-                    {/* 🚀 DROPDOWN FILTER PERIODE KHUSUS REKAP */}
                     {activeTab === 'REKAP' && (
                         <div className="flex items-center gap-2 bg-slate-100 p-2 border-2 border-black rounded-xl w-full lg:w-auto">
                             <Filter size={16} className="text-slate-500" />
@@ -456,8 +483,8 @@ export default function SectionAdminPayroll() {
                                         paginatedData.map((req, idx) => (
                                             <tr key={req.id} className={cn("border-b-2 border-slate-100 hover:bg-slate-50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
                                                 <td className="p-4 border-r-2 border-slate-100">
-                                                    <p className="text-xs font-[1000] uppercase italic leading-none">{req.nama_panggilan}</p>
-                                                    <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat}</p>
+                                                    <p className="text-xs font-[1000] uppercase italic leading-none">{req.cleanName}</p>
+                                                    <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat} • #{req.badgeNumber}</p>
                                                 </td>
                                                 <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
                                                     {format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM/yy')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM/yy')}
@@ -500,8 +527,8 @@ export default function SectionAdminPayroll() {
                                 <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
                                     <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-start border-b-[4px] border-black">
                                         <div>
-                                            <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-lg">{req.nama_panggilan}</h4>
-                                            <p className="text-[9px] font-bold text-[#A3E635] mt-1 uppercase italic">{req.pangkat} • {req.divisi || 'UNIT'}</p>
+                                            <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-lg">{req.cleanName}</h4>
+                                            <p className="text-[9px] font-bold text-[#A3E635] mt-1 uppercase italic">{req.pangkat} • #{req.badgeNumber} • {req.divisi || 'UNIT'}</p>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             <div className="bg-slate-800 p-1.5 rounded-lg border-2 border-slate-700 text-[9px] font-black uppercase text-center shrink-0">
@@ -703,10 +730,12 @@ export default function SectionAdminPayroll() {
                             <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{currentSlipData.id.substring(0, 6).toUpperCase()}</div>
                         </div>
 
+                        {/* 🚀 LAYOUT PAYSLIP HEADER BARU: PISAH BADGE & DIVISI */}
                         <div className="grid grid-cols-2 gap-10 relative z-10">
-                            <div className="space-y-6">
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Personel</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{currentSlipData.nama_panggilan}</p></div>
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Divisi</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{currentSlipData.pangkat} / {currentSlipData.divisi || 'UNIT'}</p></div>
+                            <div className="space-y-4">
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Personel</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{currentSlipData.cleanName}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Badge</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{currentSlipData.pangkat} / #{currentSlipData.badgeNumber}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Divisi</p><p className="font-black text-lg uppercase italic border-b-4 border-black/5">{currentSlipData.divisi || 'UNIT'}</p></div>
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Periode Gaji</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(getLocalSafeDate(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(getLocalSafeDate(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
                             <div className="space-y-6">
@@ -720,7 +749,6 @@ export default function SectionAdminPayroll() {
                             </div>
                         </div>
 
-                        {/* 🚀 LOGIKA SLIP RESMI TELAH DIPERBARUI */}
                         <div className="border-4 border-black p-6 rounded-2xl relative z-10 bg-white">
                             <h4 className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-4">Rincian Kompensasi</h4>
                             <div className="space-y-3">
@@ -754,7 +782,7 @@ export default function SectionAdminPayroll() {
                         <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676] relative z-10">
                             <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(currentSlipData.jumlah_gaji).toLocaleString()}</h3></div>
                             <div className="bg-white p-2 border-4 border-black">
-                                <QRCode size={85} value={`AUTH:${currentSlipData.id}|${currentSlipData.nama_panggilan}`} viewBox={`0 0 256 256`} />
+                                <QRCode size={85} value={`AUTH:${currentSlipData.id}|${currentSlipData.cleanName}`} viewBox={`0 0 256 256`} />
                             </div>
                         </div>
 

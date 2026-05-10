@@ -44,6 +44,9 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [selectedSlip, setSelectedSlip] = useState<any>(null);
 
+    // 🚀 STATE PERINGATAN HARI MINGGU
+    const [showSundayWarning, setShowSundayWarning] = useState(false);
+
     const [notif, setNotif] = useState<{ show: boolean, title: string, message: string, type: 'ERROR' | 'SUCCESS' | 'INFO' }>({
         show: false, title: '', message: '', type: 'INFO'
     });
@@ -54,6 +57,46 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     const showNotif = (title: string, message: string, type: 'ERROR' | 'SUCCESS' | 'INFO') => {
         setNotif({ show: true, title, message, type });
     };
+
+    // 🚀 PARSING LOGIC: Pisah Nama dan Badge
+    const parsedName = useMemo(() => {
+        let rawName = nickname || 'UNKNOWN';
+        if (rawName.includes('|')) {
+            rawName = rawName.split('|').pop()?.trim() || rawName;
+        }
+        let badgeNumber = "-";
+        if (rawName.startsWith('#')) {
+            const spaceIndex = rawName.indexOf(' ');
+            if (spaceIndex !== -1) {
+                badgeNumber = rawName.substring(1, spaceIndex);
+                rawName = rawName.substring(spaceIndex + 1).trim();
+            } else {
+                badgeNumber = rawName.substring(1);
+                rawName = "OFFICER";
+            }
+        }
+        return { cleanName: rawName.toUpperCase(), badgeNumber };
+    }, [nickname]);
+
+    const slipParsed = useMemo(() => {
+        if (!selectedSlip) return { cleanName: '', badgeNumber: '' };
+        let rawName = selectedSlip.nama_panggilan || 'UNKNOWN';
+        if (rawName.includes('|')) {
+            rawName = rawName.split('|').pop()?.trim() || rawName;
+        }
+        let badgeNumber = "-";
+        if (rawName.startsWith('#')) {
+            const spaceIndex = rawName.indexOf(' ');
+            if (spaceIndex !== -1) {
+                badgeNumber = rawName.substring(1, spaceIndex);
+                rawName = rawName.substring(spaceIndex + 1).trim();
+            } else {
+                badgeNumber = rawName.substring(1);
+                rawName = "OFFICER";
+            }
+        }
+        return { cleanName: rawName.toUpperCase(), badgeNumber };
+    }, [selectedSlip]);
 
     const getGajiByRank = (pangkat: string) => {
         const p = pangkat?.toUpperCase().trim() || "";
@@ -155,7 +198,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         else day < range.from ? setRange({ from: day, to: range.from }) : setRange({ from: range.from, to: day });
     };
 
-    const handleGenerateSalary = async () => {
+    const handleGenerateSalary = async (bypassSundayCheck = false) => {
         if (!range.from || !range.to) {
             showNotif("DATA BELUM LENGKAP", "Harap pilih rentang tanggal pada kalender!", "INFO");
             return;
@@ -191,7 +234,24 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const { data: { user } } = await supabase.auth.getUser();
             const discordId = user?.user_metadata?.provider_id || user?.id;
 
-            // 🚀 BUG FIXED: Format jam untuk range.to dikunci di 00:00:00 untuk mencegah Admin System membaca sebagai hari ke-8
+            // 🚀 RADAR CEK ABSEN HARI MINGGU
+            if (!bypassSundayCheck) {
+                const checkStart = format(endDayObj, 'yyyy-MM-dd') + "T00:00:00+07:00";
+                const checkEnd = format(endDayObj, 'yyyy-MM-dd') + "T23:59:59+07:00";
+
+                const { data: dutyCheck } = await supabase.from('presensi_duty')
+                    .select('id')
+                    .eq('user_id_discord', discordId)
+                    .gte('start_time', checkStart)
+                    .lte('start_time', checkEnd);
+
+                if (!dutyCheck || dutyCheck.length === 0) {
+                    setShowSundayWarning(true);
+                    setIsVerifying(false);
+                    return;
+                }
+            }
+
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
             const endStr = format(range.to, 'yyyy-MM-dd') + "T00:00:00+07:00";
 
@@ -267,7 +327,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     <div>
                         <p className="text-[10px] font-black uppercase italic bg-black text-[#00E676] px-2 py-0.5 inline-block mb-2 tracking-widest">Finance System Ready</p>
                         <h1 className="text-4xl md:text-6xl font-[1000] italic tracking-tighter uppercase leading-none text-black">PAYROLL</h1>
-                        <p className="font-black text-black opacity-60 text-sm mt-2 italic">Officer: {nickname}</p>
+                        <p className="font-black text-black opacity-60 text-sm mt-2 italic">Officer: {parsedName.cleanName} • #{parsedName.badgeNumber}</p>
                     </div>
                 </div>
             </div>
@@ -366,7 +426,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                         })}
                     </div>
                 </div>
-                <button disabled={isVerifying || !range.from || !range.to} onClick={handleGenerateSalary} className="mt-auto w-full bg-black text-[#A3E635] py-4 font-[1000] italic uppercase shadow-[6px_6px_0_0_#FF4D4D] active:translate-y-1 active:shadow-none transition-all disabled:opacity-50 flex items-center justify-center gap-3">{isVerifying ? "Verifying..." : "Kirim Pengajuan"} <Send size={18} /></button>
+                <button disabled={isVerifying || !range.from || !range.to} onClick={() => handleGenerateSalary(false)} className="mt-auto w-full bg-black text-[#A3E635] py-4 font-[1000] italic uppercase shadow-[6px_6px_0_0_#FF4D4D] active:translate-y-1 active:shadow-none transition-all disabled:opacity-50 flex items-center justify-center gap-3">{isVerifying ? "Verifying..." : "Kirim Pengajuan"} <Send size={18} /></button>
             </div>
 
             {/* HISTORY LOG */}
@@ -431,8 +491,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                         {/* DETAIL LENGKAP */}
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-6">
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Lengkap</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{selectedSlip.nama_panggilan}</p></div>
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Divisi</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{selectedSlip.pangkat} / {selectedSlip.divisi || 'UNIT'}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Lengkap</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{slipParsed.cleanName}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Divisi</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{selectedSlip.pangkat} • #{slipParsed.badgeNumber} / {selectedSlip.divisi || 'UNIT'}</p></div>
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Periode Gaji</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(selectedSlip.tanggal_mulai), 'dd MMM')} - {format(new Date(selectedSlip.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
                             <div className="space-y-6">
@@ -459,6 +519,31 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     </div>
                 </div>
             )}
+
+            {/* 🛑 MODAL KONFIRMASI HARI MINGGU */}
+            <AnimatePresence>
+                {showSundayWarning && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className={`w-full max-w-sm bg-white ${boxBorder} ${hardShadow} overflow-hidden`}>
+                            <div className="p-4 border-b-4 border-black flex items-center justify-between bg-[#FFD100]">
+                                <div className="flex items-center gap-3 text-black">
+                                    <AlertTriangle size={24} />
+                                    <h3 className="font-[1000] italic uppercase tracking-widest">Peringatan Absen</h3>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                <p className="text-sm font-black uppercase italic leading-relaxed text-black">
+                                    Belum ada data absen/duty untuk <span className="bg-black text-[#FFD100] px-1">hari Minggu</span> di periode ini. Akan ada potongan alpha. Apakah Anda yakin ingin melanjutkan pengajuan gaji?
+                                </p>
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => setShowSundayWarning(false)} className="flex-1 py-3 border-[3px] border-black font-black uppercase italic shadow-[4px_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all bg-slate-200">Batal</button>
+                                    <button onClick={() => { setShowSundayWarning(false); handleGenerateSalary(true); }} className="flex-1 py-3 border-[3px] border-black font-black uppercase italic shadow-[4px_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all bg-[#FF4D4D] text-white">Lanjutkan</button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* MODAL NOTIFIKASI NEO-BRUTALISM */}
             <AnimatePresence>

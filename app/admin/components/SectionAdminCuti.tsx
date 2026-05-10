@@ -153,71 +153,93 @@ export default function SectionAdminCuti() {
             ) : (
                 <div className="grid grid-cols-1 gap-4 text-slate-950">
                     <AnimatePresence mode="popLayout">
-                        {filteredCuti.map((log) => (
-                            <motion.div
-                                key={log.id}
-                                initial={{ x: -20, opacity: 0 }}
-                                animate={{ x: 0, opacity: 1 }}
-                                className={`bg-white ${boxBorder} ${hardShadow} rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-hidden group`}
-                            >
-                                <div className={cn("absolute left-0 top-0 bottom-0 w-2", viewMode === 'PETINGGI' ? 'bg-[#FFD100]' : 'bg-[#3B82F6]')} />
+                        {filteredCuti.map((log) => {
+                            // 🚀 PARSING LOGIC: Pisah Nama dan Badge
+                            let rawName = log.nama_panggilan || 'UNKNOWN';
+                            if (rawName.includes('|')) {
+                                rawName = rawName.split('|').pop()?.trim() || rawName;
+                            }
 
-                                <div className="flex items-center gap-6 w-full md:w-auto">
-                                    <div className="w-16 h-16 bg-slate-100 border-2 border-black rounded-xl flex items-center justify-center shrink-0 shadow-[3px_3px_0px_#000]">
-                                        {viewMode === 'PETINGGI' ? <Crown size={30} className="text-[#FFD100]" /> : <Briefcase size={30} className="text-slate-400" />}
+                            let badgeNumber = "-";
+                            if (rawName.startsWith('#')) {
+                                const spaceIndex = rawName.indexOf(' ');
+                                if (spaceIndex !== -1) {
+                                    badgeNumber = rawName.substring(1, spaceIndex);
+                                    rawName = rawName.substring(spaceIndex + 1).trim();
+                                } else {
+                                    badgeNumber = rawName.substring(1);
+                                    rawName = "OFFICER";
+                                }
+                            }
+                            const cleanName = rawName.toUpperCase();
+
+                            return (
+                                <motion.div
+                                    key={log.id}
+                                    initial={{ x: -20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    className={`bg-white ${boxBorder} ${hardShadow} rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-hidden group`}
+                                >
+                                    <div className={cn("absolute left-0 top-0 bottom-0 w-2", viewMode === 'PETINGGI' ? 'bg-[#FFD100]' : 'bg-[#3B82F6]')} />
+
+                                    <div className="flex items-center gap-6 w-full md:w-auto">
+                                        <div className="w-16 h-16 bg-slate-100 border-2 border-black rounded-xl flex items-center justify-center shrink-0 shadow-[3px_3px_0px_#000]">
+                                            {viewMode === 'PETINGGI' ? <Crown size={30} className="text-[#FFD100]" /> : <Briefcase size={30} className="text-slate-400" />}
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-black text-lg uppercase italic leading-none">
+                                                    {cleanName}
+                                                </h4>
+                                                <span className="bg-slate-950 text-white text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest">
+                                                    {log.pangkat} • #{badgeNumber}
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase italic">
+                                                Alasan: <span className="text-slate-950">"{log.alasan || 'Tidak ada alasan'}"</span>
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            {/* --- FIX SESUAI SCHEMA: nama_panggilan --- */}
-                                            <h4 className="font-black text-lg uppercase italic leading-none">
-                                                {log.nama_panggilan || 'UNKNOWN'}
-                                            </h4>
-                                            <span className="bg-slate-950 text-white text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest">{log.pangkat}</span>
+
+                                    <div className="flex flex-col md:flex-row items-center gap-8 w-full md:w-auto">
+                                        <div className="text-center md:text-right">
+                                            <p className="text-[9px] font-black uppercase opacity-40 mb-1">Durasi Cuti</p>
+                                            <div className="flex items-center gap-2 bg-slate-50 border-2 border-black px-3 py-1 rounded-lg">
+                                                <Clock size={12} />
+                                                <span className="text-[10px] font-black uppercase">
+                                                    {format(new Date(log.tanggal_mulai), 'dd MMM')} — {format(new Date(log.tanggal_selesai), 'dd MMM yyyy')}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase italic">
-                                            Alasan: <span className="text-slate-950">"{log.alasan || 'Tidak ada alasan'}"</span>
-                                        </p>
+
+                                        {statusFilter === 'PENDING' && (
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleAction(log.id, 'REJECTED')}
+                                                    className="bg-[#FF4D4D] border-2 border-black p-3 rounded-xl shadow-[3px_3px_0px_#000] hover:bg-black hover:text-white transition-all active:translate-y-px active:shadow-none"
+                                                >
+                                                    <XCircle size={20} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleAction(log.id, 'APPROVED')}
+                                                    className="bg-[#00E676] border-2 border-black p-3 rounded-xl shadow-[3px_3px_0px_#000] hover:bg-black hover:text-white transition-all active:translate-y-px active:shadow-none"
+                                                >
+                                                    <CheckCircle2 size={20} />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {statusFilter !== 'PENDING' && (
+                                            <div className={cn("px-4 py-2 border-2 border-black rounded-lg font-black text-[10px] uppercase italic",
+                                                statusFilter === 'APPROVED' ? 'bg-[#00E676]' : 'bg-[#FF4D4D]'
+                                            )}>
+                                                {statusFilter}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-
-                                <div className="flex flex-col md:flex-row items-center gap-8 w-full md:w-auto">
-                                    <div className="text-center md:text-right">
-                                        <p className="text-[9px] font-black uppercase opacity-40 mb-1">Durasi Cuti</p>
-                                        <div className="flex items-center gap-2 bg-slate-50 border-2 border-black px-3 py-1 rounded-lg">
-                                            <Clock size={12} />
-                                            <span className="text-[10px] font-black uppercase">
-                                                {format(new Date(log.tanggal_mulai), 'dd MMM')} — {format(new Date(log.tanggal_selesai), 'dd MMM yyyy')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {statusFilter === 'PENDING' && (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleAction(log.id, 'REJECTED')}
-                                                className="bg-[#FF4D4D] border-2 border-black p-3 rounded-xl shadow-[3px_3px_0px_#000] hover:bg-black hover:text-white transition-all active:translate-y-px active:shadow-none"
-                                            >
-                                                <XCircle size={20} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleAction(log.id, 'APPROVED')}
-                                                className="bg-[#00E676] border-2 border-black p-3 rounded-xl shadow-[3px_3px_0px_#000] hover:bg-black hover:text-white transition-all active:translate-y-px active:shadow-none"
-                                            >
-                                                <CheckCircle2 size={20} />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {statusFilter !== 'PENDING' && (
-                                        <div className={cn("px-4 py-2 border-2 border-black rounded-lg font-black text-[10px] uppercase italic",
-                                            statusFilter === 'APPROVED' ? 'bg-[#00E676]' : 'bg-[#FF4D4D]'
-                                        )}>
-                                            {statusFilter}
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))}
+                                </motion.div>
+                            );
+                        })}
                     </AnimatePresence>
                 </div>
             )}

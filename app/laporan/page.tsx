@@ -30,14 +30,14 @@ export default function LaporanMultiForm() {
     const [isNavigating, setIsNavigating] = useState(false);
 
     const [formData, setFormData] = useState({
-        nama_petugas: "", pangkat: "", tanggal: new Date(), waktu_shift: "",
+        nama_petugas: "", pangkat: "", badge_number: "", // 🚀 NEW FIELD BADGE
+        tanggal: new Date(), waktu_shift: "",
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
         divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
         kendaraan: "", masa_penilangan: "", denda: "", kesalahan: "",
         jam_buka: "", jam_tutup: "", kendala_1: "", kendala_2: "", keterangan_1: "", keterangan_2: ""
     });
 
-    // 🚀 UPGRADE: MENDUKUNG MULTI-FOTO
     const [fotos, setFotos] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
 
@@ -53,14 +53,15 @@ export default function LaporanMultiForm() {
         admin: { color: "#8b5cf6", label: "Administrasi", poin: 6, icon: ClipboardList }
     };
 
+    // 🚀 UPDATE FORMAT PESAN DISCORD (MENAMBAHKAN BADGE)
     const getFormatMessage = (d: any) => {
         const tglStr = format(d.tanggal, "yyyy-MM-dd");
-        if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nNama Petugas : ${d.nama_petugas}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'kasus') return `📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nUnit / Divisi : ${d.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'kasus') return `📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nData Petugas\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\`\n${MENTION_ROLE}`;
     };
 
     // --- SYNC SESSION DATA ---
@@ -72,8 +73,28 @@ export default function LaporanMultiForm() {
         const loadProfile = async () => {
             const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', parsed.discord_id).single();
             if (data) {
-                const cleanName = data.name.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
-                setFormData(prev => ({ ...prev, nama_petugas: cleanName || "", pangkat: data.pangkat, divisi: data.divisi || "" }));
+                // 🚀 PARSING LOGIC: Pisah Nama dan Badge
+                let rawName = data.name.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
+                let badge = "-";
+
+                if (rawName && rawName.startsWith('#')) {
+                    const spaceIndex = rawName.indexOf(' ');
+                    if (spaceIndex !== -1) {
+                        badge = rawName.substring(1, spaceIndex);
+                        rawName = rawName.substring(spaceIndex + 1).trim();
+                    } else {
+                        badge = rawName.substring(1);
+                        rawName = "OFFICER";
+                    }
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    nama_petugas: rawName || "",
+                    pangkat: data.pangkat,
+                    badge_number: badge,
+                    divisi: data.divisi || ""
+                }));
             }
         };
         loadProfile();
@@ -81,11 +102,10 @@ export default function LaporanMultiForm() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    // 🚀 MULTI FILE UPLOAD HANDLER
     const handleFileChange = (e: any) => {
         const files = Array.from(e.target.files) as File[];
         if (files.length > 0) {
-            const newFotos = [...fotos, ...files].slice(0, 4); // Batasi max 4 foto agar webhook tidak jebol
+            const newFotos = [...fotos, ...files].slice(0, 4);
             setFotos(newFotos);
             setPreviews(newFotos.map(f => URL.createObjectURL(f)));
         }
@@ -106,7 +126,6 @@ export default function LaporanMultiForm() {
     const submitLaporan = async (e: any) => {
         e.preventDefault();
 
-        // 🚀 VALIDASI KHUSUS ADMINISTRASI
         if (tipe === 'admin') {
             if (fotos.length < 2) return toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan foto Jam Buka & Jam Tutup/Selesai." });
             if (!formData.jam_buka || !formData.jam_tutup) return toast.error("JAM BUKA & TUTUP WAJIB DIISI!");
@@ -116,7 +135,6 @@ export default function LaporanMultiForm() {
             let startMinutes = bukaH * 60 + bukaM;
             let endMinutes = tutupH * 60 + tutupM;
 
-            // Jika shift melewati tengah malam (misal 23:00 s/d 01:00)
             if (endMinutes <= startMinutes) {
                 endMinutes += 24 * 60;
             }
@@ -155,7 +173,6 @@ export default function LaporanMultiForm() {
                 finalWebhookUrl += `&thread_id=${threadIdData.trim()}`;
             }
 
-            // 🚀 INJECT MULTIPLE FILES TO FORM DATA
             const formDataDiscord = new FormData();
             fotos.forEach((file, index) => {
                 formDataDiscord.append(`file[${index}]`, file);
@@ -166,7 +183,6 @@ export default function LaporanMultiForm() {
             if (!discordResponse.ok) throw new Error("Discord Webhook menolak laporan! Cek kembali URL/Thread ID.");
 
             const discordData = await discordResponse.json();
-            // Ambil URL foto pertama saja untuk cover di Database Website
             const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
 
             toast.loading("Mencatat Laporan ke Arsip Markas...", { id: tId });
@@ -176,7 +192,7 @@ export default function LaporanMultiForm() {
                 jenis_laporan: conf.label,
                 isi_laporan: formattedReport,
                 poin_estimasi: conf.poin,
-                bukti_foto: discordImageUrl, // Foto lain tetap aman & terkirim ke Discord
+                bukti_foto: discordImageUrl,
                 status: 'PENDING',
                 is_sent_discord: true
             }]);
@@ -198,7 +214,6 @@ export default function LaporanMultiForm() {
             <TacticalTransition isVisible={isNavigating} type="COMPUTER" />
             <Toaster position="top-center" richColors />
 
-            {/* 🚀 COMPACT HEADER */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button
                     onClick={() => {
@@ -206,7 +221,7 @@ export default function LaporanMultiForm() {
                             handleNavigation('/dashboard');
                         } else {
                             setStep(0);
-                            setFotos([]); // Reset foto saat kembali
+                            setFotos([]);
                             setPreviews([]);
                         }
                     }}
@@ -242,14 +257,19 @@ export default function LaporanMultiForm() {
                     ) : (
                         <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
 
-                            <div className="flex justify-between items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner">
-                                <div className="truncate flex-1">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Petugas Pelapor</p>
-                                    <p className="text-xs font-black uppercase truncate">{formData.nama_petugas}</p>
+                            {/* 🚀 IDENTITY BANNER - NEW LAYOUT UNTUK BADGE */}
+                            <div className="grid grid-cols-3 gap-2 items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner text-center">
+                                <div className="truncate text-left">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Nama</p>
+                                    <p className="text-[10px] md:text-xs font-black uppercase truncate">{formData.nama_petugas}</p>
                                 </div>
-                                <div className="text-right shrink-0 ml-3">
+                                <div className="truncate border-x-2 border-slate-300 px-1">
                                     <p className="text-[8px] font-black text-slate-400 uppercase italic">Pangkat</p>
-                                    <p className="text-xs font-black uppercase text-blue-600">{formData.pangkat}</p>
+                                    <p className="text-[10px] md:text-xs font-black uppercase text-blue-600 truncate">{formData.pangkat}</p>
+                                </div>
+                                <div className="truncate text-right">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Badge</p>
+                                    <p className="text-[10px] md:text-xs font-black uppercase text-slate-800 truncate">#{formData.badge_number}</p>
                                 </div>
                             </div>
 
@@ -275,7 +295,6 @@ export default function LaporanMultiForm() {
                                     </div>
                                 </div>
 
-                                {/* 🚀 FIELDS TANGKAP */}
                                 {tipe === 'tangkap' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -290,7 +309,6 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 FIELDS KASUS, PATROLI, BACKUP */}
                                 {(tipe === 'kasus' || tipe === 'patroli' || tipe === 'backup') && (
                                     <>
                                         {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Jenis Kasus</label><input name="jenis_kasus" placeholder="Misal: Perampokan..." required onChange={handleInputChange} className={inputStyle} /></div>}
@@ -301,7 +319,6 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 FIELDS PENILANGAN */}
                                 {tipe === 'tilang' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -330,7 +347,6 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 FIELDS ADMINISTRASI */}
                                 {tipe === 'admin' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
@@ -362,7 +378,6 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {/* 🚀 COMPACT UPLOAD BUKTI MULTI-FOTO */}
                                 <div className="space-y-2 pt-2">
                                     <div className="flex items-center justify-between">
                                         <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL</label>

@@ -39,7 +39,7 @@ const RANKS_DB = [
     { name: "JENDRAL", prp: 15000, hrs: 1500 },
 ];
 
-const PETINGGI_ROLE_ID = "1393377874077028493";
+const PETINGGI_ROLE_ID = "1449382385090166844";
 
 export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
     const router = useRouter();
@@ -101,9 +101,29 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         setTimeout(() => { router.push(path); }, 3000);
     };
 
-    const cleanName = useMemo(() => {
-        const rawName = userData.name || nickname || "OFFICER";
-        return rawName.includes('|') ? rawName.split('|').pop()?.trim() : rawName;
+    // 🚀 ENGINE PARSING NAMA DAN BADGE
+    const parsedName = useMemo(() => {
+        let rawName = userData.name || nickname || "OFFICER";
+        let badge = null;
+
+        // 1. Backward Compatibility: Bersihkan format lama (Pangkat | Nama)
+        if (rawName.includes('|')) {
+            rawName = rawName.split('|').pop()?.trim() || rawName;
+        }
+
+        // 2. Format Baru: Ekstrak Badge (#3105 Nama)
+        if (rawName.startsWith('#')) {
+            const spaceIndex = rawName.indexOf(' ');
+            if (spaceIndex !== -1) {
+                badge = rawName.substring(1, spaceIndex); // Ambil angka badge
+                rawName = rawName.substring(spaceIndex + 1).trim(); // Ambil nama sisanya
+            } else {
+                badge = rawName.substring(1); // Kalau cuma ketik #3105 tanpa nama
+                rawName = "OFFICER";
+            }
+        }
+
+        return { displayName: rawName, badgeNumber: badge };
     }, [userData.name, nickname]);
 
     const progress = useMemo(() => {
@@ -188,21 +208,31 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     </motion.div>
 
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 text-white" style={{ textShadow: '4px 4px 0 #000, 2px 2px 0 #CCFF00' }}>
-                        {cleanName}
+                        {parsedName.displayName}
                     </h1>
 
                     <div className="flex flex-wrap gap-2 md:gap-3">
+                        {/* 1. RANK TAG */}
                         <span className="relative overflow-hidden bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                             <motion.div animate={{ x: ["-100%", "200%"] }} transition={{ repeat: Infinity, duration: 2.5, ease: "linear", repeatDelay: 1 }} className="absolute inset-0 w-full bg-white/70 skew-x-12" />
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
+                        {/* 2. BADGE TAG (NEW) */}
+                        {parsedName.badgeNumber && (
+                            <span className="bg-white text-black px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
+                                BADGE #{parsedName.badgeNumber}
+                            </span>
+                        )}
+
+                        {/* 3. DIVISI TAG */}
                         {cleanDivisi && (
                             <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
                                 {cleanDivisi}
                             </span>
                         )}
 
+                        {/* 4. PETINGGI TAG */}
                         {isPetinggi && (
                             <span className="bg-slate-950 text-[#00E676] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#00E676] flex items-center gap-1.5">
                                 <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }}><Star size={14} className="fill-[#00E676] text-[#00E676]" /></motion.div> PETINGGI

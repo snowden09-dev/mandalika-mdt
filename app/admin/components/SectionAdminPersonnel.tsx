@@ -110,12 +110,11 @@ export default function SectionAdminPersonnel() {
         return matchSearch && matchDivisi;
     });
 
-    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT (Telah disesuaikan dengan RANKS_DB baru)
+    // 🚀 ENGINE KALKULASI PROGRESS PANGKAT
     const getRankProgress = (pangkat: string, currentPrp: number, currentHrs: number) => {
         const p = pangkat?.toUpperCase().trim() || "CASIS";
         const currentIndex = RANKS_DB.findIndex(r => r.name === p);
 
-        // Jika tidak ketemu atau sudah pangkat tertinggi
         if (currentIndex === -1 || currentIndex === RANKS_DB.length - 1) {
             return { nextRank: "MAX RANK", progress: 100, isReady: false, reqStr: "MAX LEVEL" };
         }
@@ -133,12 +132,10 @@ export default function SectionAdminPersonnel() {
             const gapDidapat = Math.max(0, prpTersimpan - currentRank.prp);
             progressPercent = (gapDidapat / gapTotal) * 100;
         } else {
-            progressPercent = 100; // Untuk bypass pangkat tanpa syarat (CASIS -> RECRUIT -> BHARADA)
+            progressPercent = 100;
         }
 
         if (progressPercent > 100) progressPercent = 100;
-
-        // Harus memenuhi PRP dan Jam Duty untuk siap naik pangkat
         const isReady = prpTersimpan >= nextRank.prp && hrsTersimpan >= nextRank.hrs;
 
         return {
@@ -182,16 +179,16 @@ export default function SectionAdminPersonnel() {
         } catch (error: any) { toast.error(`ERROR: ${error.message}`, { id: tId }); }
     };
 
-    const handleTerminate = async (discordId: string, nama: string) => {
+    const handleTerminate = async (discordId: string, namaClean: string) => {
         if (!isSuperAdmin) return toast.error("Akses Ditolak! Hanya High Admin yang bisa memecat.");
-        const confirmStr = prompt(`Ketik "PECANDAT" untuk MENGHAPUS ${nama} dari database:`);
+        const confirmStr = prompt(`Ketik "PECANDAT" untuk MENGHAPUS ${namaClean} dari database:`);
         if (confirmStr !== "PECANDAT") return toast.error("Terminasi dibatalkan.");
 
         const tId = toast.loading("Membuang data personel...");
         try {
             const { error } = await supabase.from('users').delete().eq('discord_id', discordId);
             if (error) throw error;
-            toast.success(`${nama} TELAH DI-TERMINATE!`, { id: tId });
+            toast.success(`${namaClean} TELAH DI-TERMINATE!`, { id: tId });
             verifyAndFetch();
         } catch (error: any) { toast.error(`ERROR: ${error.message}`, { id: tId }); }
     };
@@ -300,6 +297,25 @@ export default function SectionAdminPersonnel() {
                     {filteredPersonnel.map((p) => {
                         const promoProgress = getRankProgress(p.pangkat, p.point_prp, p.total_jam_duty);
 
+                        // 🚀 PARSING LOGIC: Pisah Nama dan Badge
+                        let rawName = p.name || 'UNKNOWN';
+                        if (rawName.includes('|')) {
+                            rawName = rawName.split('|').pop()?.trim() || rawName;
+                        }
+
+                        let badgeNumber = "-";
+                        if (rawName.startsWith('#')) {
+                            const spaceIndex = rawName.indexOf(' ');
+                            if (spaceIndex !== -1) {
+                                badgeNumber = rawName.substring(1, spaceIndex);
+                                rawName = rawName.substring(spaceIndex + 1).trim();
+                            } else {
+                                badgeNumber = rawName.substring(1);
+                                rawName = "OFFICER";
+                            }
+                        }
+                        const cleanName = rawName.toUpperCase();
+
                         return (
                             <div key={p.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[25px] flex flex-col overflow-hidden relative group`}>
                                 <div className="absolute top-2 right-2 flex flex-col gap-1 items-end z-10">
@@ -312,8 +328,10 @@ export default function SectionAdminPersonnel() {
                                         {p.image ? <Image src={p.image} alt="User" width={56} height={56} className="object-cover w-full h-full" /> : <ShieldAlert size={24} />}
                                     </div>
                                     <div className="flex-1 min-w-0 pr-16 relative z-10">
-                                        <h3 className="font-black text-sm uppercase truncate italic">{p.name?.split('|').pop()?.trim() || 'UNKNOWN'}</h3>
-                                        <p className="text-[10px] font-bold text-[#3B82F6] uppercase tracking-tighter">{p.pangkat} • {p.divisi}</p>
+                                        <h3 className="font-black text-sm uppercase truncate italic">{cleanName}</h3>
+                                        <p className="text-[10px] font-bold text-[#3B82F6] uppercase tracking-tighter truncate">
+                                            {p.pangkat} • #{badgeNumber} • {p.divisi || 'UNIT'}
+                                        </p>
                                     </div>
                                 </div>
 
@@ -361,7 +379,7 @@ export default function SectionAdminPersonnel() {
 
                                 <div className="bg-slate-950 p-3 grid grid-cols-3 gap-2">
                                     <button onClick={() => openEditModal(p)} className="bg-white col-span-2 border-2 border-transparent hover:border-white text-slate-950 py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center gap-2 transition-all italic tracking-tighter"><Edit size={14} /> KELOLA</button>
-                                    <button onClick={() => handleTerminate(p.discord_id, p.name)} className="bg-[#FF4D4D] border-2 border-transparent hover:border-white text-white py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center transition-all"><UserMinus size={14} /></button>
+                                    <button onClick={() => handleTerminate(p.discord_id, cleanName)} className="bg-[#FF4D4D] border-2 border-transparent hover:border-white text-white py-2 rounded-lg font-black text-[10px] uppercase flex justify-center items-center transition-all"><UserMinus size={14} /></button>
                                 </div>
                             </div>
                         );
@@ -400,7 +418,6 @@ export default function SectionAdminPersonnel() {
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                                         <div>
                                             <label className="text-[8px] md:text-[10px] font-black uppercase italic ml-1 mb-1 block">PANGKAT</label>
-                                            {/* 🚀 Dynamic Dropdown Option berdasarkan RANKS_DB Baru */}
                                             <select value={editForm.pangkat} onChange={e => setEditForm({ ...editForm, pangkat: e.target.value })} className={inputStyle} required>
                                                 {RANKS_DB.map((r) => (
                                                     <option key={r.name} value={r.name}>{r.name}</option>

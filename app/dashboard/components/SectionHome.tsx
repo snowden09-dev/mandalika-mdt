@@ -163,15 +163,6 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         fetchTilangMingguan();
     }, [isSatlantas, userData.discord_id, startW, endW]);
 
-    // 🚀 ENGINE MASCOT LOGIC 
-    const mascotLogic = useMemo(() => {
-        if (progress.isReady && !isCasis) return { emoji: "🚀", text: "SIAP NAIK PANGKAT!" };
-        if (isSatlantas && totalTilang >= TARGET_TILANG) return { emoji: "🤑", text: "TARGET GACOR!" };
-        if (Number(userData.total_jam_duty) === 0 && !isCasis) return { emoji: "😴", text: "TIDUR BANG?" };
-        if (isCasis) return { emoji: "📚", text: "BELAJAR RAJIN!" };
-        return { emoji: "🐕‍🦺", text: "SIAP NDAN!" };
-    }, [progress.isReady, isSatlantas, totalTilang, userData.total_jam_duty, isCasis]);
-
     // 🎨 INLINE STYLE UNTUK RPG BAR
     const stripeBg = {
         backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)',
@@ -183,25 +174,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] mt-12 md:mt-16 group`} style={{ zIndex: 10 }}>
-
-                {/* 🚀 ANIMATED MASCOT */}
-                <motion.div
-                    animate={{ y: [0, -20, 0], rotate: [0, 8, -8, 0] }}
-                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                    className="absolute -top-16 right-2 md:-top-20 md:right-8 z-[100] drop-shadow-[0_15px_15px_rgba(0,0,0,0.5)] pointer-events-none"
-                >
-                    <div className="relative">
-                        <motion.div
-                            initial={{ scale: 0 }} animate={{ scale: [0, 1.1, 1] }} transition={{ type: "spring", delay: 0.5 }}
-                            className="absolute -top-8 -left-24 bg-white border-[3.5px] border-black px-4 py-2 rounded-2xl shadow-[5px_5px_0px_#000]"
-                        >
-                            <p className="text-[12px] font-[1000] italic whitespace-nowrap text-black">{mascotLogic.text}</p>
-                            <div className="absolute -bottom-2.5 right-6 w-4 h-4 bg-white border-b-[3.5px] border-r-[3.5px] border-black transform rotate-45"></div>
-                        </motion.div>
-                        <span className="text-[80px] md:text-[100px] leading-none">{mascotLogic.emoji}</span>
-                    </div>
-                </motion.div>
+            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] group`} style={{ zIndex: 10 }}>
 
                 {/* Background Pattern */}
                 <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500 overflow-hidden">

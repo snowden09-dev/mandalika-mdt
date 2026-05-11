@@ -5,19 +5,16 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import {
     Users, Clock, FileText, Camera, Send,
-    Search, ShieldAlert, X, Loader2,
-    Ticket, Zap, Calendar as CalendarIcon, ArrowLeft,
-    CheckCircle2, AlertTriangle, FileSearch
+    Search, AlertTriangle, ShieldAlert, X, Loader2,
+    Ticket, Zap, Calendar as CalendarIcon
 } from 'lucide-react';
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { toast, Toaster } from "sonner";
-import { motion, AnimatePresence } from 'framer-motion';
 
-// --- UI COMPACT UNTUK MOBILE ---
-const boxBorder = "border-[2px] border-slate-950";
-const cardShadow = "shadow-[4px_4px_0px_#000]";
-const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-lg px-3 py-2 text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000]`;
-const labelStyle = "text-[9px] font-black uppercase tracking-widest text-slate-950 ml-1 mb-1.5 flex items-center gap-1.5 italic";
+const boxBorder = "border-[3.5px] border-slate-950";
+const hardShadow = "shadow-[6px_6px_0px_#000]";
+const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white focus:border-blue-600 transition-all shadow-[3px_3px_0px_#000]`;
+const labelStyle = `text-[10px] font-black uppercase italic text-slate-500 mb-1.5 flex items-center gap-2`;
 
 // --- CONFIG LAPORAN ---
 const CONFIG: any = {
@@ -41,19 +38,18 @@ export default function SectionAdminManipulasi() {
     const [dataType, setDataType] = useState<'DUTY' | 'LAPORAN'>('DUTY');
     const [fotos, setFotos] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
-    const [previewModalInfo, setPreviewModalInfo] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         // Global / Duty
         date: format(new Date(), 'yyyy-MM-dd'),
-        jamAwal: '08:00',
-        jamAkhir: '16:00',
-        keterangan: '',
+        startTime: '08:00',
+        endTime: '10:00',
+        catatan_override: '', // Catatan Admin
 
         // Specific Laporan Fields
         tipeLaporan: 'tilang',
         waktu_shift: '', nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
-        jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "",
+        jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
         kendaraan: "", masa_penilangan: "", denda: "", kesalahan: "",
         jam_buka: "", jam_tutup: "", kendala_1: "", kendala_2: "", keterangan_1: "", keterangan_2: ""
     });
@@ -74,6 +70,20 @@ export default function SectionAdminManipulasi() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+    const handleFileChange = (e: any) => {
+        const files = Array.from(e.target.files) as File[];
+        if (files.length > 0) {
+            const newFotos = [...fotos, ...files].slice(0, 4);
+            setFotos(newFotos);
+            setPreviews(newFotos.map(f => URL.createObjectURL(f)));
+        }
+    };
+
+    const removeFoto = (idx: number) => {
+        setFotos(prev => prev.filter((_, i) => i !== idx));
+        setPreviews(prev => prev.filter((_, i) => i !== idx));
+    };
+
     // 🚀 PARSING IDENTITAS
     const parseIdentity = (user: any) => {
         let rawName = user?.name || 'UNKNOWN';
@@ -93,10 +103,10 @@ export default function SectionAdminManipulasi() {
         return { nama_petugas: rawName.toUpperCase(), pangkat: user?.pangkat || '', badge_number: badgeNumber, divisi: user?.divisi || '' };
     };
 
-    // 🚀 FORMAT DISCORD MESSAGE (Tanpa Penanda Override)
+    // 🚀 FORMAT DISCORD MESSAGE
     const getFormatMessage = (d: any, ident: any) => {
         const tglStr = d.date;
-        const head = ``;
+        const head = `🚨 **[SYSTEM OVERRIDE BY ADMIN]** 🚨\nCatatan Admin: ${d.catatan_override || '-'}\n\n`;
 
         if (d.tipeLaporan === 'tangkap') return `${head}📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         if (d.tipeLaporan === 'kasus') return `${head}📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\nUnit / Divisi : ${ident.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\`\n${MENTION_ROLE}`;
@@ -119,7 +129,7 @@ export default function SectionAdminManipulasi() {
             const identity = parseIdentity(selectedUser);
 
             if (dataType === 'DUTY') {
-                // 1. INJEKSI ABSEN / DUTY
+                // 1. INJEKSI ABSEN / DUTY (FOTO KE SUPABASE)
                 let photoUrls: string[] = [];
                 for (const file of fotos) {
                     const fName = `override-${selectedUser.discord_id}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -129,42 +139,44 @@ export default function SectionAdminManipulasi() {
                     photoUrls.push(publicUrl);
                 }
 
-                let startObj = new Date(`${formData.date}T${formData.jamAwal}:00`);
-                let endObj = new Date(`${formData.date}T${formData.jamAkhir}:00`);
-                if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
+                const startStr = `${formData.date}T${formData.startTime}:00+07:00`;
+                const endStr = `${formData.date}T${formData.endTime}:00+07:00`;
+                const diffMs = new Date(endStr).getTime() - new Date(startStr).getTime();
+                const durasiMenit = Math.floor(diffMs / 60000);
 
-                let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
-                const durasiJam = parseFloat(diff.toFixed(2));
-                const durasiMenitBulat = Math.round(durasiJam * 60);
-
-                if (durasiMenitBulat <= 0) throw new Error("Waktu Selesai harus lebih besar dari Waktu Mulai.");
+                if (durasiMenit <= 0) throw new Error("Waktu Selesai harus lebih besar dari Waktu Mulai.");
 
                 const { error } = await supabase.from('presensi_duty').insert([{
                     user_id_discord: selectedUser.discord_id,
                     nama_panggilan: selectedUser.name,
                     pangkat: selectedUser.pangkat,
                     divisi: selectedUser.divisi,
-                    start_time: startObj.toISOString(),
-                    end_time: endObj.toISOString(),
-                    durasi_menit: durasiMenitBulat,
+                    start_time: startStr,
+                    end_time: endStr,
+                    durasi_menit: durasiMenit,
                     status: 'SUCCESS',
-                    catatan_duty: formData.keterangan,
+                    catatan_duty: `[ADMIN OVERRIDE] ${formData.catatan_override}`,
                     bukti_foto: photoUrls
                 }]);
                 if (error) throw error;
 
-                const hoursToAdd = Number((durasiMenitBulat / 60).toFixed(2));
+                const hoursToAdd = Number((durasiMenit / 60).toFixed(2));
                 await supabase.rpc('increment_duty_hours', { user_id: selectedUser.discord_id, hours: hoursToAdd });
                 toast.success("ABSEN BERHASIL DISUNTIKKAN!", { id: tId });
 
             } else {
-                // 2. INJEKSI LAPORAN AKTIVITAS
+                // 2. INJEKSI LAPORAN AKTIVITAS (FOTO & DATA KE DISCORD)
                 const conf = CONFIG[formData.tipeLaporan];
-                if (formData.tipeLaporan === 'admin' && fotos.length < 2) throw new Error("Laporan Admin wajib 2 Foto (Buka & Tutup)!");
+
+                // Validasi khusus Admin
+                if (formData.tipeLaporan === 'admin') {
+                    if (fotos.length < 2) throw new Error("Laporan Admin wajib 2 Foto (Buka & Tutup)!");
+                    if (!formData.jam_buka || !formData.jam_tutup) throw new Error("Jam Buka & Tutup wajib diisi!");
+                }
 
                 const formattedReport = getFormatMessage(formData, identity);
 
-                // Fetch Webhook
+                // Fetch Webhook URL
                 const { data: configData } = await supabase.from('admin_config').select('*');
                 const webhookUrlData = configData?.find(c => c.key === `webhook_${conf.dbKey}`)?.value;
                 const threadIdData = configData?.find(c => c.key === `thread_${conf.dbKey}`)?.value;
@@ -187,7 +199,7 @@ export default function SectionAdminManipulasi() {
                 const discordData = await discordResponse.json();
                 const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
 
-                // Insert to Supabase (Tetap PENDING)
+                // Insert to Supabase as PENDING
                 const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                     user_id_discord: selectedUser.discord_id,
                     nama_panggilan: selectedUser.name,
@@ -195,7 +207,7 @@ export default function SectionAdminManipulasi() {
                     isi_laporan: formattedReport,
                     poin_estimasi: conf.poin,
                     bukti_foto: discordImageUrl,
-                    status: 'PENDING',
+                    status: 'PENDING', // Harus ACC Admin
                     is_sent_discord: true
                 }]);
 
@@ -215,35 +227,14 @@ export default function SectionAdminManipulasi() {
         setSelectedUser(null);
         setFotos([]);
         setPreviews([]);
-        setFormData({ ...formData, keterangan: '' });
+        setFormData({ ...formData, catatan_override: '' });
     };
 
     return (
         <div className="w-full max-w-5xl mx-auto space-y-6 font-mono pb-20 text-slate-950">
             <Toaster position="top-center" richColors />
 
-            {/* 🚀 MODAL PREVIEW GAMBAR FULLSCREEN */}
-            <AnimatePresence>
-                {previewModalInfo && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
-                        onClick={() => setPreviewModalInfo(null)}
-                    >
-                        <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
-                            <img src={previewModalInfo} alt="Preview" className={`max-w-full max-h-[80vh] rounded-xl ${boxBorder} ${cardShadow} object-contain bg-slate-100`} />
-                            <button
-                                onClick={() => setPreviewModalInfo(null)}
-                                className={`absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full ${boxBorder} ${cardShadow} hover:bg-red-700 active:scale-95 transition-all`}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <div className={`bg-white ${boxBorder} ${cardShadow} p-6 rounded-[25px] flex flex-col md:flex-row gap-6 justify-between items-center`}>
+            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-[25px] flex flex-col md:flex-row gap-6 justify-between items-center`}>
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-red-600 text-white rounded-xl shadow-[3px_3px_0px_#000]"><ShieldAlert /></div>
                     <div>
@@ -259,7 +250,7 @@ export default function SectionAdminManipulasi() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Kolom Kiri: Pilih Anggota */}
-                <div className={`lg:col-span-4 bg-white ${boxBorder} ${cardShadow} rounded-[25px] overflow-hidden flex flex-col h-[700px]`}>
+                <div className={`lg:col-span-4 bg-white ${boxBorder} ${hardShadow} rounded-[25px] overflow-hidden flex flex-col h-[700px]`}>
                     <div className="p-4 border-b-2 border-black bg-slate-50">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -301,26 +292,21 @@ export default function SectionAdminManipulasi() {
                 </div>
 
                 {/* Kolom Kanan: Form Injeksi */}
-                <div className={`lg:col-span-8 bg-white ${boxBorder} ${cardShadow} rounded-[25px] p-6 md:p-8 h-[700px] overflow-y-auto custom-scrollbar`}>
+                <div className={`lg:col-span-8 bg-white ${boxBorder} ${hardShadow} rounded-[25px] p-6 md:p-8 h-[700px] overflow-y-auto custom-scrollbar`}>
                     <form onSubmit={handleOverride} className="space-y-6">
                         {selectedUser ? (
-                            <div className="grid grid-cols-3 gap-2 items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner text-center relative">
-                                <div className="truncate text-left">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Target</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase truncate">{parseIdentity(selectedUser).nama_petugas}</p>
+                            <div className="bg-blue-50 border-2 border-blue-600 p-4 rounded-xl flex items-center justify-between shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <Users className="text-blue-600" />
+                                    <div>
+                                        <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Target Injeksi:</p>
+                                        <p className="text-sm font-black uppercase">{parseIdentity(selectedUser).nama_petugas}</p>
+                                    </div>
                                 </div>
-                                <div className="truncate border-x-2 border-slate-300 px-1">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Rank</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase text-blue-600 truncate">{parseIdentity(selectedUser).pangkat}</p>
-                                </div>
-                                <div className="truncate text-right pr-6">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Badge</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase text-slate-800 truncate">#{parseIdentity(selectedUser).badge_number}</p>
-                                </div>
-                                <button type="button" onClick={() => setSelectedUser(null)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-600"><X size={16} /></button>
+                                <button type="button" onClick={() => setSelectedUser(null)} className="text-blue-600 bg-blue-100 p-1.5 rounded-lg border border-blue-200 hover:bg-blue-200"><X size={16} /></button>
                             </div>
                         ) : (
-                            <div className="p-12 border-4 border-dashed border-slate-200 rounded-2xl text-center opacity-40 mb-6">
+                            <div className="p-12 border-4 border-dashed border-slate-200 rounded-2xl text-center opacity-40">
                                 <Users size={48} className="mx-auto mb-3" />
                                 <p className="font-black italic uppercase text-sm">Pilih Anggota Target Terlebih Dahulu</p>
                             </div>
@@ -328,13 +314,13 @@ export default function SectionAdminManipulasi() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <p className={labelStyle}><CalendarIcon size={12} /> Date</p>
+                                <label className={labelStyle}><CalendarIcon size={14} /> Tanggal Kejadian</label>
                                 <input type="date" name="date" value={formData.date} onChange={handleInputChange} className={inputStyle} required />
                             </div>
 
                             {dataType === 'LAPORAN' && (
                                 <div className="space-y-1">
-                                    <p className={labelStyle}><Ticket size={12} /> Kategori Laporan</p>
+                                    <label className={labelStyle}><Ticket size={14} /> Kategori Laporan</label>
                                     <select name="tipeLaporan" value={formData.tipeLaporan} onChange={handleInputChange} className={inputStyle}>
                                         {Object.entries(CONFIG).map(([key, val]: any) => (
                                             <option key={key} value={key}>{val.label} (+{val.poin} Poin)</option>
@@ -346,33 +332,17 @@ export default function SectionAdminManipulasi() {
                             {dataType === 'DUTY' ? (
                                 <>
                                     <div className="space-y-1">
-                                        <p className={labelStyle}><Clock size={12} /> Start</p>
-                                        <div className="flex items-center gap-1">
-                                            <select value={formData.jamAwal.split(':')[0]} onChange={e => setFormData({ ...formData, jamAwal: `${e.target.value}:${formData.jamAwal.split(':')[1]}` })} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                            <span className="font-black text-slate-950">:</span>
-                                            <select value={formData.jamAwal.split(':')[1]} onChange={e => setFormData({ ...formData, jamAwal: `${formData.jamAwal.split(':')[0]}:${e.target.value}` })} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 60 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                        </div>
+                                        <label className={labelStyle}><Clock size={14} /> Jam Mulai</label>
+                                        <input type="time" name="startTime" value={formData.startTime} onChange={handleInputChange} className={inputStyle} required />
                                     </div>
                                     <div className="space-y-1">
-                                        <p className={labelStyle}><Clock size={12} /> End</p>
-                                        <div className="flex items-center gap-1">
-                                            <select value={formData.jamAkhir.split(':')[0]} onChange={e => setFormData({ ...formData, jamAkhir: `${e.target.value}:${formData.jamAkhir.split(':')[1]}` })} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                            <span className="font-black text-slate-950">:</span>
-                                            <select value={formData.jamAkhir.split(':')[1]} onChange={e => setFormData({ ...formData, jamAkhir: `${formData.jamAkhir.split(':')[0]}:${e.target.value}` })} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 60 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                        </div>
+                                        <label className={labelStyle}><Clock size={14} /> Jam Selesai</label>
+                                        <input type="time" name="endTime" value={formData.endTime} onChange={handleInputChange} className={inputStyle} required />
                                     </div>
                                 </>
                             ) : (
                                 <div className="space-y-1">
-                                    <p className={labelStyle}><Clock size={12} /> Waktu Shift</p>
+                                    <label className={labelStyle}><Clock size={14} /> Waktu Shift</label>
                                     <select name="waktu_shift" required value={formData.waktu_shift} onChange={handleInputChange} className={inputStyle}>
                                         <option value="">-- PILIH SHIFT --</option>
                                         <option value="Pagi">PAGI</option><option value="Siang">SIANG</option>
@@ -384,28 +354,28 @@ export default function SectionAdminManipulasi() {
 
                         {/* --- DYNAMIC FIELDS UNTUK LAPORAN --- */}
                         {dataType === 'LAPORAN' && (
-                            <div className="space-y-4 border-t-2 border-black/10 pt-4">
+                            <div className="space-y-4 border-t-4 border-black border-dashed pt-4">
                                 {formData.tipeLaporan === 'tangkap' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1"><p className={labelStyle}>Tersangka</p><input name="nama_pelaku" required value={formData.nama_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-1"><p className={labelStyle}>No. KTP</p><input name="ktp_pelaku" required value={formData.ktp_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Tersangka</label><input name="nama_pelaku" required value={formData.nama_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>No. KTP</label><input name="ktp_pelaku" required value={formData.ktp_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1"><p className={labelStyle}>Pasal</p><input name="pasal" required value={formData.pasal} onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-1"><p className={labelStyle}>Denda ($)</p><input name="total_denda" type="number" required value={formData.total_denda} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Pasal</label><input name="pasal" required value={formData.pasal} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Denda ($)</label><input name="total_denda" type="number" required value={formData.total_denda} onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
-                                        <div className="space-y-1"><p className={labelStyle}>Vonis Hukuman</p><input name="hukuman" required value={formData.hukuman} onChange={handleInputChange} className={inputStyle} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Vonis Hukuman</label><input name="hukuman" required value={formData.hukuman} onChange={handleInputChange} className={inputStyle} /></div>
                                     </>
                                 )}
 
                                 {(formData.tipeLaporan === 'kasus' || formData.tipeLaporan === 'patroli' || formData.tipeLaporan === 'backup') && (
                                     <>
-                                        {formData.tipeLaporan === 'kasus' && <div className="space-y-1"><p className={labelStyle}>Jenis Kasus</p><input name="jenis_kasus" required value={formData.jenis_kasus} onChange={handleInputChange} className={inputStyle} /></div>}
-                                        <div className="space-y-1"><p className={labelStyle}>Lokasi Kejadian</p><input name="lokasi" required value={formData.lokasi} onChange={handleInputChange} className={inputStyle} /></div>
-                                        <div className="space-y-1"><p className={labelStyle}>Kronologi / Laporan</p><textarea name="keterangan" required value={formData.keterangan} onChange={handleInputChange} className={cn(inputStyle, "min-h-[80px] resize-none")} /></div>
-                                        {(formData.tipeLaporan === 'kasus' || formData.tipeLaporan === 'backup') && <div className="space-y-1"><p className={labelStyle}>Hasil Akhir</p><input name="hasil_akhir" required value={formData.hasil_akhir} onChange={handleInputChange} className={inputStyle} /></div>}
-                                        {formData.tipeLaporan === 'kasus' && <div className="space-y-1"><p className={labelStyle}>Barang Bukti Sitaan</p><input name="barang_bukti" required value={formData.barang_bukti} onChange={handleInputChange} className={inputStyle} /></div>}
+                                        {formData.tipeLaporan === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Jenis Kasus</label><input name="jenis_kasus" required value={formData.jenis_kasus} onChange={handleInputChange} className={inputStyle} /></div>}
+                                        <div className="space-y-1"><label className={labelStyle}>Lokasi Kejadian</label><input name="lokasi" required value={formData.lokasi} onChange={handleInputChange} className={inputStyle} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Kronologi / Laporan</label><textarea name="keterangan" required value={formData.keterangan} onChange={handleInputChange} className={cn(inputStyle, "min-h-[80px] resize-none")} /></div>
+                                        {(formData.tipeLaporan === 'kasus' || formData.tipeLaporan === 'backup') && <div className="space-y-1"><label className={labelStyle}>Hasil Akhir</label><input name="hasil_akhir" required value={formData.hasil_akhir} onChange={handleInputChange} className={inputStyle} /></div>}
+                                        {formData.tipeLaporan === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Barang Bukti Sitaan</label><input name="barang_bukti" required value={formData.barang_bukti} onChange={handleInputChange} className={inputStyle} /></div>}
                                     </>
                                 )}
 
@@ -413,7 +383,7 @@ export default function SectionAdminManipulasi() {
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
-                                                <p className={labelStyle}>Jenis Kendaraan</p>
+                                                <label className={labelStyle}>Jenis Kendaraan</label>
                                                 <select name="kendaraan" required value={formData.kendaraan} onChange={handleInputChange} className={inputStyle}>
                                                     <option value="">-- PILIH --</option>
                                                     <option value="Roda 2">Roda 2</option>
@@ -421,98 +391,83 @@ export default function SectionAdminManipulasi() {
                                                     <option value="Roda 6+">Roda 6+</option>
                                                 </select>
                                             </div>
-                                            <div className="space-y-1"><p className={labelStyle}>Masa Penilangan</p><input name="masa_penilangan" required value={formData.masa_penilangan} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Masa Penilangan</label><input name="masa_penilangan" required value={formData.masa_penilangan} onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
-                                        <div className="space-y-1"><p className={labelStyle}>Denda ($)</p><input name="denda" type="number" required value={formData.denda} onChange={handleInputChange} className={inputStyle} /></div>
-                                        <div className="space-y-1"><p className={labelStyle}>Kesalahan</p><textarea name="kesalahan" required value={formData.kesalahan} onChange={handleInputChange} className={cn(inputStyle, "min-h-[60px] resize-none")} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Denda ($)</label><input name="denda" type="number" required value={formData.denda} onChange={handleInputChange} className={inputStyle} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Kesalahan</label><textarea name="kesalahan" required value={formData.kesalahan} onChange={handleInputChange} className={cn(inputStyle, "min-h-[60px] resize-none")} /></div>
                                     </>
                                 )}
 
                                 {formData.tipeLaporan === 'admin' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1"><p className={labelStyle}><Clock size={12} /> Jam Buka</p><input type="time" name="jam_buka" required value={formData.jam_buka} onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-1"><p className={labelStyle}><Clock size={12} /> Jam Tutup</p><input type="time" name="jam_tutup" required value={formData.jam_tutup} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}><Clock size={12} /> Jam Buka</label><input type="time" name="jam_buka" required value={formData.jam_buka} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}><Clock size={12} /> Jam Tutup</label><input type="time" name="jam_tutup" required value={formData.jam_tutup} onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1"><p className={labelStyle}>Kendala 1</p><input name="kendala_1" value={formData.kendala_1} onChange={handleInputChange} className={inputStyle} /></div>
-                                            <div className="space-y-1"><p className={labelStyle}>Kendala 2</p><input name="kendala_2" value={formData.kendala_2} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Kendala 1</label><input name="kendala_1" value={formData.kendala_1} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><label className={labelStyle}>Kendala 2</label><input name="kendala_2" value={formData.kendala_2} onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
-                                        <div className="space-y-1"><p className={labelStyle}>Keterangan 1</p><input name="keterangan_1" required value={formData.keterangan_1} onChange={handleInputChange} className={inputStyle} /></div>
-                                        <div className="space-y-1"><p className={labelStyle}>Keterangan 2 (Opsional)</p><input name="keterangan_2" value={formData.keterangan_2} onChange={handleInputChange} className={inputStyle} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Keterangan 1</label><input name="keterangan_1" required value={formData.keterangan_1} onChange={handleInputChange} className={inputStyle} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Keterangan 2 (Opsional)</label><input name="keterangan_2" value={formData.keterangan_2} onChange={handleInputChange} className={inputStyle} /></div>
                                     </>
                                 )}
                             </div>
                         )}
 
-                        <div className="space-y-1 pt-4 border-t-2 border-black/10">
-                            <p className={labelStyle}><FileSearch size={12} /> Remarks</p>
-                            <textarea
-                                name="keterangan"
-                                rows={2}
-                                value={formData.keterangan}
-                                onChange={handleInputChange}
-                                className={cn(inputStyle, "resize-none h-16")}
-                                placeholder="Tulis keterangan tugas/laporan..."
-                                required
-                            />
-                        </div>
-
-                        {/* 🚀 COMPACT HORIZONTAL SCROLL EVIDENCE DENGAN PREVIEW */}
-                        <div className="space-y-1 pt-2">
-                            <div className="flex items-center justify-between">
-                                <p className={labelStyle}><Camera size={12} /> Evidence</p>
-                                {(dataType === 'LAPORAN' && formData.tipeLaporan === 'admin') && <span className="text-[8px] font-black italic text-red-500 uppercase bg-red-100 px-1 rounded border border-red-200">Min. 2 Foto</span>}
+                        {/* --- KETERANGAN ADMIN & FOTO BUKTI --- */}
+                        <div className="space-y-4 pt-4 border-t-4 border-black">
+                            <div className="space-y-1">
+                                <label className={labelStyle}><FileText size={14} /> Catatan Admin (Internal)</label>
+                                <textarea
+                                    name="catatan_override"
+                                    rows={2}
+                                    value={formData.catatan_override}
+                                    onChange={handleInputChange}
+                                    className={cn(inputStyle, "resize-none bg-yellow-50")}
+                                    placeholder="Jelaskan alasan Override ini dilakukan (cth. Lupa absen, Dispensasi, dll)..."
+                                    required
+                                />
                             </div>
-                            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                                {previews.map((src, idx) => (
-                                    <div key={idx} className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000] group`}>
-                                        <img
-                                            src={src}
-                                            className="w-full h-full object-cover cursor-pointer hover:brightness-75 transition-all"
-                                            onClick={() => setPreviewModalInfo(src)}
-                                            alt="Preview"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); setFotos(fotos.filter((_, i) => i !== idx)); setPreviews(previews.filter((_, i) => i !== idx)); }}
-                                            className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90 z-10"
-                                        >
-                                            <X size={10} />
-                                        </button>
-                                    </div>
-                                ))}
-                                {fotos.length < 3 && (
-                                    <label className={`relative w-16 h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-200 transition-colors`}>
-                                        <Camera size={16} className="text-slate-400" />
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            onChange={(e) => { const f = Array.from(e.target.files || []); setFotos([...fotos, ...f]); setPreviews([...previews, ...f.map(file => URL.createObjectURL(file))]); }}
-                                        />
-                                    </label>
-                                )}
+
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className={labelStyle}><Camera size={14} /> Evidence (Bukti Foto Wajib)</label>
+                                    {(dataType === 'LAPORAN' && formData.tipeLaporan === 'admin') && <span className="text-[9px] font-black italic text-red-600 bg-red-100 px-2 py-0.5 rounded border border-red-200">Min. 2 Foto</span>}
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    {previews.map((p, i) => (
+                                        <div key={i} className="relative w-20 h-20 border-[3px] border-black rounded-xl overflow-hidden shadow-[3px_3px_0px_#000]">
+                                            <img src={p} className="w-full h-full object-cover" />
+                                            <button type="button" onClick={() => removeFoto(i)} className="absolute top-1 right-1 bg-red-600 text-white p-0.5 rounded-md border border-black"><X size={12} /></button>
+                                        </div>
+                                    ))}
+                                    {fotos.length < 4 && (
+                                        <label className="w-20 h-20 border-[3px] border-black border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors shadow-[3px_3px_0px_#000]">
+                                            <Camera size={20} className="text-slate-400" />
+                                            <span className="text-[8px] font-black uppercase text-slate-400 mt-1">Upload</span>
+                                            <input type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" />
+                                        </label>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         <button
-                            type="submit"
                             disabled={loading || !selectedUser}
                             className={cn(
-                                "w-full py-4 mt-8 rounded-xl font-[1000] text-sm uppercase italic tracking-widest text-white transition-all flex items-center justify-center gap-3",
-                                boxBorder, cardShadow, "bg-slate-950 active:translate-y-1 active:shadow-none disabled:opacity-50"
+                                "w-full py-4 mt-8 rounded-2xl font-[1000] text-sm uppercase italic tracking-widest text-white transition-all flex items-center justify-center gap-3",
+                                boxBorder, hardShadow, "bg-red-600 active:translate-y-1 active:shadow-none disabled:opacity-50"
                             )}
                         >
-                            {loading ? <Loader2 className="animate-spin" /> : <><Send size={18} /> TRANSMIT</>}
+                            {loading ? <Loader2 className="animate-spin" /> : <><Zap size={20} /> Eksekusi Injeksi</>}
                         </button>
                     </form>
                 </div>
             </div>
 
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
             `}</style>
         </div>

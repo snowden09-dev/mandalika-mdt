@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, Image as ImageIcon, Clock,
     AlertOctagon, X, Bomb, Activity, Database, ScanLine,
-    Eye, FileText, Loader2, ShieldCheck, Download
+    Eye, FileText, Loader2, ShieldCheck, Download, Settings, Users
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay, subDays } from "date-fns";
 import { id } from "date-fns/locale";
@@ -44,6 +44,19 @@ export default function SectionAdminSystem() {
     const [photoGallery, setPhotoGallery] = useState<{ photos: string[], index: number } | null>(null);
     const [confirmModal, setConfirmModal] = useState<{ show: boolean, type: 'SINGLE' | 'PURGE' | 'STORAGE_CLEAN', data?: any }>({ show: false, type: 'SINGLE' });
     const [purgeInput, setPurgeInput] = useState("");
+
+    // --- 🚀 MANIPULATION MODAL STATES ---
+    const [showManipulateModal, setShowManipulateModal] = useState(false);
+    const [isManipulating, setIsManipulating] = useState(false);
+    const [manForm, setManForm] = useState({
+        targetId: '',
+        type: 'DUTY', // DUTY | LAPORAN
+        date: format(new Date(), 'yyyy-MM-dd'),
+        startTime: '08:00',
+        endTime: '10:00',
+        jenisLaporan: 'Penilangan',
+        catatan: 'Lupa absen, data diinput Manual oleh High Command'
+    });
 
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -128,6 +141,63 @@ export default function SectionAdminSystem() {
 
         return { inactive7, inactive4 };
     }, [personnel, duties, cutis, weekStart, weekEnd, daysInWeek]);
+
+    // --- 🚀 EKSEKUSI MANIPULASI DATA ---
+    const executeManipulation = async () => {
+        if (!manForm.targetId) return toast.error("Pilih target personel!");
+
+        setIsManipulating(true);
+        const tId = toast.loading("Menyuntikkan data ke server...");
+
+        try {
+            const targetUser = personnel.find(p => p.discord_id === manForm.targetId);
+            if (!targetUser) throw new Error("User tidak ditemukan di sistem.");
+
+            if (manForm.type === 'DUTY') {
+                const startStr = `${manForm.date}T${manForm.startTime}:00+07:00`;
+                const endStr = `${manForm.date}T${manForm.endTime}:00+07:00`;
+
+                const dStart = new Date(startStr);
+                const dEnd = new Date(endStr);
+                const diffMs = dEnd.getTime() - dStart.getTime();
+                const durasiMenit = Math.floor(diffMs / 60000);
+
+                if (durasiMenit <= 0) throw new Error("Waktu selesai harus lebih besar dari waktu mulai!");
+
+                const { error } = await supabase.from('presensi_duty').insert([{
+                    user_id_discord: targetUser.discord_id,
+                    start_time: startStr,
+                    end_time: endStr,
+                    durasi_menit: durasiMenit,
+                    catatan_duty: `[SYSTEM OVERRIDE] ${manForm.catatan}`,
+                    bukti_foto: [] // Kosong karena input manual
+                }]);
+                if (error) throw error;
+
+            } else {
+                // Manipulasi Laporan
+                const createdStr = `${manForm.date}T12:00:00+07:00`; // Default siang hari
+
+                const { error } = await supabase.from('laporan_aktivitas').insert([{
+                    user_id_discord: targetUser.discord_id,
+                    jenis_laporan: manForm.jenisLaporan,
+                    catatan: `[SYSTEM OVERRIDE] ${manForm.catatan}`,
+                    bukti_foto: [],
+                    status: 'APPROVED',
+                    created_at: createdStr // Force custom date
+                }]);
+                if (error) throw error;
+            }
+
+            toast.success("MANIPULASI DATA BERHASIL!", { id: tId });
+            setShowManipulateModal(false);
+            verifyAndFetch(); // Refresh tabel
+        } catch (err: any) {
+            toast.error(`Gagal: ${err.message}`, { id: tId });
+        } finally {
+            setIsManipulating(false);
+        }
+    };
 
     const handleGenerateReport = async () => {
         setIsPreviewing(true);
@@ -244,12 +314,18 @@ export default function SectionAdminSystem() {
                     </div>
 
                     {isHighAdmin && (
-                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t-2 md:border-t-0 border-black/10 md:pl-2 md:border-l-2">
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t-2 md:border-t-0 border-black/10 md:pl-2 md:border-l-2">
+                            <button
+                                onClick={() => setShowManipulateModal(true)}
+                                className="bg-[#3B82F6] text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
+                            >
+                                <Settings size={16} /> Override Data
+                            </button>
                             <button
                                 onClick={handleGenerateReport}
                                 className="bg-[#FFD100] text-black border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
                             >
-                                <ScanLine size={16} /> Generate Laporan Alpha
+                                <ScanLine size={16} /> Laporan Alpha
                             </button>
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
@@ -395,6 +471,144 @@ export default function SectionAdminSystem() {
                     </table>
                 </div>
             </div>
+
+            {/* --- 🛑 MODAL MANIPULASI DATA (GOD MODE) 🛑 --- */}
+            <AnimatePresence>
+                {showManipulateModal && (
+                    <div className="fixed inset-0 z-[500] bg-black/90 p-4 flex items-center justify-center overflow-y-auto">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`bg-white max-w-xl w-full rounded-[30px] p-6 md:p-8 ${boxBorder} shadow-[10px_10px_0px_#3B82F6] text-slate-950 my-8`}>
+                            <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-6">
+                                <div className="flex items-center gap-3 text-blue-600">
+                                    <Settings size={28} />
+                                    <div>
+                                        <h3 className="font-[1000] text-xl italic uppercase tracking-tighter">System Override</h3>
+                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">High Command Auth</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowManipulateModal(false)} className="hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all border-2 border-transparent hover:border-black"><X /></button>
+                            </div>
+
+                            <div className="space-y-5">
+                                {/* Pilihan Target */}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Target Personel</label>
+                                    <div className="relative">
+                                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <select
+                                            value={manForm.targetId}
+                                            onChange={(e) => setManForm({ ...manForm, targetId: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-black pl-10 pr-4 py-3 rounded-xl font-black text-xs outline-none focus:bg-white focus:shadow-[4px_4px_0_0_#000] transition-all appearance-none uppercase"
+                                        >
+                                            <option value="">-- Pilih Anggota --</option>
+                                            {personnel.map(p => {
+                                                let rName = p.name || 'UNKNOWN';
+                                                if (rName.includes('|')) rName = rName.split('|').pop()?.trim() || rName;
+                                                return <option key={p.discord_id} value={p.discord_id}>{rName.toUpperCase()} - {p.pangkat}</option>;
+                                            })}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Pilihan Tipe Data */}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Tipe Injeksi Data</label>
+                                    <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border-2 border-black">
+                                        <button
+                                            onClick={() => setManForm({ ...manForm, type: 'DUTY' })}
+                                            className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", manForm.type === 'DUTY' ? "bg-white border-2 border-black shadow-[3px_3px_0px_#000]" : "opacity-40")}
+                                        >
+                                            Absen / Duty
+                                        </button>
+                                        <button
+                                            onClick={() => setManForm({ ...manForm, type: 'LAPORAN' })}
+                                            className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", manForm.type === 'LAPORAN' ? "bg-white border-2 border-black shadow-[3px_3px_0px_#000]" : "opacity-40")}
+                                        >
+                                            Laporan Aktivitas
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {/* Input Tanggal (Global) */}
+                                    <div className={manForm.type === 'LAPORAN' ? 'sm:col-span-2' : ''}>
+                                        <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Tanggal (WIB)</label>
+                                        <input
+                                            type="date"
+                                            value={manForm.date}
+                                            onChange={(e) => setManForm({ ...manForm, date: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-xl font-black text-xs outline-none focus:bg-white focus:shadow-[4px_4px_0_0_#000] transition-all uppercase"
+                                        />
+                                    </div>
+
+                                    {/* Jika Absen: Jam Mulai & Selesai */}
+                                    {manForm.type === 'DUTY' && (
+                                        <>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Jam Mulai</label>
+                                                <input
+                                                    type="time"
+                                                    value={manForm.startTime}
+                                                    onChange={(e) => setManForm({ ...manForm, startTime: e.target.value })}
+                                                    className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-xl font-black text-xs outline-none focus:bg-white focus:shadow-[4px_4px_0_0_#000] transition-all uppercase"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Jam Selesai</label>
+                                                <input
+                                                    type="time"
+                                                    value={manForm.endTime}
+                                                    onChange={(e) => setManForm({ ...manForm, endTime: e.target.value })}
+                                                    className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-xl font-black text-xs outline-none focus:bg-white focus:shadow-[4px_4px_0_0_#000] transition-all uppercase"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* Jika Laporan: Jenis Laporan */}
+                                    {manForm.type === 'LAPORAN' && (
+                                        <div className="sm:col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Jenis Laporan</label>
+                                            <select
+                                                value={manForm.jenisLaporan}
+                                                onChange={(e) => setManForm({ ...manForm, jenisLaporan: e.target.value })}
+                                                className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-xl font-black text-xs outline-none focus:bg-white focus:shadow-[4px_4px_0_0_#000] transition-all uppercase appearance-none"
+                                            >
+                                                <option value="Penilangan">Penilangan</option>
+                                                <option value="Penangkapan">Penangkapan</option>
+                                                <option value="Penyitaan">Penyitaan</option>
+                                                <option value="Patroli">Patroli</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Catatan (Global) */}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest mb-1.5 block opacity-60">Catatan Override</label>
+                                    <textarea
+                                        rows={3}
+                                        value={manForm.catatan}
+                                        onChange={(e) => setManForm({ ...manForm, catatan: e.target.value })}
+                                        className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-xl font-black text-xs outline-none focus:bg-white focus:shadow-[4px_4px_0_0_#000] transition-all resize-none"
+                                        placeholder="Alasan input manual..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-8">
+                                <button disabled={isManipulating} onClick={() => setShowManipulateModal(false)} className="flex-1 bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">Batal</button>
+                                <button
+                                    disabled={isManipulating}
+                                    onClick={executeManipulation}
+                                    className="flex-[2] bg-[#3B82F6] text-white border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
+                                >
+                                    {isManipulating ? <Loader2 className="animate-spin" size={16} /> : <><Activity size={16} /> Suntik Data</>}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* --- 🛑 MODAL KONFIRMASI PURGE / DELETE 🛑 --- */}
             <AnimatePresence>

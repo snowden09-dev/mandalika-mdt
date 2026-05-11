@@ -5,14 +5,19 @@ import { supabase } from "@/lib/supabase";
 import {
     Users, Clock, FileText, Camera, Send,
     Search, ShieldAlert, X, Loader2,
-    Ticket, Zap, Calendar as CalendarIcon, ArrowLeft,
+    Ticket, Zap, Calendar as CalendarIcon,
     CheckCircle2, AlertTriangle, FileSearch
 } from 'lucide-react';
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
 
+// --- UTILS ---
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+const toTitleCase = (str: string) => {
+    return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 // --- UI COMPACT UNTUK MOBILE ---
 const boxBorder = "border-[2px] border-slate-950";
 const cardShadow = "shadow-[4px_4px_0px_#000]";
@@ -74,9 +79,9 @@ export default function SectionAdminManipulasi() {
 
     const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    // 🚀 PARSING IDENTITAS
+    // 🚀 PARSING IDENTITAS (Format: Huruf Depan Kapital / Title Case)
     const parseIdentity = (user: any) => {
-        let rawName = user?.name || 'UNKNOWN';
+        let rawName = user?.name || 'Unknown';
         if (rawName.includes('|')) rawName = rawName.split('|').pop()?.trim() || rawName;
 
         let badgeNumber = "-";
@@ -87,22 +92,28 @@ export default function SectionAdminManipulasi() {
                 rawName = rawName.substring(spaceIndex + 1).trim();
             } else {
                 badgeNumber = rawName.substring(1);
-                rawName = "OFFICER";
+                rawName = "Officer";
             }
         }
-        return { nama_petugas: rawName.toUpperCase(), pangkat: user?.pangkat || '', badge_number: badgeNumber, divisi: user?.divisi || '' };
+
+        return {
+            nama_petugas: toTitleCase(rawName),
+            pangkat: user?.pangkat || '',
+            badge_number: badgeNumber,
+            divisi: user?.divisi || ''
+        };
     };
 
-    // 🚀 FORMAT DISCORD MESSAGE (Tanpa Penanda Override)
+    // 🚀 FORMAT DISCORD MESSAGE
     const getFormatMessage = (d: any, ident: any) => {
         const tglStr = d.date;
         const head = ``;
 
-        if (d.tipeLaporan === 'tangkap') return `${head}📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (d.tipeLaporan === 'kasus') return `${head}📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\nUnit / Divisi : ${ident.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (d.tipeLaporan === 'patroli') return `${head}📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (d.tipeLaporan === 'backup') return `${head}📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\nUnit / Divisi : ${ident.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (d.tipeLaporan === 'tilang') return `${head}📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (d.tipeLaporan === 'tangkap') return `${head}📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${toTitleCase(d.nama_pelaku) || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (d.tipeLaporan === 'kasus') return `${head}📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${toTitleCase(d.waktu_shift) || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\nUnit / Divisi : ${ident.divisi || '-'}\n\nJenis Kasus : ${toTitleCase(d.jenis_kasus) || '-'}\nLokasi Kejadian : ${toTitleCase(d.lokasi) || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${toTitleCase(d.hasil_akhir) || '-'}\n\nBarang Bukti : ${toTitleCase(d.barang_bukti) || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (d.tipeLaporan === 'patroli') return `${head}📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${toTitleCase(d.waktu_shift) || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nArea Patroli : ${toTitleCase(d.lokasi) || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (d.tipeLaporan === 'backup') return `${head}📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${toTitleCase(d.waktu_shift) || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\nUnit / Divisi : ${ident.divisi || '-'}\n\nLokasi Backup : ${toTitleCase(d.lokasi) || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${toTitleCase(d.hasil_akhir) || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (d.tipeLaporan === 'tilang') return `${head}📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${toTitleCase(d.waktu_shift) || '-'}\n\nData Petugas\nNama IC : ${ident.nama_petugas}\nPangkat : ${ident.pangkat}\nBadge : ${ident.badge_number}\n\nKendaraan Berjenis : ${toTitleCase(d.kendaraan) || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         if (d.tipeLaporan === 'admin') return `${head}📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nData Petugas\nNama        : ${ident.nama_petugas}\nPangkat     : ${ident.pangkat}\nBadge       : ${ident.badge_number}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\`\n${MENTION_ROLE}`;
         return "";
     };
@@ -139,9 +150,10 @@ export default function SectionAdminManipulasi() {
 
                 if (durasiMenitBulat <= 0) throw new Error("Waktu Selesai harus lebih besar dari Waktu Mulai.");
 
+                // Tabel 'presensi_duty' WAJIB pakai nama_panggilan
                 const { error } = await supabase.from('presensi_duty').insert([{
                     user_id_discord: selectedUser.discord_id,
-                    nama_panggilan: selectedUser.name,
+                    nama_panggilan: identity.nama_petugas, // <-- Tabel ini wajib
                     pangkat: selectedUser.pangkat,
                     divisi: selectedUser.divisi,
                     start_time: startObj.toISOString(),
@@ -187,10 +199,9 @@ export default function SectionAdminManipulasi() {
                 const discordData = await discordResponse.json();
                 const discordImageUrl = discordData.attachments && discordData.attachments[0] ? discordData.attachments[0].url : "";
 
-                // Insert to Supabase (Tetap PENDING)
+                // Tabel 'laporan_aktivitas' TIDAK PAKAI nama_panggilan (Fixed)
                 const { error: insertError } = await supabase.from('laporan_aktivitas').insert([{
                     user_id_discord: selectedUser.discord_id,
-                    nama_panggilan: selectedUser.name,
                     jenis_laporan: conf.label,
                     isi_laporan: formattedReport,
                     poin_estimasi: conf.poin,
@@ -222,7 +233,6 @@ export default function SectionAdminManipulasi() {
         <div className="w-full max-w-5xl mx-auto space-y-6 font-mono pb-20 text-slate-950">
             <Toaster position="top-center" richColors />
 
-            {/* 🚀 MODAL PREVIEW GAMBAR FULLSCREEN */}
             <AnimatePresence>
                 {previewModalInfo && (
                     <motion.div
@@ -287,12 +297,12 @@ export default function SectionAdminManipulasi() {
                                             : "border-transparent hover:bg-slate-50 hover:border-black/10"
                                     )}
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-slate-200 border border-black shrink-0 flex items-center justify-center text-black font-black text-xs">
+                                    <div className="w-10 h-10 rounded-full bg-slate-200 border border-black shrink-0 flex items-center justify-center text-black font-black text-xs uppercase">
                                         {nama_petugas.charAt(0)}
                                     </div>
                                     <div className="truncate flex-1">
-                                        <p className="text-xs font-black uppercase truncate">{nama_petugas}</p>
-                                        <p className="text-[9px] opacity-70 font-bold">{p.pangkat} • #{badge_number}</p>
+                                        <p className="text-xs font-black truncate">{nama_petugas}</p>
+                                        <p className="text-[9px] opacity-70 font-bold uppercase">{p.pangkat} • #{badge_number}</p>
                                     </div>
                                 </button>
                             )
@@ -307,7 +317,7 @@ export default function SectionAdminManipulasi() {
                             <div className="grid grid-cols-3 gap-2 items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner text-center relative">
                                 <div className="truncate text-left">
                                     <p className="text-[8px] font-black text-slate-400 uppercase italic">Target</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase truncate">{parseIdentity(selectedUser).nama_petugas}</p>
+                                    <p className="text-[10px] md:text-xs font-black truncate">{parseIdentity(selectedUser).nama_petugas}</p>
                                 </div>
                                 <div className="truncate border-x-2 border-slate-300 px-1">
                                     <p className="text-[8px] font-black text-slate-400 uppercase italic">Rank</p>
@@ -388,7 +398,7 @@ export default function SectionAdminManipulasi() {
                                 {formData.tipeLaporan === 'tangkap' && (
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1"><p className={labelStyle}>Tersangka</p><input name="nama_pelaku" required value={formData.nama_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
+                                            <div className="space-y-1"><p className={labelStyle}>Tersangka</p><input name="nama_pelaku" placeholder="Nama..." required value={formData.nama_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
                                             <div className="space-y-1"><p className={labelStyle}>No. KTP</p><input name="ktp_pelaku" required value={formData.ktp_pelaku} onChange={handleInputChange} className={inputStyle} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">

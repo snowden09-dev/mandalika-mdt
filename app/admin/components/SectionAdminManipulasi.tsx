@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/lib/supabase";
-import { cn } from "@/lib/utils";
 import {
     Users, Clock, FileText, Camera, Send,
     Search, ShieldAlert, X, Loader2,
@@ -13,6 +12,7 @@ import { format, addDays } from "date-fns";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
 
+const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 // --- UI COMPACT UNTUK MOBILE ---
 const boxBorder = "border-[2px] border-slate-950";
 const cardShadow = "shadow-[4px_4px_0px_#000]";

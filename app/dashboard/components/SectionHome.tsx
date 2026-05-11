@@ -14,29 +14,29 @@ import TacticalTransition from './TacticalTransition';
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
 
-// 🚀 STRUKTUR PANGKAT TERBARU (Sesuai Konfigurasi Server)
+// 🚀 STRUKTUR PANGKAT TERBARU (+20% Beban Poin & Jam)
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 },
     { name: "BHARADA", prp: 0, hrs: 0 },
-    { name: "ABRIPTU", prp: 50, hrs: 10 },
-    { name: "ABRIGPOL", prp: 100, hrs: 20 },
-    { name: "BRIPDA", prp: 150, hrs: 30 },
-    { name: "BRIPTU", prp: 250, hrs: 40 },
-    { name: "BRIGPOL", prp: 350, hrs: 50 },
-    { name: "BRIPKA", prp: 500, hrs: 65 },
-    { name: "AIPDA", prp: 650, hrs: 80 },
-    { name: "AIPTU", prp: 800, hrs: 100 },
-    { name: "IPDA", prp: 1000, hrs: 120 },
-    { name: "IPTU", prp: 1250, hrs: 150 },
-    { name: "AKP", prp: 1500, hrs: 180 },
-    { name: "KOMPOL", prp: 1800, hrs: 220 },
-    { name: "AKBP", prp: 2200, hrs: 260 },
-    { name: "KOMBESPOL", prp: 2700, hrs: 320 },
-    { name: "BRIGJEN", prp: 5000, hrs: 500 },
-    { name: "IRJEN", prp: 7500, hrs: 750 },
-    { name: "KOMJEN", prp: 10000, hrs: 1000 },
-    { name: "JENDRAL", prp: 15000, hrs: 1500 },
+    { name: "ABRIPTU", prp: 60, hrs: 12 },
+    { name: "ABRIGPOL", prp: 120, hrs: 24 },
+    { name: "BRIPDA", prp: 180, hrs: 36 },
+    { name: "BRIPTU", prp: 300, hrs: 48 },
+    { name: "BRIGPOL", prp: 420, hrs: 60 },
+    { name: "BRIPKA", prp: 600, hrs: 78 },
+    { name: "AIPDA", prp: 780, hrs: 96 },
+    { name: "AIPTU", prp: 960, hrs: 120 },
+    { name: "IPDA", prp: 1200, hrs: 144 },
+    { name: "IPTU", prp: 1500, hrs: 180 },
+    { name: "AKP", prp: 1800, hrs: 216 },
+    { name: "KOMPOL", prp: 2160, hrs: 264 },
+    { name: "AKBP", prp: 2640, hrs: 312 },
+    { name: "KOMBESPOL", prp: 3240, hrs: 384 },
+    { name: "BRIGJEN", prp: 6000, hrs: 600 },
+    { name: "IRJEN", prp: 9000, hrs: 900 },
+    { name: "KOMJEN", prp: 12000, hrs: 1200 },
+    { name: "JENDRAL", prp: 18000, hrs: 1800 },
 ];
 
 const PETINGGI_ROLE_ID = "1449382385090166844";

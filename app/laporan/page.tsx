@@ -41,8 +41,6 @@ export default function LaporanMultiForm() {
     const [fotos, setFotos] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
 
-    const MENTION_ROLE = "<@&1393366590942085220>";
-
     // --- CONFIG --- 
     const CONFIG: any = {
         tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
@@ -53,15 +51,15 @@ export default function LaporanMultiForm() {
         admin: { color: "#8b5cf6", label: "Administrasi", poin: 6, icon: ClipboardList }
     };
 
-    // 🚀 UPDATE FORMAT PESAN DISCORD (MENAMBAHKAN BADGE)
+    // 🚀 UPDATE FORMAT PESAN DISCORD (TANPA TAG ROLE)
     const getFormatMessage = (d: any) => {
         const tglStr = format(d.tanggal, "yyyy-MM-dd");
-        if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'kasus') return `📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\`\n${MENTION_ROLE}`;
-        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nData Petugas\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\`\n${MENTION_ROLE}`;
+        if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\``;
+        if (tipe === 'kasus') return `📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\``;
+        if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\``;
+        if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\``;
+        if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\``;
+        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nData Petugas\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\``;
     };
 
     // --- SYNC SESSION DATA ---

@@ -166,11 +166,12 @@ export default function SectionAdminSystem() {
 
                 const { error } = await supabase.from('presensi_duty').insert([{
                     user_id_discord: targetUser.discord_id,
+                    nama_panggilan: targetUser.name, // 🚀 FIX: Menambahkan nama panggilan
                     start_time: startStr,
                     end_time: endStr,
                     durasi_menit: durasiMenit,
                     catatan_duty: `[SYSTEM OVERRIDE] ${manForm.catatan}`,
-                    bukti_foto: [] // Kosong karena input manual
+                    bukti_foto: []
                 }]);
                 if (error) throw error;
 
@@ -180,6 +181,7 @@ export default function SectionAdminSystem() {
 
                 const { error } = await supabase.from('laporan_aktivitas').insert([{
                     user_id_discord: targetUser.discord_id,
+                    nama_panggilan: targetUser.name, // 🚀 FIX: Menambahkan nama panggilan
                     jenis_laporan: manForm.jenisLaporan,
                     catatan: `[SYSTEM OVERRIDE] ${manForm.catatan}`,
                     bukti_foto: [],

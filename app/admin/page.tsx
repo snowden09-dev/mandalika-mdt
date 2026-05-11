@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
-import { ShieldCheck, Users, FileText, Banknote, Server, Loader2, ArrowLeft, Crosshair } from 'lucide-react';
+import { ShieldCheck, Users, FileText, Banknote, Server, Loader2, ArrowLeft, Crosshair, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // IMPORT SEMUA KOMPONEN
@@ -13,12 +13,16 @@ import SectionAdminSystem from './components/SectionAdminSystem';
 import SectionAdminLaporan from './components/SectionAdminLaporan';
 import SectionAdminPayroll from './components/SectionAdminPayroll';
 import SectionAdminConfig from './components/SectionAdminConfig';
-import SectionAdminDivisi from './components/SectionAdminDivisi'; // KOMPONEN BARU
+import SectionAdminDivisi from './components/SectionAdminDivisi';
+import SectionAdminManipulasi from './components/SectionAdminManipulasi'; // 🚀 KOMPONEN OVERRIDE
 
 export default function AdminHQPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'DIVISI' | 'LAPORAN' | 'FINANCE' | 'SYSTEM'>('PERSONEL');
+    const [isHighAdmin, setIsHighAdmin] = useState(false); // 🚀 STATE UNTUK CEK OTORITAS TERTINGGI
+
+    // 🚀 TAMBAHKAN 'OVERRIDE' KE TIPE ACTIVE TAB
+    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'DIVISI' | 'LAPORAN' | 'FINANCE' | 'SYSTEM' | 'OVERRIDE'>('PERSONEL');
 
     // Sub-tab khusus untuk Personel
     const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'CUTI' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
@@ -34,6 +38,8 @@ export default function AdminHQPage() {
             if (!data?.is_admin && !data?.is_highadmin) {
                 router.push('/dashboard');
             } else {
+                // 🚀 Set status High Admin untuk membuka fitur rahasia
+                setIsHighAdmin(!!data?.is_highadmin);
                 setLoading(false);
             }
         };
@@ -43,6 +49,20 @@ export default function AdminHQPage() {
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 font-mono text-black font-black italic text-xl animate-pulse"><Loader2 className="animate-spin mr-3" /> VERIFYING CLEARANCE...</div>;
 
     const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+
+    // 🚀 DAFTAR MENU DINAMIS
+    const mainTabs = [
+        { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
+        { id: 'DIVISI', icon: <Crosshair size={16} />, label: 'Divisi Area' },
+        { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
+        { id: 'FINANCE', icon: <Banknote size={16} />, label: 'Finance' },
+        { id: 'SYSTEM', icon: <Server size={16} />, label: 'System' }
+    ];
+
+    // Jika yang login adalah High Admin, tambahkan tab sakti ini
+    if (isHighAdmin) {
+        mainTabs.push({ id: 'OVERRIDE', icon: <Zap size={16} />, label: 'Override' });
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 font-mono text-slate-950 pb-24">
@@ -65,26 +85,22 @@ export default function AdminHQPage() {
                             </button>
                         </div>
 
-                        {/* KANAN: MENU UTAMA (5 TAB BESAR) */}
+                        {/* KANAN: MENU UTAMA DINAMIS */}
                         <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
                             <button onClick={() => router.push('/dashboard')} className="hidden md:flex items-center gap-2 px-4 py-3 bg-slate-800 text-slate-400 hover:text-white rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent hover:border-slate-600">
                                 <ArrowLeft size={16} /> Base
                             </button>
                             <div className="hidden md:block w-[2px] h-8 bg-slate-800 mx-1"></div>
 
-                            {[
-                                { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
-                                { id: 'DIVISI', icon: <Crosshair size={16} />, label: 'Divisi Area' }, // TAB BARU
-                                { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
-                                { id: 'FINANCE', icon: <Banknote size={16} />, label: 'Finance' },
-                                { id: 'SYSTEM', icon: <Server size={16} />, label: 'System' }
-                            ].map((tab) => (
+                            {mainTabs.map((tab) => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={cn(
                                         "flex items-center gap-2 px-4 py-3 rounded-xl font-black text-xs uppercase italic transition-all border-2 border-transparent whitespace-nowrap",
-                                        activeTab === tab.id ? "bg-[#3B82F6] text-white border-white shadow-[3px_3px_0px_#fff]" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                                        activeTab === tab.id
+                                            ? (tab.id === 'OVERRIDE' ? "bg-red-600 text-white border-white shadow-[3px_3px_0px_#fff]" : "bg-[#3B82F6] text-white border-white shadow-[3px_3px_0px_#fff]")
+                                            : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                                     )}
                                 >
                                     {tab.icon} {tab.label}
@@ -131,6 +147,9 @@ export default function AdminHQPage() {
 
                         {/* 5. SYSTEM */}
                         {activeTab === 'SYSTEM' && <SectionAdminConfig />}
+
+                        {/* 6. OVERRIDE (GOD MODE - HIGH ADMIN ONLY) 🚀 */}
+                        {activeTab === 'OVERRIDE' && <SectionAdminManipulasi />}
 
                     </motion.div>
                 </AnimatePresence>

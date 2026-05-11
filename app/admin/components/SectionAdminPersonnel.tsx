@@ -18,29 +18,29 @@ const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 const inputStyle = `w-full bg-[#f1f5f9] border-[2.5px] md:border-[3px] border-slate-950 rounded-lg md:rounded-xl px-2.5 py-2 md:px-4 md:py-3 text-[10px] md:text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000] md:shadow-[3px_3px_0px_#000] appearance-none`;
 
-// 🚀 DATABASE PANGKAT TERBARU (Sesuai Konfigurasi Server)
+// 🚀 DATABASE PANGKAT TERBARU (+20% Beban Poin & Jam)
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 },
     { name: "BHARADA", prp: 0, hrs: 0 },
-    { name: "ABRIPTU", prp: 50, hrs: 10 },
-    { name: "ABRIGPOL", prp: 100, hrs: 20 },
-    { name: "BRIPDA", prp: 150, hrs: 30 },
-    { name: "BRIPTU", prp: 250, hrs: 40 },
-    { name: "BRIGPOL", prp: 350, hrs: 50 },
-    { name: "BRIPKA", prp: 500, hrs: 65 },
-    { name: "AIPDA", prp: 650, hrs: 80 },
-    { name: "AIPTU", prp: 800, hrs: 100 },
-    { name: "IPDA", prp: 1000, hrs: 120 },
-    { name: "IPTU", prp: 1250, hrs: 150 },
-    { name: "AKP", prp: 1500, hrs: 180 },
-    { name: "KOMPOL", prp: 1800, hrs: 220 },
-    { name: "AKBP", prp: 2200, hrs: 260 },
-    { name: "KOMBESPOL", prp: 2700, hrs: 320 },
-    { name: "BRIGJEN", prp: 5000, hrs: 500 },
-    { name: "IRJEN", prp: 7500, hrs: 750 },
-    { name: "KOMJEN", prp: 10000, hrs: 1000 },
-    { name: "JENDRAL", prp: 15000, hrs: 1500 },
+    { name: "ABRIPTU", prp: 60, hrs: 12 },
+    { name: "ABRIGPOL", prp: 120, hrs: 24 },
+    { name: "BRIPDA", prp: 180, hrs: 36 },
+    { name: "BRIPTU", prp: 300, hrs: 48 },
+    { name: "BRIGPOL", prp: 420, hrs: 60 },
+    { name: "BRIPKA", prp: 600, hrs: 78 },
+    { name: "AIPDA", prp: 780, hrs: 96 },
+    { name: "AIPTU", prp: 960, hrs: 120 },
+    { name: "IPDA", prp: 1200, hrs: 144 },
+    { name: "IPTU", prp: 1500, hrs: 180 },
+    { name: "AKP", prp: 1800, hrs: 216 },
+    { name: "KOMPOL", prp: 2160, hrs: 264 },
+    { name: "AKBP", prp: 2640, hrs: 312 },
+    { name: "KOMBESPOL", prp: 3240, hrs: 384 },
+    { name: "BRIGJEN", prp: 6000, hrs: 600 },
+    { name: "IRJEN", prp: 9000, hrs: 900 },
+    { name: "KOMJEN", prp: 12000, hrs: 1200 },
+    { name: "JENDRAL", prp: 18000, hrs: 1800 },
 ];
 
 export default function SectionAdminPersonnel() {

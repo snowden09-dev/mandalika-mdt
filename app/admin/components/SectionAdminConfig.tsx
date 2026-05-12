@@ -17,6 +17,7 @@ export default function SectionAdminConfig() {
         setLoading(true);
         const { data, error } = await supabase.from('admin_config').select('*').order('key', { ascending: true });
         if (data) setConfigs(data);
+        if (error) console.error("Fetch error:", error);
         setLoading(false);
     };
 
@@ -32,18 +33,26 @@ export default function SectionAdminConfig() {
 
         try {
             for (const conf of configs) {
-                await supabase.from('admin_config').update({ value: conf.value }).eq('id', conf.id);
+                // 🚀 BUGFIX: Target menggunakan 'key' dan menangkap error eksplisit
+                const { error } = await supabase
+                    .from('admin_config')
+                    .update({ value: conf.value })
+                    .eq('key', conf.key);
+
+                if (error) throw error; // Memaksa masuk ke blok catch jika database menolak
             }
             toast.success("Konfigurasi Sistem Berhasil Diperbarui!", { id: tId });
-        } catch (error) {
-            toast.error("Gagal menyimpan data!", { id: tId });
+        } catch (error: any) {
+            console.error("Save config error:", error);
+            // 🚀 Menampilkan error aslinya agar ketahuan jika ada blokir RLS
+            toast.error(`Gagal menyimpan: ${error.message || "Error tidak diketahui"}`, { id: tId });
         } finally {
             setSaving(false);
         }
     };
 
     // Mengelompokkan config berdasarkan divisinya (misal: kasus_besar, patroli)
-    const groupedConfigs = configs.reduce((acc, curr) => {
+    const groupedConfigs = configs.reduce((acc: any, curr: any) => {
         const type = curr.key.includes('webhook') ? 'webhook' : 'thread';
         const name = curr.key.replace('webhook_', '').replace('thread_', '');
         if (!acc[name]) acc[name] = {};
@@ -82,9 +91,9 @@ export default function SectionAdminConfig() {
                                 <label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><LinkIcon size={12} /> Webhook URL</label>
                                 <input
                                     type="text"
-                                    value={groupedConfigs[categoryName].webhook.value}
+                                    value={groupedConfigs[categoryName].webhook.value || ''}
                                     onChange={(e) => handleUpdate(groupedConfigs[categoryName].webhook.key, e.target.value)}
-                                    className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl text-xs font-bold focus:bg-white"
+                                    className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl text-xs font-bold focus:bg-white outline-none focus:border-blue-600"
                                 />
                             </div>
                         )}
@@ -94,9 +103,9 @@ export default function SectionAdminConfig() {
                                 <label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><Hash size={12} /> Thread ID</label>
                                 <input
                                     type="text"
-                                    value={groupedConfigs[categoryName].thread.value}
+                                    value={groupedConfigs[categoryName].thread.value || ''}
                                     onChange={(e) => handleUpdate(groupedConfigs[categoryName].thread.key, e.target.value)}
-                                    className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl text-xs font-bold focus:bg-white"
+                                    className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl text-xs font-bold focus:bg-white outline-none focus:border-blue-600"
                                 />
                             </div>
                         )}

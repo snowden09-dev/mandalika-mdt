@@ -43,37 +43,51 @@ export default function AbsenPage() {
 
     useEffect(() => {
         async function getActiveUser() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const dId = user.user_metadata?.provider_id || user.id;
-            const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', dId).maybeSingle();
-            if (data) {
-                // 🚀 PARSING LOGIC: Pisah Nama dan Badge
-                let rawName = data.name.includes('|') ? data.name.split('|')[1].trim() : data.name;
-                let badge = "-";
-
-                if (rawName && rawName.startsWith('#')) {
-                    const spaceIndex = rawName.indexOf(' ');
-                    if (spaceIndex !== -1) {
-                        badge = rawName.substring(1, spaceIndex);
-                        rawName = rawName.substring(spaceIndex + 1).trim();
-                    } else {
-                        badge = rawName.substring(1);
-                        rawName = "OFFICER";
-                    }
+            try {
+                // 🚀 PATCH: Ambil identitas dari LocalStorage agar kompatibel dengan sistem Bypass Token
+                const sessionData = localStorage.getItem('police_session');
+                if (!sessionData) {
+                    router.push('/');
+                    return;
                 }
+                const parsed = JSON.parse(sessionData);
+                const dId = parsed.discord_id;
 
-                setIdentity({
-                    nama: rawName.toUpperCase(),
-                    pangkat: data.pangkat.toUpperCase(),
-                    badgeNumber: badge,
-                    divisi: data.divisi?.toUpperCase() || 'UNIT',
-                    discordId: dId
-                });
+                const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', dId).maybeSingle();
+
+                if (data) {
+                    // 🚀 PARSING LOGIC: Pisah Nama dan Badge yang lebih akurat
+                    let rawName = data.name.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
+                    let badge = "-";
+
+                    if (rawName && rawName.startsWith('#')) {
+                        const spaceIndex = rawName.indexOf(' ');
+                        if (spaceIndex !== -1) {
+                            badge = rawName.substring(1, spaceIndex);
+                            rawName = rawName.substring(spaceIndex + 1).trim();
+                        } else {
+                            badge = rawName.substring(1);
+                            rawName = "OFFICER";
+                        }
+                    }
+
+                    setIdentity({
+                        nama: rawName?.toUpperCase() || 'UNKNOWN',
+                        pangkat: data.pangkat?.toUpperCase() || '...',
+                        badgeNumber: badge,
+                        divisi: data.divisi?.toUpperCase() || 'UNIT',
+                        discordId: dId
+                    });
+                } else {
+                    setIdentity(prev => ({ ...prev, nama: 'DATA TIDAK DITEMUKAN' }));
+                }
+            } catch (error) {
+                console.error("Gagal mendeteksi profil:", error);
+                setIdentity(prev => ({ ...prev, nama: 'GAGAL MEMUAT DATA' }));
             }
         }
         getActiveUser();
-    }, []);
+    }, [router]);
 
     const handleNavigation = (path: string) => {
         setIsNavigating(true);

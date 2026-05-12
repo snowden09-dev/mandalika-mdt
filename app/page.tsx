@@ -47,7 +47,10 @@ export default function LandingPage() {
       }
     }
 
-    // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT (PATCHED) ---
+    // Lock untuk mencegah Supabase menembak event 2x bersamaan
+    let isProcessing = false;
+
+    // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT (PATCHED v2) ---
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
 
@@ -56,6 +59,8 @@ export default function LandingPage() {
           return;
         }
 
+        if (isProcessing) return; // Cegah double trigger
+        isProcessing = true;
         setIsLoading(true);
         setStatus('MENGECEK AKSES...');
 
@@ -83,17 +88,17 @@ export default function LandingPage() {
           const response = await fetch('/api/check-role', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: discordId }), // Sekarang dijamin ADA ISINYA
+            body: JSON.stringify({ userId: discordId }),
           });
 
           if (!response.ok) throw new Error("API_ERROR");
           const result = await response.json();
 
-          // 🚨 HARUS EXACTLY TRUE (Mencegah Bypass jika API error & mengirim string/object aneh)
+          // 🚨 HARUS EXACTLY TRUE 
           if (result.isPolice === true) {
             setStatus('SINKRONISASI DATA...');
 
-            // 3. Upsert Database Aman (ID terjamin tidak null)
+            // 3. Upsert Database Aman
             const { error: syncError } = await supabase
               .from('users')
               .upsert({
@@ -124,15 +129,18 @@ export default function LandingPage() {
         } catch (err: any) {
           console.error("Gagal Verifikasi:", err);
 
-          // Jika error karena ID tidak valid, paksa Sign Out!
+          // 🛠️ BUGFIX GHOST SESSION: Apapun error-nya, tendang sesi Supabase-nya!
+          await supabase.auth.signOut();
+          localStorage.removeItem('police_session');
+
           if (err.message === "INVALID_ID") {
             setStatus('AKSES ILEGAL DIBLOKIR');
-            await supabase.auth.signOut();
           } else {
-            setStatus('GAGAL SISTEM');
+            setStatus('GAGAL SISTEM. COBA LAGI.');
           }
 
           setIsLoading(false);
+          isProcessing = false; // Buka gembok agar bisa coba login lagi
         }
       }
     });

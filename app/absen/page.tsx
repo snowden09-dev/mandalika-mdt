@@ -268,6 +268,37 @@ export default function AbsenPage() {
                 }]);
                 if (cutiErr) throw cutiErr;
 
+                // 🚀 EKSEKUSI WEBHOOK DISCORD
+                try {
+                    const webhookUrl = "https://discord.com/api/webhooks/1503669093944000582/Q3IDI9PqqHQkJW5_G6qc437Qs0O3yHd0KOSmZJMMtNbmknbY64PvorARqV3YbuJQHxLl";
+                    const discordMessage = `**SURAT PERMOHONAN IZIN KEPOLISIAN MANDALIKA**
+\`\`\`text
+Hormat saya bapak JENDRAL/KOMJEN.
+
+Dengan ini saya:
+
+Nama: ${identity.nama}
+Pangkat: ${identity.pangkat}
+Badge : ${identity.badgeNumber}
+Divisi : ${identity.divisi}
+Alasan : ${keterangan}
+Tanggal Izin: ${mulaiCuti}
+Tanggal berakhir: ${selesaiCuti}
+
+Demikian surat permohonan izin ini kami sampaikan agar para petinggi dapat memaklumkan dan saya ucapkan terimakasih.
+\`\`\`
+<@&1393368961940324462> 
+<@&1393369949988327624>`;
+
+                    await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: discordMessage })
+                    });
+                } catch (webhookError) {
+                    console.error("Gagal mengirim notifikasi ke Discord:", webhookError);
+                }
+
                 toast.custom((t) => (
                     <div className="bg-[#FFD100] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
                         <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>

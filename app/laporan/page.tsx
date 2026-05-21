@@ -9,7 +9,7 @@ import {
     Camera, Clock, Calendar as CalendarIcon, ArrowLeft,
     ShieldCheck, X, Ticket, ClipboardList
 } from 'lucide-react';
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 import { toast, Toaster } from "sonner";
 import TacticalTransition from '@/app/dashboard/components/TacticalTransition';
 
@@ -40,6 +40,10 @@ export default function LaporanMultiForm() {
 
     const [fotos, setFotos] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
+
+    // --- BATAS WAKTU (H-3) ---
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
 
     // --- CONFIG --- 
     const CONFIG: any = {
@@ -123,6 +127,21 @@ export default function LaporanMultiForm() {
     // --- 🚀 LOGIKA SUBMIT ---
     const submitLaporan = async (e: any) => {
         e.preventDefault();
+
+        // 🚀 VALIDASI BATAS WAKTU (H-3)
+        const selectedDate = new Date(formData.tanggal);
+        selectedDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const diffDays = Math.round((today.getTime() - selectedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            return toast.error("TANGGAL TIDAK VALID!", { description: "Laporan tidak bisa untuk tanggal di masa depan." });
+        }
+        if (diffDays > 3) {
+            return toast.error("LAPORAN DITOLAK!", { description: "Batas maksimal pengiriman laporan adalah 3 hari ke belakang." });
+        }
 
         if (tipe === 'admin') {
             if (fotos.length < 2) return toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan foto Jam Buka & Jam Tutup/Selesai." });
@@ -278,6 +297,8 @@ export default function LaporanMultiForm() {
                                         <input
                                             type="date"
                                             value={format(formData.tanggal, 'yyyy-MM-dd')}
+                                            min={hMin3Str}
+                                            max={todayStr}
                                             onChange={(e) => setFormData({ ...formData, tanggal: new Date(e.target.value || new Date()) })}
                                             className={inputStyle}
                                             required

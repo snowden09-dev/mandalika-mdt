@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
+import { toast, Toaster } from "sonner"; // 🚀 IMPORT TOASTER UNTUK NOTIFIKASI
 
 // 🚀 STRUKTUR PANGKAT TERBARU (+20% Beban Poin & Jam)
 const RANKS_DB = [
@@ -70,6 +71,9 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             if (!sessionData) return;
             const parsed = JSON.parse(sessionData);
             const discordId = parsed.discord_id;
+            
+            // 🚀 SIMPAN PANGKAT LAMA SEBELUM SINKRONISASI
+            const currentLocalRank = parsed.pangkat?.toUpperCase(); 
 
             if (discordId) {
                 try {
@@ -87,8 +91,36 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     .single();
 
                 if (data && !error) {
-                    setUserData(data);
-                    const updatedSession = { ...parsed, ...data };
+                    let finalData = { ...data };
+                    const newRank = data.pangkat?.toUpperCase();
+
+                    // 🚀 LOGIKA DETEKSI KENAIKAN PANGKAT & AUTO-RESET
+                    if (currentLocalRank && newRank && currentLocalRank !== newRank) {
+                        const oldRankIndex = RANKS_DB.findIndex(r => r.name === currentLocalRank);
+                        const newRankIndex = RANKS_DB.findIndex(r => r.name === newRank);
+
+                        // Pastikan ini adalah Kenaikan Pangkat (Bukan Demosi/Turun)
+                        if (newRankIndex > oldRankIndex && oldRankIndex !== -1) {
+                            
+                            // 1. Reset di Database Supabase
+                            await supabase
+                                .from('users')
+                                .update({ point_prp: 0, total_jam_duty: 0 })
+                                .eq('discord_id', discordId);
+
+                            // 2. Reset visual di layar saat itu juga
+                            finalData.point_prp = 0;
+                            finalData.total_jam_duty = 0;
+
+                            // 3. Tampilkan Notifikasi
+                            toast.success(`🎉 NAIK PANGKAT: ${newRank}!`, {
+                                description: "Selamat! Poin PRP dan Jam Duty Anda telah di-reset untuk target berikutnya."
+                            });
+                        }
+                    }
+
+                    setUserData(finalData);
+                    const updatedSession = { ...parsed, ...finalData };
                     localStorage.setItem('police_session', JSON.stringify(updatedSession));
                 }
             }
@@ -191,6 +223,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
 
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative pt-4 md:pt-8">
+            <Toaster position="top-center" richColors />
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}

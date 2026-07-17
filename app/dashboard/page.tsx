@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Menu, User, ChevronLeft, Home, Banknote, LogOut, ShieldAlert, History,
-    BookOpen, FileText, Scale, Info, Book // Book icon ditambahkan untuk Bottom Nav
+    BookOpen, FileText, Scale, Info, Book
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import NextImage from 'next/image';
@@ -14,17 +14,16 @@ import Sidebar from "./components/Sidebar";
 import SectionHome from "./components/SectionHome";
 import SectionSalary from "./components/SectionSalary";
 import SectionLog from "./components/SectionLog";
-import SectionHandbook from "./components/SectionHandbook"; // 🚀 Komponen baru untuk Handbook Divisi
+import SectionHandbook from "./components/SectionHandbook"; 
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 🚀 KOMPONEN DROPDOWN PROFIL NEO-BRUTALISM
+// 🚀 KOMPONEN DROPDOWN PROFIL MINIMALIST
 function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, pangkat: string, image: string }) {
     const router = useRouter();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // FUNGSI TUTUP DROPDOWN JIKA KLIK DI LUAR
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -46,68 +45,68 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
             {/* INI BAGIAN YANG DITEKAN (FOTO & NAMA) */}
             <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-4 outline-none hover:-translate-y-1 active:translate-y-0 transition-transform text-right group"
+                className="flex items-center gap-3 outline-none hover:opacity-80 transition-opacity text-right group"
             >
                 {/* Nama & Pangkat */}
-                <div className="hidden md:flex flex-col items-end leading-none font-black italic">
-                    <span className="text-xs uppercase text-black">{nickname}</span>
-                    <span className="text-[10px] text-[#3B82F6]">{pangkat}</span>
+                <div className="hidden md:flex flex-col items-end leading-tight">
+                    <span className="text-sm font-semibold text-neutral-200 tracking-wide">{nickname}</span>
+                    <span className="text-xs font-medium text-red-500">{pangkat}</span>
                 </div>
 
                 {/* Foto Profil */}
-                <div className={`w-14 h-14 border-[3.5px] border-black overflow-hidden shadow-[4px_4px_0px_#000] group-hover:shadow-[6px_6px_0px_#000] bg-[#CCFF00] rounded-[18px] transition-shadow relative`}>
+                <div className="w-10 h-10 md:w-11 md:h-11 rounded-full border border-neutral-700 bg-neutral-800 overflow-hidden relative flex-shrink-0">
                     {image ? (
-                        <NextImage src={image} alt="Profile" width={56} height={56} className="object-cover w-full h-full" />
+                        <NextImage src={image} alt="Profile" width={44} height={44} className="object-cover w-full h-full" />
                     ) : (
-                        <User size={28} className="m-auto mt-2" />
+                        <User size={20} className="m-auto mt-2.5 text-neutral-400" />
                     )}
                     {/* Indikator Online */}
-                    <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#00E676] border-2 border-black rounded-full shadow-[2px_2px_0_0_#000]"></span>
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full"></span>
                 </div>
             </button>
 
-            {/* DROPDOWN MENU NEO-BRUTALISM */}
+            {/* DROPDOWN MENU MINIMALIST */}
             <AnimatePresence>
                 {isProfileOpen && (
                     <motion.div
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute right-0 top-full mt-4 w-64 bg-white border-[4px] border-black rounded-2xl shadow-[8px_8px_0_0_#000] p-2 flex flex-col gap-1"
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute right-0 top-full mt-3 w-56 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl p-1.5 flex flex-col gap-0.5"
                     >
                         {/* Info Header (Tampil di Mobile) */}
-                        <div className="p-3 border-b-4 border-black mb-2 bg-slate-950 text-white rounded-xl md:hidden">
-                            <p className="text-[10px] font-black italic uppercase tracking-widest opacity-50">Log In As:</p>
-                            <p className="text-sm font-black truncate">{nickname}</p>
-                            <p className="text-[10px] text-[#3B82F6] font-black">{pangkat}</p>
+                        <div className="p-3 border-b border-neutral-800 mb-1 bg-black/50 rounded-md md:hidden">
+                            <p className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider mb-1">Logged In As</p>
+                            <p className="text-sm font-semibold text-neutral-200 truncate">{nickname}</p>
+                            <p className="text-[11px] text-red-500 font-medium mt-0.5">{pangkat}</p>
                         </div>
 
-                        <button onClick={() => router.push('/panduan')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
-                            <div className="bg-blue-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-blue-500 group-hover:text-white"><BookOpen size={16} /></div>
-                            <span className="font-black text-xs uppercase italic text-black">Panduan Sistem</span>
+                        <button onClick={() => router.push('/panduan')} className="flex items-center gap-3 p-2.5 hover:bg-neutral-800 rounded-md transition-colors group w-full text-left">
+                            <BookOpen size={16} className="text-neutral-400 group-hover:text-red-500 transition-colors" />
+                            <span className="font-medium text-sm text-neutral-300 group-hover:text-white transition-colors">Panduan Sistem</span>
                         </button>
 
-                        <button onClick={() => router.push('/sop')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
-                            <div className="bg-emerald-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-emerald-500 group-hover:text-white"><FileText size={16} /></div>
-                            <span className="font-black text-xs uppercase italic text-black">SOP Anggota</span>
+                        <button onClick={() => router.push('/sop')} className="flex items-center gap-3 p-2.5 hover:bg-neutral-800 rounded-md transition-colors group w-full text-left">
+                            <FileText size={16} className="text-neutral-400 group-hover:text-red-500 transition-colors" />
+                            <span className="font-medium text-sm text-neutral-300 group-hover:text-white transition-colors">SOP Anggota</span>
                         </button>
 
-                        <button onClick={() => router.push('/uu')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
-                            <div className="bg-amber-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-amber-500 group-hover:text-white"><Scale size={16} /></div>
-                            <span className="font-black text-xs uppercase italic text-black">UU Kepolisian</span>
+                        <button onClick={() => router.push('/uu')} className="flex items-center gap-3 p-2.5 hover:bg-neutral-800 rounded-md transition-colors group w-full text-left">
+                            <Scale size={16} className="text-neutral-400 group-hover:text-red-500 transition-colors" />
+                            <span className="font-medium text-sm text-neutral-300 group-hover:text-white transition-colors">UU Kepolisian</span>
                         </button>
 
-                        <button onClick={() => router.push('/about')} className="flex items-center gap-3 p-3 hover:bg-[#CCFF00] rounded-xl border-2 border-transparent hover:border-black transition-all group">
-                            <div className="bg-purple-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-purple-500 group-hover:text-white"><Info size={16} /></div>
-                            <span className="font-black text-xs uppercase italic text-black">About MDT</span>
+                        <button onClick={() => router.push('/about')} className="flex items-center gap-3 p-2.5 hover:bg-neutral-800 rounded-md transition-colors group w-full text-left">
+                            <Info size={16} className="text-neutral-400 group-hover:text-red-500 transition-colors" />
+                            <span className="font-medium text-sm text-neutral-300 group-hover:text-white transition-colors">About MDT</span>
                         </button>
 
-                        <div className="h-1 bg-black my-1 rounded-full" />
+                        <div className="h-px bg-neutral-800 my-1 w-full" />
 
-                        <button onClick={handleLogout} className="flex items-center gap-3 p-3 hover:bg-red-500 hover:text-white rounded-xl border-2 border-transparent hover:border-black transition-all group">
-                            <div className="bg-red-100 p-1.5 border-2 border-black rounded-lg group-hover:bg-white group-hover:text-red-600"><LogOut size={16} /></div>
-                            <span className="font-black text-xs uppercase italic text-black group-hover:text-white">Logout</span>
+                        <button onClick={handleLogout} className="flex items-center gap-3 p-2.5 hover:bg-red-500/10 rounded-md transition-colors group w-full text-left">
+                            <LogOut size={16} className="text-red-500" />
+                            <span className="font-medium text-sm text-red-500">Logout</span>
                         </button>
                     </motion.div>
                 )}
@@ -134,7 +133,6 @@ export default function PortalPage() {
             if (!sessionData) { router.push('/'); return; }
 
             const parsed = JSON.parse(sessionData);
-
             const { data, error } = await supabase.from('users').select('*').eq('discord_id', parsed.discord_id).single();
 
             if (data) {
@@ -154,7 +152,7 @@ export default function PortalPage() {
                     point_prp: data.point_prp,
                     total_jam_duty: data.total_jam_duty,
                     pangkat: data.pangkat,
-                    divisi: data.divisi // 🚀 DIVISI DIAMBIL DARI SINI
+                    divisi: data.divisi
                 });
             } else if (error) {
                 console.error(error);
@@ -164,24 +162,27 @@ export default function PortalPage() {
     }, [router]);
 
     return (
-        <div className="flex min-h-screen bg-[#E0E7FF] font-mono overflow-hidden text-black">
+        <div className="flex min-h-screen bg-black font-sans overflow-hidden text-neutral-200 selection:bg-red-600/30">
             <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} dbStatus={dbStatus} />
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-                <header className="flex justify-between items-center px-6 py-4 bg-white border-b-[6px] border-black z-40 shadow-[0_4px_0_0_rgba(0,0,0,1)]">
+            <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-neutral-950">
+                {/* HEADER */}
+                <header className="flex justify-between items-center px-6 py-4 bg-black border-b border-neutral-900 z-40">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:flex w-12 h-12 bg-[#FFD100] border-[4px] border-black items-center justify-center shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">
-                            {isSidebarOpen ? <ChevronLeft size={24} strokeWidth={3} /> : <Menu size={24} strokeWidth={3} />}
+                        <button 
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                            className="hidden md:flex w-10 h-10 text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-md items-center justify-center transition-all border border-transparent hover:border-neutral-800"
+                        >
+                            {isSidebarOpen ? <ChevronLeft size={20} strokeWidth={2} /> : <Menu size={20} strokeWidth={2} />}
                         </button>
-                        <h2 className="font-[1000] italic uppercase text-lg md:text-2xl tracking-tighter">
+                        <h2 className="font-semibold text-lg md:text-xl text-white tracking-wide">
                             {activeTab === 'home' && 'Personnel Terminal'}
                             {activeTab === 'payroll' && 'Financial Gateway'}
                             {activeTab === 'log' && 'Activity Log'}
-                            {activeTab === 'handbook' && 'Divisional Handbook'} {/* Header untuk Tab Handbook */}
+                            {activeTab === 'handbook' && 'Divisional Handbook'}
                         </h2>
                     </div>
 
-                    {/* 🚀 DROPDOWN PROFIL */}
                     <ProfileDropdownMenu
                         nickname={nickname}
                         pangkat={realtimeData.pangkat}
@@ -189,43 +190,42 @@ export default function PortalPage() {
                     />
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-4 md:p-10 pb-32 bg-[#E0E7FF]">
+                {/* MAIN CONTENT AREA */}
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32">
                     <AnimatePresence mode="wait">
                         {activeTab === 'home' && <SectionHome key="home" nickname={nickname} realtimeData={realtimeData} />}
                         {activeTab === 'log' && <SectionLog key="log" />}
                         {activeTab === 'payroll' && <SectionSalary key="salary" realtimeData={realtimeData} nickname={nickname} />}
-                        {/* 🚀 Render Section Handbook dan lempar props divisi */}
                         {activeTab === 'handbook' && <SectionHandbook key="handbook" divisi={realtimeData.divisi} isPetinggi={dbStatus.is_admin} />}
                     </AnimatePresence>
                 </main>
 
                 {/* BOTTOM NAVIGATION (MOBILE) */}
-                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[#FFD100] border-t-[6px] border-black flex justify-around items-center py-4 pb-8 z-[60] shadow-[0_-6px_0_0_rgba(0,0,0,1)]">
-                    <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'scale-110' : 'opacity-40'}`}>
-                        <Home size={26} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase italic block text-center">Home</span>
+                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-neutral-900 flex justify-around items-center py-3 pb-7 z-[60]">
+                    <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'home' ? 'text-red-500' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                        <Home size={22} strokeWidth={2} />
+                        <span className="text-[10px] font-medium tracking-wide">Home</span>
                     </button>
 
-                    <button onClick={() => setActiveTab('log')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'log' ? 'scale-110' : 'opacity-40'}`}>
-                        <History size={26} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase italic block text-center">Log</span>
+                    <button onClick={() => setActiveTab('log')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'log' ? 'text-red-500' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                        <History size={22} strokeWidth={2} />
+                        <span className="text-[10px] font-medium tracking-wide">Log</span>
                     </button>
 
-                    <button onClick={() => setActiveTab('payroll')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'payroll' ? 'scale-110' : 'opacity-40'}`}>
-                        <Banknote size={26} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase italic block text-center">Gaji</span>
+                    <button onClick={() => setActiveTab('payroll')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'payroll' ? 'text-red-500' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                        <Banknote size={22} strokeWidth={2} />
+                        <span className="text-[10px] font-medium tracking-wide">Gaji</span>
                     </button>
 
-                    {/* 🚀 Tombol Handbook di Mobile */}
-                    <button onClick={() => setActiveTab('handbook')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'handbook' ? 'scale-110' : 'opacity-40'}`}>
-                        <Book size={26} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase italic block text-center">Buku</span>
+                    <button onClick={() => setActiveTab('handbook')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'handbook' ? 'text-red-500' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                        <Book size={22} strokeWidth={2} />
+                        <span className="text-[10px] font-medium tracking-wide">Buku</span>
                     </button>
 
                     {dbStatus.is_admin && (
-                        <button onClick={() => router.push('/admin')} className="flex flex-col items-center gap-1 text-[#FF4D4D] transition-all scale-110">
-                            <ShieldAlert size={26} strokeWidth={2.5} />
-                            <span className="text-[10px] font-black uppercase italic block text-center">Admin</span>
+                        <button onClick={() => router.push('/admin')} className="flex flex-col items-center gap-1.5 text-red-700 hover:text-red-500 transition-all">
+                            <ShieldAlert size={22} strokeWidth={2} />
+                            <span className="text-[10px] font-medium tracking-wide">Admin</span>
                         </button>
                     )}
                 </nav>

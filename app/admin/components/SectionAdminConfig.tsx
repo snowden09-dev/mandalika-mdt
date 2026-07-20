@@ -1,27 +1,38 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from "@/lib/supabase";
 import { Save, Server, Link as LinkIcon, Hash, Loader2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
-const boxBorder = "border-[3.5px] border-slate-950";
-const hardShadow = "shadow-[6px_6px_0px_#000]";
+interface ConfigItem {
+    key: string;
+    value: string;
+}
+
+interface GroupedConfig {
+    [key: string]: {
+        webhook?: ConfigItem;
+        thread?: ConfigItem;
+    };
+}
 
 export default function SectionAdminConfig() {
-    const [configs, setConfigs] = useState<any[]>([]);
+    const [configs, setConfigs] = useState<ConfigItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    const fetchConfig = async () => {
+    const fetchConfig = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase.from('admin_config').select('*').order('key', { ascending: true });
-        if (data) setConfigs(data);
+        if (data) setConfigs(data as ConfigItem[]);
         if (error) console.error("Fetch error:", error);
         setLoading(false);
-    };
+    }, []);
 
-    useEffect(() => { fetchConfig(); }, []);
+    useEffect(() => { 
+        fetchConfig(); 
+    }, [fetchConfig]);
 
     const handleUpdate = (key: string, value: string) => {
         setConfigs(prev => prev.map(c => c.key === key ? { ...c, value } : c));
@@ -33,79 +44,106 @@ export default function SectionAdminConfig() {
 
         try {
             for (const conf of configs) {
-                // 🚀 BUGFIX: Target menggunakan 'key' dan menangkap error eksplisit
                 const { error } = await supabase
                     .from('admin_config')
                     .update({ value: conf.value })
                     .eq('key', conf.key);
 
-                if (error) throw error; // Memaksa masuk ke blok catch jika database menolak
+                if (error) throw error;
             }
             toast.success("Konfigurasi Sistem Berhasil Diperbarui!", { id: tId });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Save config error:", error);
-            // 🚀 Menampilkan error aslinya agar ketahuan jika ada blokir RLS
-            toast.error(`Gagal menyimpan: ${error.message || "Error tidak diketahui"}`, { id: tId });
+            const errorMessage = error instanceof Error ? error.message : "Error tidak diketahui";
+            toast.error(`Gagal menyimpan: ${errorMessage}`, { id: tId });
         } finally {
             setSaving(false);
         }
     };
 
     // Mengelompokkan config berdasarkan divisinya (misal: kasus_besar, patroli)
-    const groupedConfigs = configs.reduce((acc: any, curr: any) => {
-        const type = curr.key.includes('webhook') ? 'webhook' : 'thread';
-        const name = curr.key.replace('webhook_', '').replace('thread_', '');
-        if (!acc[name]) acc[name] = {};
-        acc[name][type] = curr;
-        return acc;
-    }, {});
+    const groupedConfigs = useMemo(() => {
+        return configs.reduce<GroupedConfig>((acc, curr) => {
+            const type = curr.key.includes('webhook') ? 'webhook' : 'thread';
+            const name = curr.key.replace('webhook_', '').replace('thread_', '');
+            if (!acc[name]) acc[name] = {};
+            acc[name][type] = curr;
+            return acc;
+        }, {});
+    }, [configs]);
 
-    if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin" size={40} /></div>;
+    if (loading) {
+        return (
+            <div className="py-20 text-center animate-pulse text-zinc-500 text-xs font-semibold uppercase tracking-wider">
+                Loading System Console...
+            </div>
+        );
+    }
 
     return (
-        <div className="w-full space-y-6 font-mono text-slate-950 pb-20">
-            <Toaster position="top-center" />
+        <div className="w-full max-w-7xl mx-auto space-y-6 font-sans pb-20 text-zinc-100">
+            <Toaster position="top-center" richColors />
 
-            <div className={`bg-slate-950 text-white p-6 rounded-2xl ${boxBorder} shadow-[6px_6px_0px_#00E676] flex justify-between items-center`}>
+            {/* HEADER UTAMA */}
+            <div className="bg-zinc-900/80 backdrop-blur-md border border-zinc-800/80 p-4 md:p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xs">
                 <div>
-                    <h2 className="text-2xl font-[1000] italic uppercase flex items-center gap-3"><Server /> System Console</h2>
-                    <p className="text-xs opacity-60 font-black uppercase mt-1">Webhook & Database Configurations</p>
+                    <h2 className="text-sm font-bold uppercase tracking-tight text-zinc-100 flex items-center gap-2">
+                        <Server size={18} className="text-red-500" /> System Console
+                    </h2>
+                    <p className="text-[10px] font-semibold uppercase text-zinc-500 tracking-wider mt-0.5">
+                        Webhook & Database Configurations
+                    </p>
                 </div>
                 <button
-                    onClick={handleSave} disabled={saving}
-                    className="bg-[#00E676] text-black px-6 py-3 rounded-xl font-black italic uppercase flex items-center gap-2 border-2 border-transparent hover:border-white transition-all disabled:opacity-50"
+                    onClick={handleSave} 
+                    disabled={saving}
+                    className="w-full md:w-auto bg-red-600 hover:bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-xs tracking-wider transition-all shadow-sm shadow-red-900/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500"
                 >
-                    {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} Simpan Config
+                    {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} 
+                    Simpan Config
                 </button>
             </div>
 
+            {/* GRID CONFIGURATIONS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {Object.keys(groupedConfigs).map((categoryName) => (
-                    <div key={categoryName} className={`bg-white p-6 rounded-2xl ${boxBorder} ${hardShadow} space-y-4`}>
-                        <h3 className="text-xl font-[1000] uppercase italic border-b-4 border-black/10 pb-2 mb-4 text-blue-600">
+                    <div key={categoryName} className="bg-zinc-900/80 backdrop-blur-md border border-zinc-800/80 p-6 rounded-2xl space-y-4 shadow-xs">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-red-500 border-b border-zinc-800 pb-3 mb-4">
                             {categoryName.replace('_', ' ')}
                         </h3>
 
                         {groupedConfigs[categoryName].webhook && (
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><LinkIcon size={12} /> Webhook URL</label>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold uppercase text-zinc-400 tracking-wider flex items-center gap-1.5">
+                                    <LinkIcon size={12} className="text-zinc-500" /> Webhook URL
+                                </label>
                                 <input
                                     type="text"
-                                    value={groupedConfigs[categoryName].webhook.value || ''}
-                                    onChange={(e) => handleUpdate(groupedConfigs[categoryName].webhook.key, e.target.value)}
-                                    className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl text-xs font-bold focus:bg-white outline-none focus:border-blue-600"
+                                    value={groupedConfigs[categoryName].webhook?.value || ''}
+                                    onChange={(e) => {
+                                        const webhook = groupedConfigs[categoryName].webhook;
+                                        if (webhook) handleUpdate(webhook.key, e.target.value);
+                                    }}
+                                    className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded-xl text-xs font-medium text-zinc-200 outline-none focus:border-red-500 transition-all"
+                                    placeholder="https://discord.com/api/webhooks/..."
                                 />
                             </div>
                         )}
 
                         {groupedConfigs[categoryName].thread && (
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><Hash size={12} /> Thread ID</label>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold uppercase text-zinc-400 tracking-wider flex items-center gap-1.5">
+                                    <Hash size={12} className="text-zinc-500" /> Thread ID
+                                </label>
                                 <input
                                     type="text"
-                                    value={groupedConfigs[categoryName].thread.value || ''}
-                                    onChange={(e) => handleUpdate(groupedConfigs[categoryName].thread.key, e.target.value)}
-                                    className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl text-xs font-bold focus:bg-white outline-none focus:border-blue-600"
+                                    value={groupedConfigs[categoryName].thread?.value || ''}
+                                    onChange={(e) => {
+                                        const thread = groupedConfigs[categoryName].thread;
+                                        if (thread) handleUpdate(thread.key, e.target.value);
+                                    }}
+                                    className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded-xl text-xs font-medium text-zinc-200 outline-none focus:border-red-500 transition-all"
+                                    placeholder="123456789012345678"
                                 />
                             </div>
                         )}

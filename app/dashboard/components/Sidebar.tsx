@@ -20,14 +20,11 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: SidebarProps) {
     const router = useRouter();
 
-    const fontBlack = "font-mono font-[1000] italic uppercase tracking-tighter text-black";
-    const boxBorder = "border-4 border-black";
-
     const menu = [
-        { id: 'home', label: 'DASHBOARD', icon: <Home size={20} />, color: '#FFD100' },
-        { id: 'log', label: 'ACTIVITY LOG', icon: <History size={20} />, color: '#FF90E8' },
-        { id: 'payroll', label: 'SALARY SYSTEM', icon: <Banknote size={20} />, color: '#00E676' },
-        { id: 'handbook', label: 'HANDBOOK DIVISI', icon: <BookOpen size={20} />, color: '#3B82F6' },
+        { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
+        { id: 'log', label: 'Activity Log', icon: <History size={18} /> },
+        { id: 'payroll', label: 'Salary System', icon: <Banknote size={18} /> },
+        { id: 'handbook', label: 'Handbook Divisi', icon: <BookOpen size={18} /> },
     ];
 
     return (
@@ -38,45 +35,59 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: S
                 opacity: isOpen ? 1 : 0,
                 x: isOpen ? 0 : -20
             }}
-            className="hidden md:flex flex-col bg-white border-r-[6px] border-black z-50 shrink-0 overflow-hidden h-screen shadow-[10px_0px_0px_0px_rgba(0,0,0,0.1)]"
+            className="hidden md:flex flex-col bg-[#121215] border-r border-white/5 z-50 shrink-0 overflow-hidden h-screen text-white shadow-2xl"
         >
-            <div className="p-6 h-full flex flex-col w-70">
-
-                <div className={`bg-[#3B82F6] ${boxBorder} px-4 py-3 shadow-[6px_6px_0px_#000] ${fontBlack} text-center text-xs mb-10 flex items-center justify-center gap-2`}>
-                    <Radar size={16} className="animate-pulse" />
-                    UNIT 405-PD MDT
+            <div className="p-6 h-full flex flex-col w-[280px]">
+                
+                {/* --- HEADER UNIT BADGE (Clean Red Accent) --- */}
+                <div className="bg-red-500/10 border border-red-500/20 px-4 py-2.5 rounded-2xl text-xs font-semibold text-red-400 mb-8 flex items-center justify-center gap-2 tracking-wide uppercase">
+                    <Radar size={16} className="animate-pulse text-red-500" />
+                    Unit 405-PD MDT
                 </div>
 
-                <nav className="flex-1 space-y-5">
-                    {menu.map((item) => (
-                        <button
-                            key={item.id}
-                            onClick={() => setActiveTab(item.id)}
-                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-4 ${activeTab === item.id
-                                ? `border-black shadow-[6px_6px_0px_#000] -translate-x-0.5 -translate-y-0.5`
-                                : 'border-transparent opacity-40 hover:opacity-100'
+                {/* --- NAVIGATION MENU --- */}
+                <nav className="flex-1 space-y-2">
+                    {menu.map((item) => {
+                        const isActive = activeTab === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id)}
+                                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-medium transition-all duration-200 group relative ${
+                                    isActive
+                                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 font-semibold'
+                                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
                                 }`}
-                            style={{ backgroundColor: activeTab === item.id ? item.color : 'transparent' }}
-                        >
-                            <span className="shrink-0">{item.icon}</span>
-                            <span className="truncate">{item.label}</span>
-                        </button>
-                    ))}
+                            >
+                                <span className={`transition-colors ${isActive ? 'text-white' : 'text-zinc-400 group-hover:text-white'}`}>
+                                    {item.icon}
+                                </span>
+                                <span className="tracking-wide">{item.label}</span>
+                                {isActive && (
+                                    <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white" />
+                                )}
+                            </button>
+                        );
+                    })}
 
-                    {/* --- TOMBOL ADMIN --- */}
+                    {/* --- ADMIN PANEL BUTTON --- */}
                     {(dbStatus?.is_admin || dbStatus?.is_highadmin) && (
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            onClick={() => router.push('/admin')}
-                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-4 bg-[#A78BFA] border-black shadow-[6px_6px_0px_#000] hover:-translate-y-0.5 active:shadow-none`}
-                        >
-                            <ShieldAlert size={20} strokeWidth={3} />
-                            <span>ADMIN PANEL</span>
-                        </motion.button>
+                        <div className="pt-4 mt-4 border-t border-white/5">
+                            <motion.button
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                                onClick={() => router.push('/admin')}
+                                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all duration-200 group"
+                            >
+                                <ShieldAlert size={18} className="text-red-400 group-hover:text-red-300" />
+                                <span className="tracking-wide">Admin Panel</span>
+                            </motion.button>
+                        </div>
                     )}
                 </nav>
 
-                <div className="mt-auto pt-6 text-center text-[8px] font-black uppercase opacity-30 italic">
+                {/* --- FOOTER VERSION --- */}
+                <div className="mt-auto pt-6 text-center text-[10px] font-medium uppercase tracking-wider text-zinc-600">
                     Mandalika Security Protocol v3.7
                 </div>
 

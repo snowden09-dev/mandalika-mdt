@@ -7,30 +7,67 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldAlert, Target, Zap, Search,
     Camera, Clock, Calendar as CalendarIcon, ArrowLeft,
-    ShieldCheck, X, Ticket, ClipboardList
+    ShieldCheck, X, Ticket, ClipboardList, LucideIcon
 } from 'lucide-react';
-import { format, parseISO, addDays } from "date-fns";
+import { format, addDays } from "date-fns";
 import { toast, Toaster } from "sonner";
 import TacticalTransition from '@/app/dashboard/components/TacticalTransition';
 
-// --- UTILS (MOBILE SCALED) ---
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
-const boxBorder = "border-[2px] border-slate-950";
-const cardShadow = "shadow-[4px_4px_0px_#000]";
-const fontBlack = "font-mono font-black italic uppercase tracking-tighter";
+// --- INTERFACES & TYPES ---
+interface FormDataState {
+    nama_petugas: string;
+    pangkat: string;
+    badge_number: string;
+    tanggal: Date;
+    waktu_shift: string;
+    nama_pelaku: string;
+    ktp_pelaku: string;
+    pasal: string;
+    total_denda: string;
+    hukuman: string;
+    divisi: string;
+    jenis_kasus: string;
+    lokasi: string;
+    barang_bukti: string;
+    hasil_akhir: string;
+    keterangan: string;
+    kendaraan: string;
+    masa_penilangan: string;
+    denda: string;
+    kesalahan: string;
+    jam_buka: string;
+    jam_tutup: string;
+    kendala_1: string;
+    kendala_2: string;
+    keterangan_1: string;
+    keterangan_2: string;
+    [key: string]: string | Date;
+}
 
-const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-lg px-3 py-2.5 text-[11px] font-bold outline-none focus:bg-white focus:border-blue-600 transition-all shadow-[2px_2px_0px_#000]`;
-const labelStyle = `text-[9px] ${fontBlack} text-slate-500 mb-1 flex items-center gap-1.5 tracking-wider`;
+interface ConfigType {
+    color: string;
+    label: string;
+    poin: number;
+    icon: LucideIcon;
+}
+
+// --- UTILS ---
+const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
+const boxBorder = "border border-slate-200";
+const cardShadow = "shadow-sm hover:shadow-md transition-shadow";
+
+const inputStyle = `w-full bg-slate-50/50 ${boxBorder} rounded-xl px-3.5 py-3 text-xs font-medium outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all shadow-xs`;
+const labelStyle = `text-[10px] font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5 tracking-wide uppercase`;
 
 export default function LaporanMultiForm() {
     const router = useRouter();
-    const [step, setStep] = useState(0);
-    const [tipe, setTipe] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [isNavigating, setIsNavigating] = useState(false);
+    const [step, setStep] = useState<number>(0);
+    const [tipe, setTipe] = useState<string>("");
+    const [loading, setLoading] = useState<boolean>(false);
+    const [isNavigating, setIsNavigating] = useState<boolean>(false);
 
-    const [formData, setFormData] = useState({
-        nama_petugas: "", pangkat: "", badge_number: "", // 🚀 NEW FIELD BADGE
+    const [formData, setFormData] = useState<FormDataState>({
+        nama_petugas: "", pangkat: "", badge_number: "",
         tanggal: new Date(), waktu_shift: "",
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
         divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
@@ -46,7 +83,7 @@ export default function LaporanMultiForm() {
     const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
 
     // --- CONFIG --- 
-    const CONFIG: any = {
+    const CONFIG: Record<string, ConfigType> = {
         tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
         kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
         patroli: { color: "#3b82f6", label: "Patroli", poin: 5, icon: Search },
@@ -56,7 +93,7 @@ export default function LaporanMultiForm() {
     };
 
     // 🚀 UPDATE FORMAT PESAN DISCORD (TANPA TAG ROLE)
-    const getFormatMessage = (d: any) => {
+    const getFormatMessage = (d: FormDataState) => {
         const tglStr = format(d.tanggal, "yyyy-MM-dd");
         if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\``;
         if (tipe === 'kasus') return `📁 **LAPORAN PENANGANAN KASUS BESAR**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nJenis Kasus : ${d.jenis_kasus || '-'}\nLokasi Kejadian : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil Akhir : ${d.hasil_akhir || '-'}\n\nBarang Bukti : ${d.barang_bukti || '-'}\n\`\`\``;
@@ -64,18 +101,21 @@ export default function LaporanMultiForm() {
         if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\``;
         if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\``;
         if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nData Petugas\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\``;
+        return "";
     };
 
     // --- SYNC SESSION DATA ---
     useEffect(() => {
         const sessionData = localStorage.getItem('police_session');
-        if (!sessionData) return router.push('/');
+        if (!sessionData) {
+            router.push('/');
+            return;
+        }
         const parsed = JSON.parse(sessionData);
 
         const loadProfile = async () => {
             const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', parsed.discord_id).single();
             if (data) {
-                // 🚀 PARSING LOGIC: Pisah Nama dan Badge
                 let rawName = data.name.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
                 let badge = "-";
 
@@ -102,10 +142,12 @@ export default function LaporanMultiForm() {
         loadProfile();
     }, [router]);
 
-    const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
-    const handleFileChange = (e: any) => {
-        const files = Array.from(e.target.files) as File[];
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []) as File[];
         if (files.length > 0) {
             const newFotos = [...fotos, ...files].slice(0, 4);
             setFotos(newFotos);
@@ -125,10 +167,9 @@ export default function LaporanMultiForm() {
     };
 
     // --- 🚀 LOGIKA SUBMIT ---
-    const submitLaporan = async (e: any) => {
+    const submitLaporan = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        // 🚀 VALIDASI BATAS WAKTU (H-3)
         const selectedDate = new Date(formData.tanggal);
         selectedDate.setHours(0, 0, 0, 0);
         const today = new Date();
@@ -137,19 +178,27 @@ export default function LaporanMultiForm() {
         const diffDays = Math.round((today.getTime() - selectedDate.getTime()) / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) {
-            return toast.error("TANGGAL TIDAK VALID!", { description: "Laporan tidak bisa untuk tanggal di masa depan." });
+            toast.error("TANGGAL TIDAK VALID!", { description: "Laporan tidak bisa untuk tanggal di masa depan." });
+            return;
         }
         if (diffDays > 3) {
-            return toast.error("LAPORAN DITOLAK!", { description: "Batas maksimal pengiriman laporan adalah 3 hari ke belakang." });
+            toast.error("LAPORAN DITOLAK!", { description: "Batas maksimal pengiriman laporan adalah 3 hari ke belakang." });
+            return;
         }
 
         if (tipe === 'admin') {
-            if (fotos.length < 2) return toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan foto Jam Buka & Jam Tutup/Selesai." });
-            if (!formData.jam_buka || !formData.jam_tutup) return toast.error("JAM BUKA & TUTUP WAJIB DIISI!");
+            if (fotos.length < 2) {
+                toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan foto Jam Buka & Jam Tutup/Selesai." });
+                return;
+            }
+            if (!formData.jam_buka || !formData.jam_tutup) {
+                toast.error("JAM BUKA & TUTUP WAJIB DIISI!");
+                return;
+            }
 
             const [bukaH, bukaM] = formData.jam_buka.split(':').map(Number);
             const [tutupH, tutupM] = formData.jam_tutup.split(':').map(Number);
-            let startMinutes = bukaH * 60 + bukaM;
+            const startMinutes = bukaH * 60 + bukaM;
             let endMinutes = tutupH * 60 + tutupM;
 
             if (endMinutes <= startMinutes) {
@@ -158,10 +207,14 @@ export default function LaporanMultiForm() {
 
             const diffMinutes = endMinutes - startMinutes;
             if (diffMinutes < 60) {
-                return toast.error("DURASI JAGA DITOLAK!", { description: "Minimal waktu jaga administrasi adalah 1 Jam (60 Menit)." });
+                toast.error("DURASI JAGA DITOLAK!", { description: "Minimal waktu jaga administrasi adalah 1 Jam (60 Menit)." });
+                return;
             }
         } else {
-            if (fotos.length < 1) return toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
+            if (fotos.length < 1) {
+                toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
+                return;
+            }
         }
 
         setLoading(true);
@@ -174,7 +227,7 @@ export default function LaporanMultiForm() {
 
             const { data: configData } = await supabase.from('admin_config').select('*');
 
-            const typeMapping: any = {
+            const typeMapping: Record<string, string> = {
                 tangkap: 'penangkapan', kasus: 'kasus_besar', patroli: 'patroli',
                 backup: 'backup', tilang: 'penilangan', admin: 'admin'
             };
@@ -219,15 +272,16 @@ export default function LaporanMultiForm() {
             toast.success(`LAPORAN ${conf.label.toUpperCase()} TERKIRIM!`, { id: tId });
             setTimeout(() => handleNavigation('/dashboard'), 1500);
 
-        } catch (err: any) {
-            toast.error("TRANSMISI GAGAL", { description: err.message });
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "Terjadi kesalahan tidak dikenal";
+            toast.error("TRANSMISI GAGAL", { description: errorMessage });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-[#e2e8f0] text-slate-900 font-mono p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
+        <div className="min-h-screen bg-slate-50/70 text-slate-900 font-sans p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
             <TacticalTransition isVisible={isNavigating} type="COMPUTER" />
             <Toaster position="top-center" richColors />
 
@@ -242,16 +296,16 @@ export default function LaporanMultiForm() {
                             setPreviews([]);
                         }
                     }}
-                    className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all"
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-xs hover:bg-slate-50 active:scale-95 transition-all text-slate-700"
                 >
                     <ArrowLeft size={18} />
                 </button>
                 <div className="text-right">
-                    <div className="flex items-center justify-end gap-1.5 mb-1">
+                    <div className="flex items-center justify-end gap-1.5 mb-0.5">
                         <ShieldCheck className="text-blue-600 animate-pulse" size={14} />
-                        <span className="text-[8px] font-black tracking-widest uppercase opacity-50 italic">Mandalika PD</span>
+                        <span className="text-[10px] font-semibold tracking-wider uppercase text-slate-400">Mandalika PD</span>
                     </div>
-                    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">
+                    <h1 className="text-lg font-bold text-slate-900 tracking-tight">
                         {step === 0 ? "Laporan Ops" : CONFIG[tipe]?.label}
                     </h1>
                 </div>
@@ -260,33 +314,42 @@ export default function LaporanMultiForm() {
             <div className="w-full max-w-md relative z-10">
                 <AnimatePresence mode="wait">
                     {step === 0 ? (
-                        <motion.div key="s0" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="grid grid-cols-2 gap-3">
-                            {Object.entries(CONFIG).map(([id, conf]: any) => (
-                                <button key={id} onClick={() => { setTipe(id); setStep(1); }} className={`bg-white ${boxBorder} p-4 rounded-2xl ${cardShadow} flex flex-col items-center justify-center gap-3 hover:bg-slate-50 active:translate-y-1 active:shadow-none transition-all`}>
-                                    <div className="p-3 rounded-xl border-2 border-black bg-slate-50" style={{ color: conf.color }}><conf.icon size={24} /></div>
-                                    <div className="text-center">
-                                        <p className={`${fontBlack} text-xs leading-none mb-1`}>{conf.label}</p>
-                                        <span className="bg-slate-950 text-white px-2 py-0.5 rounded-md text-[8px] font-black">+{conf.poin} PRP (Pending)</span>
-                                    </div>
-                                </button>
-                            ))}
+                        <motion.div key="s0" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="grid grid-cols-2 gap-3">
+                            {Object.entries(CONFIG).map(([id, conf]) => {
+                                const IconComponent = conf.icon;
+                                return (
+                                    <button 
+                                        key={id} 
+                                        onClick={() => { setTipe(id); setStep(1); }} 
+                                        className={`bg-white ${boxBorder} p-4 rounded-2xl ${cardShadow} flex flex-col items-center justify-center gap-3 text-left group`}
+                                    >
+                                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 group-hover:scale-105 transition-transform" style={{ color: conf.color }}>
+                                            <IconComponent size={22} />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="font-semibold text-xs text-slate-800 leading-tight mb-1">{conf.label}</p>
+                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-[9px] font-medium">+{conf.poin} Poin</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </motion.div>
                     ) : (
-                        <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
+                        <motion.div key="s1" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-3xl ${cardShadow} p-6`}>
 
-                            {/* 🚀 IDENTITY BANNER - NEW LAYOUT UNTUK BADGE */}
-                            <div className="grid grid-cols-3 gap-2 items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner text-center">
-                                <div className="truncate text-left">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Nama</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase truncate">{formData.nama_petugas}</p>
+                            {/* 🚀 IDENTITY BANNER */}
+                            <div className="grid grid-cols-3 gap-2 items-center bg-slate-50/80 border border-slate-200 p-3 rounded-2xl mb-6 shadow-xs text-center">
+                                <div className="truncate text-left px-1">
+                                    <p className="text-[9px] font-medium text-slate-400 uppercase">Nama</p>
+                                    <p className="text-[11px] font-bold text-slate-800 truncate">{formData.nama_petugas}</p>
                                 </div>
-                                <div className="truncate border-x-2 border-slate-300 px-1">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Pangkat</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase text-blue-600 truncate">{formData.pangkat}</p>
+                                <div className="truncate border-x border-slate-200 px-1">
+                                    <p className="text-[9px] font-medium text-slate-400 uppercase">Pangkat</p>
+                                    <p className="text-[11px] font-bold text-blue-600 truncate">{formData.pangkat}</p>
                                 </div>
-                                <div className="truncate text-right">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase italic">Badge</p>
-                                    <p className="text-[10px] md:text-xs font-black uppercase text-slate-800 truncate">#{formData.badge_number}</p>
+                                <div className="truncate text-right px-1">
+                                    <p className="text-[9px] font-medium text-slate-400 uppercase">Badge</p>
+                                    <p className="text-[11px] font-bold text-slate-800 truncate">#{formData.badge_number}</p>
                                 </div>
                             </div>
 
@@ -332,7 +395,7 @@ export default function LaporanMultiForm() {
                                     <>
                                         {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Jenis Kasus</label><input name="jenis_kasus" placeholder="Misal: Perampokan..." required onChange={handleInputChange} className={inputStyle} /></div>}
                                         <div className="space-y-1"><label className={labelStyle}>Lokasi Kejadian</label><input name="lokasi" placeholder="Area / Nama Jalan..." required onChange={handleInputChange} className={inputStyle} /></div>
-                                        <div className="space-y-1"><label className={labelStyle}>Kronologi / Laporan</label><textarea name="keterangan" placeholder="Ceritakan detail operasi..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-[100px] resize-none")} /></div>
+                                        <div className="space-y-1"><label className={labelStyle}>Kronologi / Laporan</label><textarea name="keterangan" placeholder="Ceritakan detail operasi..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-25 resize-none")} /></div>
                                         {(tipe === 'kasus' || tipe === 'backup') && <div className="space-y-1"><label className={labelStyle}>Hasil Akhir</label><input name="hasil_akhir" placeholder="Status pelaku/situasi..." required onChange={handleInputChange} className={inputStyle} /></div>}
                                         {tipe === 'kasus' && <div className="space-y-1"><label className={labelStyle}>Barang Bukti Sitaan</label><input name="barang_bukti" placeholder="Senjata, Uang..." required onChange={handleInputChange} className={inputStyle} /></div>}
                                     </>
@@ -361,7 +424,7 @@ export default function LaporanMultiForm() {
                                         </div>
                                         <div className="space-y-1">
                                             <label className={labelStyle}>Kesalahan</label>
-                                            <textarea name="kesalahan" placeholder="Tuliskan kesalahan pelanggar..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-[80px] resize-none")} />
+                                            <textarea name="kesalahan" placeholder="Tuliskan kesalahan pelanggar..." required onChange={handleInputChange} className={cn(inputStyle, "min-h-20 resize-none")} />
                                         </div>
                                     </>
                                 )}
@@ -399,29 +462,30 @@ export default function LaporanMultiForm() {
 
                                 <div className="space-y-2 pt-2">
                                     <div className="flex items-center justify-between">
-                                        <label className={labelStyle}><Camera size={12} /> BUKTI VISUAL</label>
-                                        {tipe === 'admin' && <span className="text-[8px] font-black italic text-red-500 uppercase bg-red-100 px-1 rounded border border-red-200">Min. 2 Foto</span>}
+                                        <label className={labelStyle}><Camera size={12} /> Bukti Visual</label>
+                                        {tipe === 'admin' && <span className="text-[9px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">Min. 2 Foto</span>}
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2 items-center">
+                                    <div className="flex flex-wrap gap-2.5 items-center">
                                         {previews.map((prev, index) => (
-                                            <div key={index} className={`relative w-14 h-14 md:w-16 md:h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000]`}>
-                                                <img src={prev} className="w-full h-full object-cover" />
-                                                <button type="button" onClick={() => removeFoto(index)} className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90"><X size={10} /></button>
+                                            <div key={index} className="relative w-16 h-16 shrink-0 border border-slate-200 rounded-2xl overflow-hidden shadow-xs bg-white">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={prev} alt={`Bukti ${index + 1}`} className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => removeFoto(index)} className="absolute top-1 right-1 bg-slate-900/80 hover:bg-rose-600 text-white p-1 rounded-full backdrop-blur-xs transition-colors"><X size={10} /></button>
                                             </div>
                                         ))}
 
                                         {previews.length < 4 && (
-                                            <label className={`w-14 h-14 md:w-16 md:h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-100 transition-colors`}>
+                                            <label className="w-16 h-16 shrink-0 border border-dashed border-slate-300 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-100/80 transition-colors">
                                                 <Camera size={16} className="text-slate-400" />
-                                                <span className="text-[7px] md:text-[8px] font-black italic text-slate-400 uppercase leading-none">Tambah</span>
+                                                <span className="text-[9px] font-medium text-slate-400 uppercase leading-none">Tambah</span>
                                                 <input type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" />
                                             </label>
                                         )}
                                     </div>
                                 </div>
 
-                                <button disabled={loading} type="submit" className={cn("w-full py-4 mt-4 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2", boxBorder, cardShadow, "bg-slate-950 active:translate-y-1 shadow-none disabled:opacity-50")}>
+                                <button disabled={loading} type="submit" className="w-full py-3.5 mt-4 rounded-xl font-semibold tracking-wide text-white transition-all flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 shadow-sm active:scale-[0.99] disabled:opacity-50">
                                     {loading ? "TRANSMITTING..." : "KIRIM LAPORAN"}
                                 </button>
                             </form>

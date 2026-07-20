@@ -4,18 +4,17 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, Variants } from 'framer-motion';
 import { supabase } from "@/lib/supabase";
 import {
-    Zap, Clock, Calendar, FileText, Award,
-    ChevronRight, Radar, Fingerprint, Target,
-    Crosshair, Activity, ShieldAlert, TrendingUp,
-    UserCheck, HelpCircle, AlertTriangle, GraduationCap, Star
+    Zap, Clock, FileText, Award, Radar, Fingerprint, Target,
+    Activity, Crosshair, HelpCircle, GraduationCap, Star,
+    ArrowRight
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
-import { toast, Toaster } from "sonner"; // 🚀 IMPORT TOASTER UNTUK NOTIFIKASI
+import { toast, Toaster } from "sonner";
 
-// 🚀 STRUKTUR PANGKAT TERBARU (+20% Beban Poin & Jam)
+// --- STRUKTUR PANGKAT ---
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
     { name: "RECRUIT", prp: 0, hrs: 0 },
@@ -52,18 +51,20 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     });
     const [totalTilang, setTotalTilang] = useState(0);
 
-    const boxBorder = "border-[4.5px] border-black";
-    const hardShadow = "shadow-[10px_10px_0px_#000]";
-
+    // Modern Framer Motion Variants
     const container: Variants = {
         hidden: { opacity: 0 },
-        show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+        show: { opacity: 1, transition: { staggerChildren: 0.08 } }
     };
 
     const item: Variants = {
-        hidden: { y: 20, opacity: 0 },
+        hidden: { y: 15, opacity: 0 },
         show: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
     };
+
+    // Styling Constants (Clean Minimalist Dark Mode)
+    const cardBase = "bg-[#18181B] border border-white/5 rounded-[28px] overflow-hidden relative flex flex-col p-5 md:p-6 shadow-xl shadow-black/20";
+    const glassPill = "bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-white/90 flex items-center gap-1.5";
 
     useEffect(() => {
         const syncFreshData = async () => {
@@ -71,9 +72,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             if (!sessionData) return;
             const parsed = JSON.parse(sessionData);
             const discordId = parsed.discord_id;
-            
-            // 🚀 SIMPAN PANGKAT LAMA SEBELUM SINKRONISASI
-            const currentLocalRank = parsed.pangkat?.toUpperCase(); 
+            const currentLocalRank = parsed.pangkat?.toUpperCase();
 
             if (discordId) {
                 try {
@@ -94,27 +93,21 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     let finalData = { ...data };
                     const newRank = data.pangkat?.toUpperCase();
 
-                    // 🚀 LOGIKA DETEKSI KENAIKAN PANGKAT & AUTO-RESET
                     if (currentLocalRank && newRank && currentLocalRank !== newRank) {
                         const oldRankIndex = RANKS_DB.findIndex(r => r.name === currentLocalRank);
                         const newRankIndex = RANKS_DB.findIndex(r => r.name === newRank);
 
-                        // Pastikan ini adalah Kenaikan Pangkat (Bukan Demosi/Turun)
                         if (newRankIndex > oldRankIndex && oldRankIndex !== -1) {
-                            
-                            // 1. Reset di Database Supabase
                             await supabase
                                 .from('users')
                                 .update({ point_prp: 0, total_jam_duty: 0 })
                                 .eq('discord_id', discordId);
 
-                            // 2. Reset visual di layar saat itu juga
                             finalData.point_prp = 0;
                             finalData.total_jam_duty = 0;
 
-                            // 3. Tampilkan Notifikasi
-                            toast.success(`🎉 NAIK PANGKAT: ${newRank}!`, {
-                                description: "Selamat! Poin PRP dan Jam Duty Anda telah di-reset untuk target berikutnya."
+                            toast.success(`Naik Pangkat: ${newRank}`, {
+                                description: "Poin PRP dan Jam Duty telah di-reset untuk jenjang berikutnya."
                             });
                         }
                     }
@@ -133,28 +126,25 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         setTimeout(() => { router.push(path); }, 3000);
     };
 
-    // 🚀 ENGINE PARSING NAMA DAN BADGE
+    // Engine Parsing
     const parsedName = useMemo(() => {
-        let rawName = userData.name || nickname || "OFFICER";
+        let rawName = userData.name || nickname || "Officer";
         let badge = null;
 
-        // 1. Backward Compatibility: Bersihkan format lama (Pangkat | Nama)
         if (rawName.includes('|')) {
             rawName = rawName.split('|').pop()?.trim() || rawName;
         }
 
-        // 2. Format Baru: Ekstrak Badge (#3105 Nama)
         if (rawName.startsWith('#')) {
             const spaceIndex = rawName.indexOf(' ');
             if (spaceIndex !== -1) {
-                badge = rawName.substring(1, spaceIndex); // Ambil angka badge
-                rawName = rawName.substring(spaceIndex + 1).trim(); // Ambil nama sisanya
+                badge = rawName.substring(1, spaceIndex);
+                rawName = rawName.substring(spaceIndex + 1).trim();
             } else {
-                badge = rawName.substring(1); // Kalau cuma ketik #3105 tanpa nama
-                rawName = "OFFICER";
+                badge = rawName.substring(1);
+                rawName = "Officer";
             }
         }
-
         return { displayName: rawName, badgeNumber: badge };
     }, [userData.name, nickname]);
 
@@ -180,12 +170,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
-
-    const cleanDivisi = userData.divisi &&
-        userData.divisi.toUpperCase() !== 'PETINGGI' &&
-        userData.divisi.toUpperCase() !== 'NON DIVISI'
-        ? userData.divisi.toUpperCase()
-        : null;
+    const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' && userData.divisi.toUpperCase() !== 'NON DIVISI' ? userData.divisi : null;
 
     const TARGET_TILANG = 15;
     const tilangPct = Math.min((totalTilang / TARGET_TILANG) * 100, 100).toFixed(0);
@@ -193,7 +178,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
     const now = new Date();
     const startW = startOfWeek(now, { weekStartsOn: 1 });
     const endW = endOfWeek(now, { weekStartsOn: 1 });
-    const periodText = `${format(startW, 'dd MMM')} - ${format(endW, 'dd MMM yyyy', { locale: id })}`;
+    const periodText = `${format(startW, 'dd MMM')} - ${format(endW, 'dd MMM', { locale: id })}`;
 
     useEffect(() => {
         const fetchTilangMingguan = async () => {
@@ -215,60 +200,50 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
         fetchTilangMingguan();
     }, [isSatlantas, userData.discord_id, startW, endW]);
 
-    // 🎨 INLINE STYLE UNTUK RPG BAR
-    const stripeBg = {
-        backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)',
-        backgroundSize: '20px 20px'
-    };
-
     return (
-        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-6 max-w-5xl mx-auto pb-32 p-4 relative pt-4 md:pt-8">
-            <Toaster position="top-center" richColors />
+        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-4 md:gap-6 max-w-4xl mx-auto pb-32 p-4 pt-6 md:pt-10 text-white">
+            <Toaster position="top-center" richColors theme="dark" />
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 bg-[#3B82F6] p-6 md:p-8 ${boxBorder} ${hardShadow} relative flex flex-col justify-end min-h-[240px] group`} style={{ zIndex: 10 }}>
-
-                {/* Background Pattern */}
-                <div className="absolute top-0 right-0 p-4 opacity-15 group-hover:rotate-12 transition-transform duration-500 overflow-hidden">
-                    <Fingerprint size={160} className="text-black" />
+            <motion.div variants={item} className={`col-span-2 ${cardBase} min-h-[220px] bg-gradient-to-br from-[#18181B] to-[#09090B]`}>
+                <div className="absolute -right-6 -bottom-6 opacity-5 pointer-events-none">
+                    <Fingerprint size={200} className="text-white" />
                 </div>
-                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(black 1px, transparent 0)', backgroundSize: '20px 20px' }} />
 
-                <div className="relative z-10 mt-10 md:mt-0">
-                    <motion.div animate={{ opacity: [1, 0.7, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="bg-black text-[#00E676] px-3 py-1 inline-block text-[10px] font-black mb-3 uppercase italic border-2 border-[#00E676] shadow-[0_0_15px_rgba(0,230,118,0.6)]">
-                        {isCasis ? "Siswa Diklat Terdeteksi" : "Akses Terverifikasi"}
-                    </motion.div>
+                <div className="relative z-10 flex flex-col h-full justify-end mt-12 md:mt-0">
+                    <div className="mb-4">
+                        <span className={`px-3 py-1 text-[10px] uppercase font-bold tracking-wider rounded-full border ${isCasis ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                            {isCasis ? "Siswa Diklat" : "Akses Terverifikasi"}
+                        </span>
+                    </div>
 
-                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-[1000] italic tracking-tighter uppercase leading-none truncate mb-5 text-white" style={{ textShadow: '4px 4px 0 #000, 2px 2px 0 #CCFF00' }}>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">
                         {parsedName.displayName}
                     </h1>
 
-                    <div className="flex flex-wrap gap-2 md:gap-3">
-                        {/* 1. RANK TAG */}
-                        <span className="relative overflow-hidden bg-[#FFD100] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
-                            <motion.div animate={{ x: ["-100%", "200%"] }} transition={{ repeat: Infinity, duration: 2.5, ease: "linear", repeatDelay: 1 }} className="absolute inset-0 w-full bg-white/70 skew-x-12" />
+                    <div className="flex flex-wrap gap-2">
+                        <span className={glassPill}>
+                            <Award size={14} className="text-blue-400" />
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {/* 2. BADGE TAG (NEW) */}
                         {parsedName.badgeNumber && (
-                            <span className="bg-white text-black px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
-                                BADGE #{parsedName.badgeNumber}
+                            <span className={glassPill}>
+                                Badge #{parsedName.badgeNumber}
                             </span>
                         )}
 
-                        {/* 3. DIVISI TAG */}
                         {cleanDivisi && (
-                            <span className="bg-[#CCFF00] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#000]">
+                            <span className={glassPill}>
                                 {cleanDivisi}
                             </span>
                         )}
 
-                        {/* 4. PETINGGI TAG */}
                         {isPetinggi && (
-                            <span className="bg-slate-950 text-[#00E676] px-3 md:px-4 py-1.5 border-[3px] border-black text-[10px] md:text-[12px] font-black italic shadow-[3px_3px_0_0_#00E676] flex items-center gap-1.5">
-                                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }}><Star size={14} className="fill-[#00E676] text-[#00E676]" /></motion.div> PETINGGI
+                            <span className="bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-amber-400 flex items-center gap-1.5">
+                                <Star size={14} className="fill-amber-400" />
+                                Petinggi
                             </span>
                         )}
                     </div>
@@ -276,184 +251,172 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             </motion.div>
 
             {/* --- BIG STATS: REP POINTS --- */}
-            <motion.div variants={item} className={`bg-[#FFD100] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
-                <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 4 }} className="absolute -right-2 -top-2 opacity-15">
-                    <Zap size={100} />
-                </motion.div>
-                <div className="flex justify-between items-center mb-4 relative z-10">
-                    <p className="text-[10px] md:text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Reputation Points</p>
-                    <TrendingUp size={24} className="hidden md:block" />
+            <motion.div variants={item} className={`col-span-1 ${cardBase} group`}>
+                <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+                    <Zap size={80} />
+                </div>
+                <div className="flex justify-between items-start mb-6">
+                    <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <Zap size={20} className="text-blue-400" />
+                    </div>
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate drop-shadow-[2px_2px_0_#fff]">
+                    <p className="text-xs text-zinc-400 font-medium mb-1">Reputation Points</p>
+                    <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
                         {userData.point_prp || 0}
                     </h2>
-                    <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Points Collected</p>
                 </div>
-                <div className="mt-auto relative z-10">
-                    <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                        <span>Progress</span><span>{progress.prpPct}%</span>
+                <div className="mt-auto pt-2">
+                    <div className="flex justify-between text-[10px] text-zinc-400 font-medium mb-1.5">
+                        <span>Progress</span>
+                        <span>{progress.prpPct}%</span>
                     </div>
-                    {/* 🚀 RPG EXP BAR PURE FRAMER MOTION */}
-                    <div className="bg-slate-900 h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000] rounded-sm overflow-hidden">
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress.prpPct}%`, backgroundPosition: ["0px 0px", "40px 0px"] }}
-                            transition={{ width: { duration: 1.5, ease: "easeOut" }, backgroundPosition: { repeat: Infinity, duration: 1, ease: "linear" } }}
-                            style={stripeBg}
-                            className="h-full bg-[#00E676] border-r-[3px] border-black"
+                    <div className="w-full bg-zinc-800/50 h-1.5 rounded-full overflow-hidden">
+                        <motion.div 
+                            initial={{ width: 0 }} 
+                            animate={{ width: `${progress.prpPct}%` }} 
+                            transition={{ duration: 1, ease: "easeOut" }} 
+                            className="h-full bg-blue-500 rounded-full" 
                         />
                     </div>
                 </div>
             </motion.div>
 
             {/* --- BIG STATS: DUTY HOURS --- */}
-            <motion.div variants={item} className={`bg-[#00E676] p-4 md:p-6 ${boxBorder} ${hardShadow} flex flex-col relative group overflow-hidden`}>
-                <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, -10, 10, 0] }} transition={{ repeat: Infinity, duration: 3, delay: 1 }} className="absolute -right-2 -top-2 opacity-15">
-                    <Activity size={100} />
-                </motion.div>
-                <div className="flex justify-between items-center mb-4 relative z-10">
-                    <p className="text-[10px] md:text-[12px] font-black uppercase italic text-black bg-black/10 px-2 py-1">Duty Records</p>
-                    <Clock size={24} className="hidden md:block" />
+            <motion.div variants={item} className={`col-span-1 ${cardBase} group`}>
+                <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+                    <Activity size={80} />
+                </div>
+                <div className="flex justify-between items-start mb-6">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                        <Clock size={20} className="text-emerald-400" />
+                    </div>
                 </div>
                 <div className="relative z-10 mb-4">
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-[1000] leading-none tracking-tighter italic truncate drop-shadow-[2px_2px_0_#fff]">
+                    <p className="text-xs text-zinc-400 font-medium mb-1">Duty Records</p>
+                    <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
                         {userData.total_jam_duty || 0}
                     </h2>
-                    <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black/60">Total Hours</p>
                 </div>
-                <div className="mt-auto relative z-10">
-                    <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                        <span>Active Time</span><span>{progress.hrPct}%</span>
+                <div className="mt-auto pt-2">
+                    <div className="flex justify-between text-[10px] text-zinc-400 font-medium mb-1.5">
+                        <span>Active Time</span>
+                        <span>{progress.hrPct}%</span>
                     </div>
-                    {/* 🚀 RPG EXP BAR PURE FRAMER MOTION */}
-                    <div className="bg-slate-900 h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000] rounded-sm overflow-hidden">
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress.hrPct}%`, backgroundPosition: ["0px 0px", "40px 0px"] }}
-                            transition={{ width: { duration: 1.5, ease: "easeOut" }, backgroundPosition: { repeat: Infinity, duration: 1, ease: "linear" } }}
-                            style={stripeBg}
-                            className="h-full bg-[#FF4D4D] border-r-[3px] border-black"
+                    <div className="w-full bg-zinc-800/50 h-1.5 rounded-full overflow-hidden">
+                        <motion.div 
+                            initial={{ width: 0 }} 
+                            animate={{ width: `${progress.hrPct}%` }} 
+                            transition={{ duration: 1, ease: "easeOut", delay: 0.2 }} 
+                            className="h-full bg-emerald-500 rounded-full" 
                         />
                     </div>
                 </div>
             </motion.div>
 
             {/* --- PROMOTION PATHWAY --- */}
-            <motion.div variants={item} className={`col-span-2 bg-white p-4 md:p-6 ${boxBorder} ${hardShadow} relative group overflow-hidden`}>
-                <div className="absolute -right-6 -top-6 opacity-5 group-hover:scale-125 transition-transform duration-1000">
-                    <Target size={180} />
+            <motion.div variants={item} className={`col-span-2 ${cardBase} border-white/10 bg-zinc-900/50 backdrop-blur-xl`}>
+                <div className="absolute right-0 top-0 opacity-[0.03] pointer-events-none">
+                    <Target size={160} className="translate-x-4 -translate-y-4" />
                 </div>
-                <div className="flex items-center gap-4 md:gap-6 mb-6 relative z-10">
-                    <motion.div animate={progress.isReady ? { y: [0, -5, 0] } : {}} transition={{ repeat: Infinity, duration: 1 }} className="bg-[#A78BFA] p-3 md:p-4 border-[4px] border-black shadow-[6px_6px_0_0_#000] -rotate-2 group-hover:rotate-0 transition-transform">
-                        <Award size={32} className="md:w-10 md:h-10" />
-                    </motion.div>
-                    <div className="overflow-hidden">
-                        <p className="text-[10px] md:text-[11px] font-black opacity-50 italic uppercase leading-none mb-2">
-                            {progress.isReady ? "Status: MEMENUHI SYARAT" : (isCasis ? "Kelulusan Siswa Diklat" : "Next Promotion Goal")}
+                
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-2 relative z-10">
+                    <div>
+                        <p className="text-xs text-zinc-400 font-medium mb-1">
+                            {progress.isReady ? "Siap Naik Pangkat" : (isCasis ? "Target Kelulusan" : "Target Pangkat Selanjutnya")}
                         </p>
-                        <h3 className={`text-2xl sm:text-3xl md:text-4xl font-[1000] italic leading-none tracking-tighter truncate ${progress.isReady ? 'text-[#00E676] drop-shadow-[2px_2px_0_#000]' : 'text-black'}`}>
+                        <h3 className={`text-2xl md:text-3xl font-bold tracking-tight ${progress.isReady ? 'text-emerald-400' : 'text-white'}`}>
                             {progress.next}
                         </h3>
                     </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 md:gap-5 relative z-10">
-                    <div className="bg-[#FFD100] border-[4px] border-black p-3 md:p-4 flex flex-col shadow-[6px_6px_0_0_#000] group-hover:-translate-y-1 transition-transform">
-                        <span className="text-lg sm:text-xl md:text-2xl font-[1000] text-black italic truncate">-{progress.prpNeed} PRP</span>
-                        <span className="text-[9px] md:text-[10px] font-black uppercase italic text-black/60">Points Needed</span>
-                    </div>
-                    <div className="bg-[#00E676] border-[4px] border-black p-3 md:p-4 flex flex-col shadow-[6px_6px_0_0_#000] group-hover:-translate-y-1 transition-transform">
-                        <span className="text-lg sm:text-xl md:text-2xl font-[1000] text-black italic truncate">-{progress.hrNeed} HRS</span>
-                        <span className="text-[9px] md:text-[10px] font-black uppercase italic text-black/60">Hours Needed</span>
+                    
+                    <div className="flex gap-4">
+                        <div className="bg-zinc-800/50 rounded-2xl p-3 px-4 flex flex-col items-center justify-center min-w-[90px]">
+                            <span className="text-zinc-400 text-[10px] mb-1 font-medium">Kurang PRP</span>
+                            <span className="font-bold text-lg leading-none">{progress.prpNeed}</span>
+                        </div>
+                        <div className="bg-zinc-800/50 rounded-2xl p-3 px-4 flex flex-col items-center justify-center min-w-[90px]">
+                            <span className="text-zinc-400 text-[10px] mb-1 font-medium">Kurang Jam</span>
+                            <span className="font-bold text-lg leading-none">{progress.hrNeed}</span>
+                        </div>
                     </div>
                 </div>
             </motion.div>
 
-            {/* --- 🔥 KHUSUS SATLANTAS: TARGET PENILANGAN --- */}
+            {/* --- KHUSUS SATLANTAS --- */}
             {isSatlantas && !isCasis && (
-                <motion.div variants={item} className={`col-span-2 bg-[#F97316] p-4 md:p-6 ${boxBorder} ${hardShadow} relative group overflow-hidden`}>
-                    <div className="absolute -right-6 -top-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                        <Crosshair size={180} />
-                    </div>
-
-                    <div className="flex justify-between items-center mb-6 relative z-10">
-                        <div className="bg-black text-[#F97316] px-3 py-1 inline-block text-[10px] font-black uppercase italic border-2 border-black">
-                            Traffic Enforcement
+                <motion.div variants={item} className={`col-span-2 ${cardBase} bg-gradient-to-br from-orange-950/30 to-zinc-900 border-orange-500/20`}>
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 bg-orange-500/10 rounded-lg">
+                                <Crosshair size={16} className="text-orange-500" />
+                            </div>
+                            <span className="text-sm font-semibold text-orange-400">Target Mingguan</span>
                         </div>
-                        <p className="text-[10px] md:text-[11px] font-black uppercase bg-white border-2 border-black px-3 py-1 shadow-[3px_3px_0px_#000]">
-                            {periodText}
-                        </p>
+                        <span className="text-[10px] text-zinc-500 font-medium bg-zinc-800/50 px-2.5 py-1 rounded-md">{periodText}</span>
                     </div>
 
-                    <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                    <div className="flex items-end justify-between mb-4">
                         <div>
-                            <h3 className="text-5xl md:text-6xl font-[1000] italic leading-none tracking-tighter text-white drop-shadow-[3px_3px_0_#000]">
-                                {totalTilang} <span className="text-3xl md:text-4xl text-black">/ {TARGET_TILANG}</span>
+                            <h3 className="text-3xl md:text-4xl font-bold">
+                                {totalTilang} <span className="text-xl md:text-2xl text-zinc-500">/ {TARGET_TILANG}</span>
                             </h3>
-                            <p className="text-[10px] md:text-xs font-black uppercase italic mt-1 text-black">Kendaraan Ditilang</p>
+                            <p className="text-[11px] text-zinc-400 mt-1">Kendaraan Ditilang</p>
                         </div>
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0px_#000] shrink-0 text-center transform group-hover:-translate-y-1 transition-transform">
-                            <p className="text-[9px] md:text-[10px] font-black opacity-50 uppercase mb-1">Status Target</p>
-                            <motion.p animate={totalTilang >= TARGET_TILANG ? { scale: [1, 1.1, 1] } : {}} transition={{ repeat: Infinity, duration: 1 }} className={`text-lg md:text-xl font-[1000] italic uppercase leading-none ${totalTilang >= TARGET_TILANG ? 'text-[#00E676]' : 'text-[#FF4D4D]'}`}>
-                                {totalTilang >= TARGET_TILANG ? 'ACHIEVED' : 'PENDING'}
-                            </motion.p>
+                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${totalTilang >= TARGET_TILANG ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}`}>
+                            {totalTilang >= TARGET_TILANG ? 'Tercapai' : 'Proses'}
                         </div>
                     </div>
 
-                    <div className="mt-auto relative z-10">
-                        <div className="bg-slate-900 h-6 border-[3px] border-black p-[3px] shadow-[3px_3px_0_0_#000] rounded-sm overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${tilangPct}%`, backgroundPosition: ["0px 0px", "40px 0px"] }}
-                                transition={{ width: { duration: 1.5 }, backgroundPosition: { repeat: Infinity, duration: 1, ease: "linear" } }}
-                                style={stripeBg}
-                                className={`h-full border-r-[3px] border-black ${totalTilang >= TARGET_TILANG ? 'bg-[#00E676]' : 'bg-[#FFD100]'}`}
-                            />
-                        </div>
+                    <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden mt-2">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${tilangPct}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            className={`h-full rounded-full ${totalTilang >= TARGET_TILANG ? 'bg-emerald-500' : 'bg-orange-500'}`}
+                        />
                     </div>
                 </motion.div>
             )}
 
-            {/* --- 🔥 CONDITIONAL ACTIONS: CASIS VS POLICE --- */}
-            {isCasis ? (
-                <>
-                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen-diklat', 'STAR')} className={`bg-[#A3E635] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
-                        <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute bg-white/30 w-32 h-32 rounded-full blur-2xl z-0" />
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:rotate-12 relative z-10">
-                            <GraduationCap size={40} className="md:w-12 md:h-12 text-black" />
-                        </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#fff] relative z-10">Absen Diklat</span>
-                    </motion.button>
+            {/* --- ACTIONS --- */}
+            <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6 mt-2">
+                {isCasis ? (
+                    <>
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen-diklat', 'STAR')} className="bg-blue-600 hover:bg-blue-500 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col items-center justify-center gap-3 relative overflow-hidden group">
+                            <GraduationCap size={28} className="text-white" />
+                            <span className="text-sm md:text-base font-semibold text-white">Absen Diklat</span>
+                        </motion.button>
 
-                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/izin-diklat', 'COMPUTER')} className={`bg-[#FFD100] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
-                        <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ repeat: Infinity, duration: 2, delay: 1 }} className="absolute bg-white/30 w-32 h-32 rounded-full blur-2xl z-0" />
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:-rotate-12 relative z-10">
-                            <HelpCircle size={40} className="md:w-12 md:h-12 text-black" />
-                        </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-black drop-shadow-[2px_2px_0_#fff] relative z-10">Izin/Sakit</span>
-                    </motion.button>
-                </>
-            ) : (
-                <>
-                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen', 'STAR')} className={`bg-[#FF4D4D] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
-                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.8, 0.3] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute bg-white/30 w-40 h-40 rounded-full blur-2xl z-0" />
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#FFD100] transition-all group-hover:-rotate-12 relative z-10">
-                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 6, ease: "linear" }}>
-                                <Radar size={40} className="md:w-12 md:h-12 text-black" />
-                            </motion.div>
-                        </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000] relative z-10">Absensi</span>
-                    </motion.button>
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/izin-diklat', 'COMPUTER')} className="bg-zinc-800 hover:bg-zinc-700 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col items-center justify-center gap-3 relative overflow-hidden group">
+                            <HelpCircle size={28} className="text-zinc-300" />
+                            <span className="text-sm md:text-base font-semibold text-zinc-200">Izin / Sakit</span>
+                        </motion.button>
+                    </>
+                ) : (
+                    <>
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen', 'STAR')} className="bg-blue-600 hover:bg-blue-500 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 relative overflow-hidden group col-span-1 shadow-lg shadow-blue-900/20">
+                            <div className="flex flex-col items-center sm:items-start gap-1">
+                                <Radar size={24} className="text-white/80 hidden sm:block mb-1" />
+                                <span className="text-sm md:text-base font-semibold text-white">Absensi</span>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center sm:group-hover:translate-x-1 transition-transform">
+                                <ArrowRight size={18} className="text-white" />
+                            </div>
+                        </motion.button>
 
-                    <motion.button variants={item} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => handleAction('/laporan', 'COMPUTER')} className={`bg-[#A78BFA] p-6 md:p-8 ${boxBorder} ${hardShadow} flex flex-col items-center justify-center gap-4 group relative overflow-hidden`}>
-                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.8, 0.3] }} transition={{ repeat: Infinity, duration: 2, delay: 1 }} className="absolute bg-white/30 w-40 h-40 rounded-full blur-2xl z-0" />
-                        <div className="bg-white p-3 md:p-4 border-[4px] border-black shadow-[5px_5px_0_0_#000] group-hover:bg-[#CCFF00] transition-all group-hover:rotate-12 relative z-10">
-                            <FileText size={40} className="md:w-12 md:h-12 text-black" />
-                        </div>
-                        <span className="text-lg md:text-xl font-[1000] italic uppercase tracking-widest text-white drop-shadow-[2px_2px_0_#000] relative z-10">Laporan</span>
-                    </motion.button>
-                </>
-            )}
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/laporan', 'COMPUTER')} className="bg-zinc-800 hover:bg-zinc-700 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 relative overflow-hidden group col-span-1">
+                            <div className="flex flex-col items-center sm:items-start gap-1">
+                                <FileText size={24} className="text-zinc-400 hidden sm:block mb-1" />
+                                <span className="text-sm md:text-base font-semibold text-zinc-200">Laporan</span>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center sm:group-hover:translate-x-1 transition-transform">
+                                <ArrowRight size={18} className="text-zinc-400 group-hover:text-white transition-colors" />
+                            </div>
+                        </motion.button>
+                    </>
+                )}
+            </div>
         </motion.div>
     );
 }

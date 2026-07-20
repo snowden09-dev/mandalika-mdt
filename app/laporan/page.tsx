@@ -35,12 +35,6 @@ interface FormDataState {
     masa_penilangan: string;
     denda: string;
     kesalahan: string;
-    jam_buka: string;
-    jam_tutup: string;
-    kendala_1: string;
-    kendala_2: string;
-    keterangan_1: string;
-    keterangan_2: string;
     [key: string]: string | Date;
 }
 
@@ -71,8 +65,7 @@ export default function LaporanMultiForm() {
         tanggal: new Date(), waktu_shift: "",
         nama_pelaku: "", ktp_pelaku: "", pasal: "", total_denda: "", hukuman: "",
         divisi: "", jenis_kasus: "", lokasi: "", barang_bukti: "", hasil_akhir: "", keterangan: "",
-        kendaraan: "", masa_penilangan: "", denda: "", kesalahan: "",
-        jam_buka: "", jam_tutup: "", kendala_1: "", kendala_2: "", keterangan_1: "", keterangan_2: ""
+        kendaraan: "", masa_penilangan: "", denda: "", kesalahan: ""
     });
 
     const [fotos, setFotos] = useState<File[]>([]);
@@ -92,7 +85,7 @@ export default function LaporanMultiForm() {
         admin: { color: "#ef4444", label: "Administrasi", poin: 6, icon: ClipboardList }
     };
 
-    // 🚀 UPDATE FORMAT PESAN DISCORD
+    // 🚀 FORMAT PESAN DISCORD
     const getFormatMessage = (d: FormDataState) => {
         const tglStr = format(d.tanggal, "yyyy-MM-dd");
         if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\``;
@@ -100,7 +93,6 @@ export default function LaporanMultiForm() {
         if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\``;
         if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\``;
         if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\``;
-        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI (DISCORD)**\n\`\`\`\nData Petugas\nNama IC     : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nJam Buka    : ${d.jam_buka || '-'}\nJam Tutup   : ${d.jam_tutup || '-'}\nLink/Log    : ${d.kendala_1 || '-'}\n\nKeterangan  : ${d.keterangan || '-'}\n\`\`\``;
         return "";
     };
 
@@ -186,35 +178,9 @@ export default function LaporanMultiForm() {
             return;
         }
 
-        if (tipe === 'admin') {
-            if (fotos.length < 2) {
-                toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan bukti Screenshot Jam Buka & Jam Tutup dari Discord." });
-                return;
-            }
-            if (!formData.jam_buka || !formData.jam_tutup) {
-                toast.error("JAM BUKA & TUTUP WAJIB DIISI!");
-                return;
-            }
-
-            const [bukaH, bukaM] = formData.jam_buka.split(':').map(Number);
-            const [tutupH, tutupM] = formData.jam_tutup.split(':').map(Number);
-            const startMinutes = bukaH * 60 + bukaM;
-            let endMinutes = tutupH * 60 + tutupM;
-
-            if (endMinutes <= startMinutes) {
-                endMinutes += 24 * 60;
-            }
-
-            const diffMinutes = endMinutes - startMinutes;
-            if (diffMinutes < 60) {
-                toast.error("DURASI JAGA DITOLAK!", { description: "Minimal waktu jaga administrasi adalah 1 Jam (60 Menit)." });
-                return;
-            }
-        } else {
-            if (fotos.length < 1) {
-                toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
-                return;
-            }
+        if (fotos.length < 1) {
+            toast.error("FOTO BUKTI WAJIB DILAMPIRKAN!");
+            return;
         }
 
         setLoading(true);
@@ -229,7 +195,7 @@ export default function LaporanMultiForm() {
 
             const typeMapping: Record<string, string> = {
                 tangkap: 'penangkapan', kasus: 'kasus_besar', patroli: 'patroli',
-                backup: 'backup', tilang: 'penilangan', admin: 'admin'
+                backup: 'backup', tilang: 'penilangan'
             };
             const configKeyPrefix = typeMapping[tipe];
 
@@ -320,7 +286,16 @@ export default function LaporanMultiForm() {
                                 return (
                                     <button 
                                         key={id} 
-                                        onClick={() => { setTipe(id); setStep(1); }} 
+                                        onClick={() => {
+                                            if (id === 'admin') {
+                                                toast.info("INFORMASI ADMINISTRASI", {
+                                                    description: "Laporan Jaga Administrasi dilakukan langsung melalui Discord HQ."
+                                                });
+                                                return;
+                                            }
+                                            setTipe(id); 
+                                            setStep(1); 
+                                        }} 
                                         className={`bg-zinc-900/60 ${boxBorder} p-4 rounded-2xl ${cardShadow} flex flex-col items-center justify-center gap-3 text-left group hover:border-red-500/50 hover:bg-zinc-900 transition-all`}
                                     >
                                         <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 group-hover:scale-105 group-hover:border-red-500/30 transition-all text-red-500">
@@ -431,39 +406,9 @@ export default function LaporanMultiForm() {
                                     </>
                                 )}
 
-                                {tipe === 'admin' && (
-                                    <>
-                                        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-2xl mb-1 flex items-start gap-2.5">
-                                            <ShieldAlert size={16} className="text-red-500 shrink-0 mt-0.5" />
-                                            <p className="text-[11px] text-zinc-300 leading-relaxed">
-                                                Sesi Jaga Administrasi terintegrasi dengan aktivitas Discord HQ. Rekapitulasi jam buka dan tutup disesuaikan dengan log Discord.
-                                            </p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <label className={labelStyle}><Clock size={12} className="text-red-500" /> Jam Buka</label>
-                                                <input type="time" name="jam_buka" required onChange={handleInputChange} value={formData.jam_buka} className={inputStyle} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className={labelStyle}><Clock size={12} className="text-red-500" /> Jam Tutup</label>
-                                                <input type="time" name="jam_tutup" required onChange={handleInputChange} value={formData.jam_tutup} className={inputStyle} />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={labelStyle}>Link / Log Pesan Discord (Opsional)</label>
-                                            <input name="kendala_1" placeholder="https://discord.com/channels/..." onChange={handleInputChange} value={formData.kendala_1} className={inputStyle} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={labelStyle}>Keterangan / Catatan Administrasi</label>
-                                            <textarea name="keterangan" placeholder="Tuliskan rekapitulasi singkat..." required onChange={handleInputChange} value={formData.keterangan} className={cn(inputStyle, "min-h-20 resize-none")} />
-                                        </div>
-                                    </>
-                                )}
-
                                 <div className="space-y-2 pt-2">
                                     <div className="flex items-center justify-between">
                                         <label className={labelStyle}><Camera size={12} className="text-red-500" /> Bukti Visual</label>
-                                        {tipe === 'admin' && <span className="text-[9px] font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Min. 2 Foto (Buka & Tutup)</span>}
                                     </div>
 
                                     <div className="flex flex-wrap gap-2.5 items-center">

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
-import { ShieldCheck, Users, FileText, Server, Loader2, ArrowLeft, Crosshair } from 'lucide-react';
+import { ShieldCheck, Users, FileText, Server, Loader2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // IMPORT KOMPONEN
@@ -11,14 +11,13 @@ import SectionAdminPersonnel from './components/SectionAdminPersonnel';
 import SectionAdminSystem from './components/SectionAdminSystem';
 import SectionAdminLaporan from './components/SectionAdminLaporan';
 import SectionAdminConfig from './components/SectionAdminConfig';
-import SectionAdminDivisi from './components/SectionAdminDivisi';
 
 const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
 
 export default function AdminHQPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'DIVISI' | 'LAPORAN' | 'SYSTEM'>('PERSONEL');
+    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'LAPORAN' | 'SYSTEM'>('PERSONEL');
     const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
 
     useEffect(() => {
@@ -44,10 +43,9 @@ export default function AdminHQPage() {
         </div>
     );
 
-    type MainTabId = 'PERSONEL' | 'DIVISI' | 'LAPORAN' | 'SYSTEM';
+    type MainTabId = 'PERSONEL' | 'LAPORAN' | 'SYSTEM';
     const mainTabs: { id: MainTabId; icon: React.ReactNode; label: string }[] = [
         { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
-        { id: 'DIVISI', icon: <Crosshair size={16} />, label: 'Divisi Area' },
         { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
         { id: 'SYSTEM', icon: <Server size={16} />, label: 'System' }
     ];
@@ -139,13 +137,10 @@ export default function AdminHQPage() {
                             </div>
                         )}
 
-                        {/* 2. DIVISI AREA */}
-                        {activeTab === 'DIVISI' && <SectionAdminDivisi />}
-
-                        {/* 3. LAPORAN */}
+                        {/* 2. LAPORAN */}
                         {activeTab === 'LAPORAN' && <SectionAdminLaporan />}
 
-                        {/* 4. SYSTEM */}
+                        {/* 3. SYSTEM */}
                         {activeTab === 'SYSTEM' && <SectionAdminConfig />}
 
                     </motion.div>

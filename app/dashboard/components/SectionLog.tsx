@@ -51,7 +51,7 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
                 </p>
                 
                 <a 
-                    href="https://discord.com" // Ganti dengan Link Channel Discord yang sesuai
+                    href="https://discord.gg/Rj7SN2bWXr" // Ganti dengan Link Channel Discord yang sesuai
                     target="_blank" 
                     rel="noreferrer" 
                     className="relative z-10 flex items-center gap-3 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-indigo-900/20"

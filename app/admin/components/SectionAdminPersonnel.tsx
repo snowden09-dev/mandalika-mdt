@@ -257,7 +257,7 @@ export default function SectionAdminPersonnel() {
     if (!isAuthorized) return null;
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-mono text-zinc-100 bg-zinc-950 min-h-screen p-4 md:p-6">
+        <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-mono text-zinc-100 bg-zinc-950 min-h-screen p-4 md:p-6 relative">
             <Toaster position="top-center" richColors theme="dark" />
 
             {/* DASHBOARD STATS */}
@@ -293,7 +293,7 @@ export default function SectionAdminPersonnel() {
                             <input type="text" placeholder="Cari Nama/Pangkat..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={cn(inputStyle, "pl-10 w-full md:w-60")} />
                         </div>
                         {isSuperAdmin && (
-                            <button onClick={openAddModal} className="bg-red-600 hover:bg-red-700 text-white border border-red-500/40 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20">
+                            <button onClick={openAddModal} className="bg-red-600 hover:bg-red-700 text-white border border-red-500/40 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 cursor-pointer">
                                 <UserPlus size={16} /> Tambah Personel
                             </button>
                         )}
@@ -308,7 +308,7 @@ export default function SectionAdminPersonnel() {
                             key={div}
                             onClick={() => setSelectedDivisi(div)}
                             className={cn(
-                                "px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border",
+                                "px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border cursor-pointer",
                                 selectedDivisi === div
                                     ? "bg-red-600 text-white border-red-500 shadow-md shadow-red-600/20"
                                     : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200"
@@ -414,11 +414,11 @@ export default function SectionAdminPersonnel() {
                                     </div>
                                 </div>
 
-                                <div className="bg-zinc-950 p-3 grid grid-cols-3 gap-2 border-t border-zinc-800/80">
-                                    <button onClick={() => openEditModal(p)} className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 col-span-2 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider flex justify-center items-center gap-2 transition-all">
+                                <div className="p-3 bg-zinc-950 grid grid-cols-3 gap-2 border-t border-zinc-800/80">
+                                    <button onClick={() => openEditModal(p)} className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 col-span-2 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider flex justify-center items-center gap-2 transition-all cursor-pointer">
                                         <Edit size={13} className="text-red-500" /> KELOLA
                                     </button>
-                                    <button onClick={() => handleTerminate(p.discord_id, cleanName)} className="bg-red-600/10 hover:bg-red-600/20 border border-red-500/30 text-red-400 py-2 rounded-xl font-bold text-[10px] uppercase flex justify-center items-center transition-all">
+                                    <button onClick={() => handleTerminate(p.discord_id, cleanName)} className="bg-red-600/10 hover:bg-red-600/20 border border-red-500/30 text-red-400 py-2 rounded-xl font-bold text-[10px] uppercase flex justify-center items-center transition-all cursor-pointer">
                                         <UserMinus size={13} />
                                     </button>
                                 </div>
@@ -431,22 +431,22 @@ export default function SectionAdminPersonnel() {
             {/* 🚀 MODAL ADD / EDIT */}
             <AnimatePresence>
                 {editingUser && (
-                    <div className="fixed inset-z-100 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className={`w-full max-w-lg bg-zinc-950 ${cardBorder} rounded-2xl flex flex-col text-zinc-100 shadow-2xl shadow-black overflow-hidden`}
+                            className={`w-full max-w-lg bg-zinc-950 ${cardBorder} rounded-2xl flex flex-col text-zinc-100 shadow-2xl shadow-black overflow-hidden relative`}
                         >
                             <div className="bg-zinc-900 p-4 border-b border-zinc-800 flex justify-between items-center shrink-0">
                                 <h3 className="font-extrabold uppercase text-xs tracking-wider text-white flex items-center gap-2">
                                     <Shield size={16} className="text-red-500" />
                                     {isAddMode ? 'REKRUTMEN BARU' : 'DOSSIER MODIFICATION'}
                                 </h3>
-                                <button onClick={() => setEditingUser(null)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-all"><X size={16} /></button>
+                                <button type="button" onClick={() => setEditingUser(null)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-all cursor-pointer"><X size={16} /></button>
                             </div>
 
-                            <div className="p-5 md:p-6 flex-1">
+                            <div className="p-5 md:p-6 flex-1 max-h-[80vh] overflow-y-auto custom-scrollbar">
                                 <form id="personnelForm" onSubmit={handleSubmit} className="space-y-4">
                                     <div className="grid grid-cols-2 gap-3.5">
                                         <div>
@@ -494,11 +494,11 @@ export default function SectionAdminPersonnel() {
 
                                             <div className="grid grid-cols-2 gap-2.5 pt-1">
                                                 <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-all">
-                                                    <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0" />
+                                                    <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0 cursor-pointer" />
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-300">Akses Staff</span>
                                                 </label>
                                                 <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-all">
-                                                    <input type="checkbox" checked={editForm.is_highadmin} onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0" />
+                                                    <input type="checkbox" checked={editForm.is_highadmin} onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0 cursor-pointer" />
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-300">High Admin</span>
                                                 </label>
                                             </div>
@@ -506,7 +506,7 @@ export default function SectionAdminPersonnel() {
                                     )}
 
                                     <div className="pt-2">
-                                        <button type="submit" form="personnelForm" className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white border border-red-500/40 rounded-xl font-extrabold uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all flex justify-center items-center gap-2 text-xs">
+                                        <button type="submit" className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white border border-red-500/40 rounded-xl font-extrabold uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all flex justify-center items-center gap-2 text-xs cursor-pointer">
                                             {isAddMode ? <UserPlus size={16} /> : <CheckCircle2 size={16} />}
                                             {isAddMode ? 'REKRUT PERSONEL' : 'UPDATE DATA'}
                                         </button>
@@ -519,7 +519,7 @@ export default function SectionAdminPersonnel() {
             </AnimatePresence>
 
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+                .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
             `}</style>
         </div>

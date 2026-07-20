@@ -207,6 +207,20 @@ export default function PortalPage() {
     const totalPages = Math.ceil(payrollLogs.length / itemsPerPage) || 1;
     const currentLogs = payrollLogs.slice((payrollPage - 1) * itemsPerPage, payrollPage * itemsPerPage);
 
+    const SectionLogComponent = SectionLog as React.ComponentType<{
+        currentLogs: PayrollLog[];
+        currentPage: number;
+        setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
+        totalPages: number;
+    }>;
+
+    const SectionSalaryComponent = SectionSalary as React.ComponentType<{
+        currentLogs: PayrollLog[];
+        currentPage: number;
+        setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
+        totalPages: number;
+    }>;
+
     return (
         <div className="flex min-h-screen bg-[#121212] font-sans overflow-hidden text-neutral-200 selection:bg-red-600/20">
             {/* SIDEBAR CONTAINER */}

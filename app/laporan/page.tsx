@@ -100,7 +100,7 @@ export default function LaporanMultiForm() {
         if (tipe === 'patroli') return `📁 **LAPORAN PATROLI**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nArea Patroli : ${d.lokasi || '-'}\n\nHasil Singkat : ${d.keterangan || '-'}\n\`\`\``;
         if (tipe === 'backup') return `📁 **LAPORAN MEMBANTU BACKUP**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\nUnit / Divisi : ${d.divisi || '-'}\n\nLokasi Backup : ${d.lokasi || '-'}\n\nKronologi Singkat : ${d.keterangan || '-'}\n\nHasil : ${d.hasil_akhir || '-'}\n\`\`\``;
         if (tipe === 'tilang') return `📁 **LAPORAN PENILANGAN**\n\`\`\`\nTanggal : ${tglStr}\nWaktu : ${d.waktu_shift || '-'}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nKendaraan Berjenis : ${d.kendaraan || '-'}\nMasa Penilangan : ${d.masa_penilangan || '-'}\nDenda : $ ${d.denda || '-'}\nKesalahan : ${d.kesalahan || '-'}\n\`\`\``;
-        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI**\n\`\`\`\nData Petugas\nNama        : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nBuka        : ${d.jam_buka || '-'}\nTutup       : ${d.jam_tutup || '-'}\n\nKendala 1   : ${d.kendala_1 || '-'}\nKendala 2   : ${d.kendala_2 || '-'}\n\nKeterangan 1: ${d.keterangan_1 || '-'}\nKeterangan 2: ${d.keterangan_2 || '-'}\n\`\`\``;
+        if (tipe === 'admin') return `📁 **LAPORAN JAGA ADMINISTRASI (DISCORD)**\n\`\`\`\nData Petugas\nNama IC     : ${d.nama_petugas}\nPangkat     : ${d.pangkat}\nBadge       : ${d.badge_number}\nTanggal     : ${tglStr}\n\nJam Buka    : ${d.jam_buka || '-'}\nJam Tutup   : ${d.jam_tutup || '-'}\nLink/Log    : ${d.kendala_1 || '-'}\n\nKeterangan  : ${d.keterangan || '-'}\n\`\`\``;
         return "";
     };
 
@@ -188,7 +188,7 @@ export default function LaporanMultiForm() {
 
         if (tipe === 'admin') {
             if (fotos.length < 2) {
-                toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan foto Jam Buka & Jam Tutup/Selesai." });
+                toast.error("MINIMAL 2 FOTO!", { description: "Wajib lampirkan bukti Screenshot Jam Buka & Jam Tutup dari Discord." });
                 return;
             }
             if (!formData.jam_buka || !formData.jam_tutup) {
@@ -433,31 +433,29 @@ export default function LaporanMultiForm() {
 
                                 {tipe === 'admin' && (
                                     <>
+                                        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-2xl mb-1 flex items-start gap-2.5">
+                                            <ShieldAlert size={16} className="text-red-500 shrink-0 mt-0.5" />
+                                            <p className="text-[11px] text-zinc-300 leading-relaxed">
+                                                Sesi Jaga Administrasi terintegrasi dengan aktivitas Discord HQ. Rekapitulasi jam buka dan tutup disesuaikan dengan log Discord.
+                                            </p>
+                                        </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
                                                 <label className={labelStyle}><Clock size={12} className="text-red-500" /> Jam Buka</label>
-                                                <input type="time" name="jam_buka" required onChange={handleInputChange} className={inputStyle} />
+                                                <input type="time" name="jam_buka" required onChange={handleInputChange} value={formData.jam_buka} className={inputStyle} />
                                             </div>
                                             <div className="space-y-1">
                                                 <label className={labelStyle}><Clock size={12} className="text-red-500" /> Jam Tutup</label>
-                                                <input type="time" name="jam_tutup" required onChange={handleInputChange} className={inputStyle} />
+                                                <input type="time" name="jam_tutup" required onChange={handleInputChange} value={formData.jam_tutup} className={inputStyle} />
                                             </div>
                                         </div>
                                         <div className="space-y-1">
-                                            <label className={labelStyle}>Kendala 1 (Kosongkan jika aman)</label>
-                                            <input name="kendala_1" placeholder="cth. Terjadi mati lampu..." onChange={handleInputChange} className={inputStyle} />
+                                            <label className={labelStyle}>Link / Log Pesan Discord (Opsional)</label>
+                                            <input name="kendala_1" placeholder="https://discord.com/channels/..." onChange={handleInputChange} value={formData.kendala_1} className={inputStyle} />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className={labelStyle}>Kendala 2 (Kosongkan jika aman)</label>
-                                            <input name="kendala_2" placeholder="cth. Perusuh di lobi..." onChange={handleInputChange} className={inputStyle} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={labelStyle}>Keterangan 1</label>
-                                            <input name="keterangan_1" placeholder="cth. Administrasi berjalan dengan tertib" required onChange={handleInputChange} className={inputStyle} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={labelStyle}>Keterangan 2 (Opsional)</label>
-                                            <input name="keterangan_2" placeholder="cth. Tidak ditemukan pelanggaran" onChange={handleInputChange} className={inputStyle} />
+                                            <label className={labelStyle}>Keterangan / Catatan Administrasi</label>
+                                            <textarea name="keterangan" placeholder="Tuliskan rekapitulasi singkat..." required onChange={handleInputChange} value={formData.keterangan} className={cn(inputStyle, "min-h-20 resize-none")} />
                                         </div>
                                     </>
                                 )}
@@ -465,7 +463,7 @@ export default function LaporanMultiForm() {
                                 <div className="space-y-2 pt-2">
                                     <div className="flex items-center justify-between">
                                         <label className={labelStyle}><Camera size={12} className="text-red-500" /> Bukti Visual</label>
-                                        {tipe === 'admin' && <span className="text-[9px] font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Min. 2 Foto</span>}
+                                        {tipe === 'admin' && <span className="text-[9px] font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Min. 2 Foto (Buka & Tutup)</span>}
                                     </div>
 
                                     <div className="flex flex-wrap gap-2.5 items-center">

@@ -95,7 +95,7 @@ export default function AbsenPage() {
                 </div>
             </div>
 
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-[#121214] ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-[#121214] ${boxBorder} rounded-3xl ${cardShadow} p-5`}>
 
                 {/* 🚀 IDENTITY BADGE */}
                 <div className="grid grid-cols-3 gap-2 items-center bg-[#18181b] border-2 border-zinc-800 p-2.5 rounded-xl mb-5 shadow-inner text-center">

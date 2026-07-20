@@ -2,49 +2,25 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-    ArrowLeft, Camera, Clock, Calendar as CalendarIcon,
-    X, ShieldAlert, Zap, FileSearch, Send, CheckCircle2, AlertTriangle
+    ArrowLeft, ShieldAlert, ExternalLink, MessageSquare, CheckCircle2, Radio
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
-import { format, addDays } from "date-fns";
-import { toast, Toaster } from "sonner";
+import { Toaster } from "sonner";
 import TacticalTransition from '@/app/dashboard/components/TacticalTransition';
 
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
-
-// 🚀 UI COMPACT UNTUK MOBILE
 const boxBorder = "border-[2px] border-slate-950";
 const cardShadow = "shadow-[4px_4px_0px_#000]";
-const inputStyle = `w-full bg-[#f8fafc] ${boxBorder} rounded-lg px-3 py-2 text-xs font-mono font-bold focus:border-blue-600 focus:bg-white outline-none text-slate-900 transition-all shadow-[2px_2px_0px_#000]`;
-const labelStyle = "text-[9px] font-black uppercase tracking-widest text-slate-950 ml-1 mb-1.5 flex items-center gap-1.5 italic";
 
 export default function AbsenPage() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'DUTY' | 'CUTI'>('DUTY');
-    const [loading, setLoading] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
     const [identity, setIdentity] = useState({ nama: 'MENDETEKSI...', pangkat: '...', badgeNumber: '...', divisi: '...', discordId: '' });
-
-    const [tanggalDuty, setTanggalDuty] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [jamAwal, setJamAwal] = useState('08:00');
-    const [jamAkhir, setJamAkhir] = useState('16:00');
-    const [mulaiCuti, setMulaiCuti] = useState('');
-    const [selesaiCuti, setSelesaiCuti] = useState('');
-    const [keterangan, setKeterangan] = useState('');
-
-    const [images, setImages] = useState<File[]>([]);
-    const [previews, setPreviews] = useState<string[]>([]);
-    const [previewModalInfo, setPreviewModalInfo] = useState<string | null>(null);
-
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const hMin3Str = format(addDays(new Date(), -3), 'yyyy-MM-dd');
 
     useEffect(() => {
         async function getActiveUser() {
             try {
-                // 🚀 PATCH: Ambil identitas dari LocalStorage agar kompatibel dengan sistem Bypass Token
                 const sessionData = localStorage.getItem('police_session');
                 if (!sessionData) {
                     router.push('/');
@@ -56,7 +32,6 @@ export default function AbsenPage() {
                 const { data } = await supabase.from('users').select('name, pangkat, divisi').eq('discord_id', dId).maybeSingle();
 
                 if (data) {
-                    // 🚀 PARSING LOGIC: Pisah Nama dan Badge yang lebih akurat
                     let rawName = data.name.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
                     let badge = "-";
 
@@ -94,227 +69,9 @@ export default function AbsenPage() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    const showErrorToast = (pesan: string) => {
-        toast.custom((t) => (
-            <div className="bg-[#FF4D4D] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative z-50">
-                <div className="bg-slate-950 text-[#FF4D4D] p-2 rounded-lg shrink-0"><AlertTriangle size={20} /></div>
-                <div>
-                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">UPS! ADA YANG SALAH</h1>
-                    <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
-                </div>
-                <button onClick={() => toast.dismiss(t)} className="absolute top-2 right-2 p-1 opacity-50 hover:opacity-100"><X size={12} className="text-slate-950" /></button>
-            </div>
-        ), { duration: 7000 });
-    };
-
-    const showWarningToast = (pesan: string) => {
-        toast.custom((t) => (
-            <div className="bg-[#FFD100] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative z-50">
-                <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>
-                <div>
-                    <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">INFO ABSEN TELAT</h1>
-                    <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">{pesan}</p>
-                </div>
-            </div>
-        ), { duration: 4000 });
-    };
-
-    const handleTransmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (loading) return;
-
-        if (!identity.discordId) return toast.error("Tunggu sebentar ya! Sistem masih mendeteksi nama kamu.");
-        if (!keterangan) return toast.error("Kolom Keterangan jangan dikosongin! Ketik dulu kamu kerjanya ngapain aja.");
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (activeTab === 'DUTY') {
-            const selectedDutyDate = new Date(tanggalDuty);
-            selectedDutyDate.setHours(0, 0, 0, 0);
-            const diffDutyDays = Math.round((today.getTime() - selectedDutyDate.getTime()) / (1000 * 60 * 60 * 24));
-
-            if (diffDutyDays < 0) return showErrorToast("Kamu nggak bisa absen buat hari besok ya! Absen cuma berlaku untuk hari ini atau hari kemarin.");
-            if (diffDutyDays > 3) return showErrorToast("Absennya telat banget! Kamu cuma boleh absen maksimal untuk 3 hari ke belakang. Kalau lebih, datanya hangus.");
-            if (images.length === 0) return toast.error("Wajib masukin foto bukti kerja dulu ya!");
-
-            let startObj = new Date(`${tanggalDuty}T${jamAwal}:00`);
-            let endObj = new Date(`${tanggalDuty}T${jamAkhir}:00`);
-            if (endObj < startObj) endObj.setDate(endObj.getDate() + 1);
-
-            // 🚀 PERTAHANAN 1: ANTI-TIME-TRAVEL
-            const nowWithBuffer = new Date(Date.now() + 5 * 60000);
-            if (startObj > nowWithBuffer) {
-                return showErrorToast("Loh, kok jam mulainya aneh? Masa kamu absen di jam yang belum terjadi? Coba cek lagi jamnya.\n\nPENTING: Kalau kamu baru selesai dinas malam (lewat jam 12 malam), TANGGALNYA harus diganti ke HARI KEMARIN ya!");
-            }
-            if (endObj > nowWithBuffer) {
-                return showErrorToast("Sabar! Kamu belum bisa absen pulang karena jam selesainya belum terlewati. Tunggu jamnya lewat dulu baru absen ya.");
-            }
-
-            // 🚀 PERTAHANAN 2: ANTI-OVERWORK
-            let diff = (endObj.getTime() - startObj.getTime()) / 1000 / 60 / 60;
-            const durasiJam = parseFloat(diff.toFixed(2));
-            if (durasiJam > 7) {
-                return showErrorToast(`Kerjanya kelamaan nih sampai ${durasiJam} jam! Sekali absen maksimal cuma boleh 7 jam. Kalau ada istirahat, absennya dipisah jadi dua kali kirim ya.`);
-            }
-
-            if (diffDutyDays > 0 && diffDutyDays <= 3) {
-                showWarningToast(`Sistem mencatat kamu ngisi absen untuk ${diffDutyDays} hari yang lalu ya. Sip!`);
-            }
-
-            setLoading(true);
-            const tId = toast.loading("Mengecek Data Absen Kamu...");
-
-            try {
-                // 🚀 PERTAHANAN 3: ANTI-OVERLAP
-                const dStartSearch = new Date(startObj.getTime() - 24 * 60 * 60 * 1000).toISOString();
-                const dEndSearch = new Date(endObj.getTime() + 24 * 60 * 60 * 1000).toISOString();
-
-                const { data: existingDuties, error: errOverlap } = await supabase
-                    .from('presensi_duty')
-                    .select('start_time, end_time')
-                    .eq('user_id_discord', identity.discordId)
-                    .gte('start_time', dStartSearch)
-                    .lte('end_time', dEndSearch);
-
-                if (existingDuties && existingDuties.length > 0) {
-                    const hasOverlap = existingDuties.some(duty => {
-                        const exStart = new Date(duty.start_time).getTime();
-                        const exEnd = new Date(duty.end_time).getTime();
-                        return (startObj.getTime() < exEnd) && (endObj.getTime() > exStart);
-                    });
-
-                    if (hasOverlap) {
-                        toast.dismiss(tId);
-                        setLoading(false);
-                        return showErrorToast("Waduh! Jam kerjanya tabrakan sama absen kamu yang sebelumnya. Coba dicek lagi, masa kamu kerja dua tugas di jam yang sama?");
-                    }
-                }
-
-                toast.loading("Mengirim Foto Bukti...", { id: tId });
-
-                let photoUrls: string[] = [];
-                for (const file of images) {
-                    const fName = `${identity.discordId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-                    const { error: upErr } = await supabase.storage.from('bukti-absen').upload(`duty/${fName}`, file);
-                    if (upErr) throw upErr;
-                    const { data: { publicUrl } } = supabase.storage.from('bukti-absen').getPublicUrl(`duty/${fName}`);
-                    photoUrls.push(publicUrl);
-                }
-
-                const durasiMenitBulat = Math.round(durasiJam * 60);
-
-                const { error: insErr } = await supabase.from('presensi_duty').insert([{
-                    user_id_discord: identity.discordId,
-                    nama_panggilan: identity.nama,
-                    pangkat: identity.pangkat,
-                    divisi: identity.divisi,
-                    start_time: startObj.toISOString(),
-                    end_time: endObj.toISOString(),
-                    durasi_menit: durasiMenitBulat,
-                    status: 'SUCCESS',
-                    catatan_duty: keterangan,
-                    bukti_foto: photoUrls
-                }]);
-                if (insErr) throw insErr;
-
-                const { data: currentUserData } = await supabase.from('users').select('total_jam_duty').eq('discord_id', identity.discordId).maybeSingle();
-                const currentTotal = Number(currentUserData?.total_jam_duty || 0);
-                const additionalHours = Number((durasiMenitBulat / 60).toFixed(2));
-                const newTotalHours = Number((currentTotal + additionalHours).toFixed(2));
-
-                await supabase.from('users').update({ total_jam_duty: newTotalHours }).eq('discord_id', identity.discordId);
-
-                toast.custom((t) => (
-                    <div className="bg-[#A3E635] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
-                        <div className="bg-slate-950 text-[#A3E635] p-2 rounded-lg shrink-0"><CheckCircle2 size={20} /></div>
-                        <div>
-                            <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">MANTAP! SUKSES</h1>
-                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Data absen kamu udah masuk sistem.</p>
-                        </div>
-                    </div>
-                ), { id: tId, duration: 3000 });
-
-                setTimeout(() => handleNavigation('/dashboard'), 2000);
-
-            } catch (err: any) {
-                toast.error(`ERROR SISTEM: ${err.message}`, { id: tId });
-                setLoading(false);
-            }
-
-        } else if (activeTab === 'CUTI') {
-            if (!mulaiCuti || !selesaiCuti) return toast.error("Isi dulu tanggal cutinya ya! Dari kapan sampai kapannya.");
-            const selectedMulaiCuti = new Date(mulaiCuti); selectedMulaiCuti.setHours(0, 0, 0, 0);
-            const selectedSelesaiCuti = new Date(selesaiCuti); selectedSelesaiCuti.setHours(0, 0, 0, 0);
-
-            if (selectedSelesaiCuti < selectedMulaiCuti) return showErrorToast("Loh kok aneh? Masa tanggal selesai cutinya lebih cepat dari tanggal mulainya? Dibenerin dulu ya!");
-            const diffMulaiDays = Math.round((today.getTime() - selectedMulaiCuti.getTime()) / (1000 * 60 * 60 * 24));
-            if (diffMulaiDays < 0) return showErrorToast("Lewat sini, kamu cuma bisa ngajuin cuti untuk hari ini atau hari yang udah lewat (telat ngabarin).");
-            if (diffMulaiDays > 3) return showErrorToast("Ngajuin cuti telat cuma dikasih toleransi maksimal 3 hari ke belakang ya!");
-
-            setLoading(true);
-            const tId = toast.loading("Mengirim Surat Izin Cuti...");
-
-            try {
-                const { error: cutiErr } = await supabase.from('pengajuan_cuti').insert([{
-                    user_id_discord: identity.discordId,
-                    nama_panggilan: identity.nama,
-                    pangkat: identity.pangkat,
-                    divisi: identity.divisi,
-                    tanggal_mulai: mulaiCuti,
-                    tanggal_selesai: selesaiCuti,
-                    alasan: keterangan,
-                    status: 'PENDING'
-                }]);
-                if (cutiErr) throw cutiErr;
-
-                // 🚀 EKSEKUSI WEBHOOK DISCORD
-                try {
-                    const webhookUrl = "https://discord.com/api/webhooks/1503669093944000582/Q3IDI9PqqHQkJW5_G6qc437Qs0O3yHd0KOSmZJMMtNbmknbY64PvorARqV3YbuJQHxLl";
-                    const discordMessage = `**SURAT PERMOHONAN IZIN KEPOLISIAN MANDALIKA**
-\`\`\`text
-Hormat saya bapak JENDRAL/KOMJEN.
-
-Dengan ini saya:
-
-Nama: ${identity.nama}
-Pangkat: ${identity.pangkat}
-Badge : ${identity.badgeNumber}
-Divisi : ${identity.divisi}
-Alasan : ${keterangan}
-Tanggal Izin: ${mulaiCuti}
-Tanggal berakhir: ${selesaiCuti}
-
-Demikian surat permohonan izin ini kami sampaikan agar para petinggi dapat memaklumkan dan saya ucapkan terimakasih.
-\`\`\`
-<@&1393368961940324462> 
-<@&1393369949988327624>`;
-
-                    await fetch(webhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ content: discordMessage })
-                    });
-                } catch (webhookError) {
-                    console.error("Gagal mengirim notifikasi ke Discord:", webhookError);
-                }
-
-                toast.custom((t) => (
-                    <div className="bg-[#FFD100] border-[2px] border-slate-950 shadow-[4px_4px_0px_#000] rounded-xl p-3 flex gap-3 font-mono items-center w-full max-w-[320px] relative">
-                        <div className="bg-slate-950 text-[#FFD100] p-2 rounded-lg shrink-0"><Clock size={20} /></div>
-                        <div>
-                            <h1 className="font-black uppercase text-xs italic tracking-wider text-slate-950 leading-none">CUTI TERKIRIM</h1>
-                            <p className="text-[9px] font-bold uppercase text-slate-900 mt-1 leading-tight">Surat udah di meja komandan, tunggu di-ACC ya.</p>
-                        </div>
-                    </div>
-                ), { id: tId, duration: 3000 });
-
-                setTimeout(() => handleNavigation('/dashboard'), 2000);
-            } catch (err: any) {
-                toast.error(`ERROR SISTEM: ${err.message}`, { id: tId });
-                setLoading(false);
-            }
-        }
+    const handleOpenDiscord = () => {
+        // Ganti URL di bawah dengan link invite Discord server kepolisian Anda
+        window.open('https://discord.gg/mandalikapd', '_blank');
     };
 
     return (
@@ -322,28 +79,7 @@ Demikian surat permohonan izin ini kami sampaikan agar para petinggi dapat memak
             <TacticalTransition isVisible={isNavigating} />
             <Toaster position="top-center" />
 
-            {/* 🚀 MODAL PREVIEW GAMBAR FULLSCREEN */}
-            <AnimatePresence>
-                {previewModalInfo && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
-                        onClick={() => setPreviewModalInfo(null)}
-                    >
-                        <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
-                            <img src={previewModalInfo} alt="Preview" className={`max-w-full max-h-[80vh] rounded-xl ${boxBorder} ${cardShadow} object-contain bg-slate-100`} />
-                            <button
-                                onClick={() => setPreviewModalInfo(null)}
-                                className={`absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full ${boxBorder} ${cardShadow} hover:bg-red-700 active:scale-95 transition-all`}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* 🚀 COMPACT HEADER DENGAN TOMBOL KEMBALI */}
+            {/* 🚀 HEADER */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button onClick={() => handleNavigation('/dashboard')} className="p-2.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_#000] active:translate-y-px transition-all">
                     <ArrowLeft size={18} />
@@ -353,13 +89,13 @@ Demikian surat permohonan izin ini kami sampaikan agar para petinggi dapat memak
                         <ShieldAlert className="text-blue-600 animate-pulse" size={14} />
                         <span className="text-[8px] font-black tracking-widest uppercase opacity-50 italic">Mandalika PD</span>
                     </div>
-                    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">Reporting</h1>
+                    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">Discord Portal</h1>
                 </div>
             </div>
 
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-white ${boxBorder} rounded-[24px] ${cardShadow} p-5`}>
 
-                {/* 🚀 COMPACT IDENTITY BADGE */}
+                {/* 🚀 IDENTITY BADGE */}
                 <div className="grid grid-cols-3 gap-2 items-center bg-slate-100 border-2 border-slate-950 p-2.5 rounded-xl mb-5 shadow-inner text-center">
                     <div className="truncate text-left">
                         <p className="text-[8px] font-black text-slate-400 uppercase italic">Personnel</p>
@@ -375,110 +111,44 @@ Demikian surat permohonan izin ini kami sampaikan agar para petinggi dapat memak
                     </div>
                 </div>
 
-                {/* 🚀 COMPACT TAB SWITCHER */}
-                <div className="flex bg-slate-950 p-1 rounded-xl mb-5 gap-1">
-                    <button type="button" onClick={() => setActiveTab('DUTY')} className={cn("flex-1 py-2 rounded-lg font-black uppercase italic text-[10px] transition-all", activeTab === 'DUTY' ? 'bg-[#A3E635] text-black' : 'text-white opacity-40')}>Duty Log</button>
-                    <button type="button" onClick={() => setActiveTab('CUTI')} className={cn("flex-1 py-2 rounded-lg font-black uppercase italic text-[10px] transition-all", activeTab === 'CUTI' ? 'bg-[#FF4D4D] text-white' : 'text-white opacity-40')}>Izin Cuti</button>
-                </div>
-
-                <form onSubmit={handleTransmit} className="space-y-4">
-                    <AnimatePresence mode="wait">
-                        {activeTab === 'DUTY' ? (
-                            <motion.div key="duty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-                                <div className="space-y-1">
-                                    <p className={labelStyle}><CalendarIcon size={12} /> Date</p>
-                                    <input type="date" value={tanggalDuty} min={hMin3Str} max={todayStr} onChange={e => setTanggalDuty(e.target.value)} className={inputStyle} />
-                                </div>
-
-                                {/* 🚀 24-HOUR CUSTOM DROPDOWNS */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <p className={labelStyle}><Clock size={12} /> Start</p>
-                                        <div className="flex items-center gap-1">
-                                            <select value={jamAwal.split(':')[0]} onChange={e => setJamAwal(`${e.target.value}:${jamAwal.split(':')[1]}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                            <span className="font-black text-slate-950">:</span>
-                                            <select value={jamAwal.split(':')[1]} onChange={e => setJamAwal(`${jamAwal.split(':')[0]}:${e.target.value}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 60 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className={labelStyle}><Clock size={12} /> End</p>
-                                        <div className="flex items-center gap-1">
-                                            <select value={jamAkhir.split(':')[0]} onChange={e => setJamAkhir(`${e.target.value}:${jamAkhir.split(':')[1]}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 24 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                            <span className="font-black text-slate-950">:</span>
-                                            <select value={jamAkhir.split(':')[1]} onChange={e => setJamAkhir(`${jamAkhir.split(':')[0]}:${e.target.value}`)} className={cn(inputStyle, "cursor-pointer text-center !px-1 appearance-none")}>
-                                                {Array.from({ length: 60 }).map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i.toString().padStart(2, '0')}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* 🚀 HORIZONTAL SCROLL EVIDENCE DENGAN PREVIEW & FIX MOBILE UPLOAD */}
-                                <div className="space-y-1">
-                                    <p className={labelStyle}><Camera size={12} /> Evidence</p>
-                                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                                        {previews.map((src, idx) => (
-                                            <div key={idx} className={`relative w-16 h-16 shrink-0 ${boxBorder} rounded-lg overflow-hidden shadow-[2px_2px_0px_#000] group`}>
-                                                <img
-                                                    src={src}
-                                                    className="w-full h-full object-cover cursor-pointer hover:brightness-75 transition-all"
-                                                    onClick={() => setPreviewModalInfo(src)}
-                                                    alt="Preview"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { e.stopPropagation(); setImages(images.filter((_, i) => i !== idx)); setPreviews(previews.filter((_, i) => i !== idx)); }}
-                                                    className="absolute top-0.5 right-0.5 bg-red-600 text-white p-0.5 rounded border border-black active:scale-90 z-10"
-                                                >
-                                                    <X size={10} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        {images.length < 3 && (
-                                            <label className={`relative w-16 h-16 shrink-0 ${boxBorder} border-dashed rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-slate-200 transition-colors`}>
-                                                <Camera size={16} className="text-slate-400" />
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    multiple
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                    onChange={e => { const f = Array.from(e.target.files || []); setImages([...images, ...f]); setPreviews([...previews, ...f.map(file => URL.createObjectURL(file))]); }}
-                                                />
-                                            </label>
-                                        )}
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div key="cuti" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Mulai</p><input type="date" value={mulaiCuti} min={hMin3Str} max={todayStr} onChange={e => setMulaiCuti(e.target.value)} className={inputStyle} /></div>
-                                    <div className="space-y-1"><p className={labelStyle}><CalendarIcon size={12} /> Selesai</p><input type="date" value={selesaiCuti} min={mulaiCuti || hMin3Str} onChange={e => setSelesaiCuti(e.target.value)} className={inputStyle} /></div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <div className="space-y-1">
-                        <p className={labelStyle}><FileSearch size={12} /> Remarks</p>
-                        <textarea rows={2} className={cn(inputStyle, "resize-none h-16")} value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Tulis keterangan tugas / alasan cuti..." />
+                {/* 🚀 DISCORD REDIRECTION BANNER / INFO */}
+                <div className="space-y-4 text-center py-2">
+                    <div className="w-16 h-16 bg-[#5865F2] text-white mx-auto rounded-2xl flex items-center justify-center border-2 border-slate-950 shadow-[3px_3px_0px_#000] rotate-3">
+                        <MessageSquare size={32} />
                     </div>
 
-                    <button type="submit" disabled={loading} className={cn("w-full py-4 mt-2 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2", boxBorder, cardShadow, "active:translate-y-1 shadow-none disabled:opacity-50", activeTab === 'DUTY' ? 'bg-slate-950' : 'bg-red-600')}>
-                        {loading ? "TRANSMITTING..." : <><Send size={16} /> TRANSMIT</>}
-                    </button>
-                </form>
-            </motion.div>
+                    <div className="space-y-2">
+                        <h2 className="text-sm font-black uppercase italic tracking-wider text-slate-950">
+                            Sistem Absen & Cuti Pindah ke Discord
+                        </h2>
+                        <p className="text-[10px] font-bold text-slate-600 uppercase leading-relaxed px-2">
+                            Berdasarkan instruksi Divisi Kepolisian Mandalika, seluruh pencatatan Duty Log dan Pengajuan Surat Izin Cuti kini terpusat dan wajib dilakukan langsung melalui bot resmi di server Discord Kepolisian.
+                        </p>
+                    </div>
 
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-            `}</style>
+                    {/* 🚀 GUIDE STEPS */}
+                    <div className="bg-slate-50 border-2 border-slate-950 rounded-xl p-3 text-left space-y-2 shadow-inner">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-950 italic flex items-center gap-1">
+                            <Radio size={12} className="text-blue-600 animate-pulse" /> Cara Melakukan Absen:
+                        </p>
+                        <ul className="text-[9px] font-bold uppercase text-slate-700 space-y-1.5 pl-4 list-disc">
+                            <li>Buka aplikasi atau web Discord Kepolisian Mandalika.</li>
+                            <li>Masuk ke channel khusus <span className="text-blue-600 font-black">#absensi-duty</span> atau <span className="text-red-600 font-black">#pengajuan-cuti</span>.</li>
+                            <li>Gunakan command bot yang telah disediakan untuk mengirim laporan.</li>
+                        </ul>
+                    </div>
+
+                    {/* 🚀 ACTION BUTTON */}
+                    <button
+                        type="button"
+                        onClick={handleOpenDiscord}
+                        className={`w-full py-4 mt-2 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 bg-[#5865F2] ${boxBorder} ${cardShadow} active:translate-y-1 shadow-none`}
+                    >
+                        <ExternalLink size={16} /> BUKA DISCORD KEPOLISIAN
+                    </button>
+                </div>
+
+            </motion.div>
         </div>
     );
 }

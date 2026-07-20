@@ -53,11 +53,11 @@ interface ConfigType {
 
 // --- UTILS ---
 const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
-const boxBorder = "border border-slate-200";
-const cardShadow = "shadow-sm hover:shadow-md transition-shadow";
+const boxBorder = "border border-zinc-800/80";
+const cardShadow = "shadow-lg shadow-black/40";
 
-const inputStyle = `w-full bg-slate-50/50 ${boxBorder} rounded-xl px-3.5 py-3 text-xs font-medium outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all shadow-xs`;
-const labelStyle = `text-[10px] font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5 tracking-wide uppercase`;
+const inputStyle = `w-full bg-zinc-900/90 ${boxBorder} rounded-xl px-3.5 py-3 text-xs font-medium text-zinc-100 placeholder-zinc-500 outline-none focus:bg-zinc-900 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all shadow-xs`;
+const labelStyle = `text-[10px] font-semibold text-zinc-400 mb-1.5 flex items-center gap-1.5 tracking-wider uppercase`;
 
 export default function LaporanMultiForm() {
     const router = useRouter();
@@ -84,15 +84,15 @@ export default function LaporanMultiForm() {
 
     // --- CONFIG --- 
     const CONFIG: Record<string, ConfigType> = {
-        tangkap: { color: "#22c55e", label: "Penangkapan", poin: 3, icon: ShieldAlert },
-        kasus: { color: "#eab308", label: "Kasus Besar", poin: 10, icon: Target },
-        patroli: { color: "#3b82f6", label: "Patroli", poin: 5, icon: Search },
+        tangkap: { color: "#ef4444", label: "Penangkapan", poin: 3, icon: ShieldAlert },
+        kasus: { color: "#ef4444", label: "Kasus Besar", poin: 10, icon: Target },
+        patroli: { color: "#ef4444", label: "Patroli", poin: 5, icon: Search },
         backup: { color: "#ef4444", label: "Backup", poin: 3, icon: Zap },
-        tilang: { color: "#f97316", label: "Penilangan", poin: 2, icon: Ticket },
-        admin: { color: "#8b5cf6", label: "Administrasi", poin: 6, icon: ClipboardList }
+        tilang: { color: "#ef4444", label: "Penilangan", poin: 2, icon: Ticket },
+        admin: { color: "#ef4444", label: "Administrasi", poin: 6, icon: ClipboardList }
     };
 
-    // 🚀 UPDATE FORMAT PESAN DISCORD (TANPA TAG ROLE)
+    // 🚀 UPDATE FORMAT PESAN DISCORD
     const getFormatMessage = (d: FormDataState) => {
         const tglStr = format(d.tanggal, "yyyy-MM-dd");
         if (tipe === 'tangkap') return `📁 **LAPORAN PENANGKAPAN**\n\`\`\`\nNama Pelaku : ${d.nama_pelaku || '-'}\nKTP Pelaku : ${d.ktp_pelaku || '-'}\nTanggal : ${tglStr}\n\nData Petugas\nNama IC : ${d.nama_petugas}\nPangkat : ${d.pangkat}\nBadge : ${d.badge_number}\n\nPasal Dilanggar: ${d.pasal || '-'}\nHukuman: ${d.hukuman || '-'}\nTotal Denda: $ ${d.total_denda || '-'}\n\`\`\``;
@@ -281,9 +281,9 @@ export default function LaporanMultiForm() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50/70 text-slate-900 font-sans p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
+        <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans p-4 pb-24 flex flex-col items-center overflow-x-hidden relative">
             <TacticalTransition isVisible={isNavigating} type="COMPUTER" />
-            <Toaster position="top-center" richColors />
+            <Toaster position="top-center" richColors theme="dark" />
 
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button
@@ -296,16 +296,16 @@ export default function LaporanMultiForm() {
                             setPreviews([]);
                         }
                     }}
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-xs hover:bg-slate-50 active:scale-95 transition-all text-slate-700"
+                    className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xs hover:bg-zinc-800 active:scale-95 transition-all text-zinc-300"
                 >
                     <ArrowLeft size={18} />
                 </button>
                 <div className="text-right">
                     <div className="flex items-center justify-end gap-1.5 mb-0.5">
-                        <ShieldCheck className="text-blue-600 animate-pulse" size={14} />
-                        <span className="text-[10px] font-semibold tracking-wider uppercase text-slate-400">Mandalika PD</span>
+                        <ShieldCheck className="text-red-500 animate-pulse" size={14} />
+                        <span className="text-[10px] font-semibold tracking-wider uppercase text-zinc-500">Mandalika PD</span>
                     </div>
-                    <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+                    <h1 className="text-lg font-bold text-zinc-100 tracking-tight">
                         {step === 0 ? "Laporan Ops" : CONFIG[tipe]?.label}
                     </h1>
                 </div>
@@ -321,42 +321,42 @@ export default function LaporanMultiForm() {
                                     <button 
                                         key={id} 
                                         onClick={() => { setTipe(id); setStep(1); }} 
-                                        className={`bg-white ${boxBorder} p-4 rounded-2xl ${cardShadow} flex flex-col items-center justify-center gap-3 text-left group`}
+                                        className={`bg-zinc-900/60 ${boxBorder} p-4 rounded-2xl ${cardShadow} flex flex-col items-center justify-center gap-3 text-left group hover:border-red-500/50 hover:bg-zinc-900 transition-all`}
                                     >
-                                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 group-hover:scale-105 transition-transform" style={{ color: conf.color }}>
+                                        <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 group-hover:scale-105 group-hover:border-red-500/30 transition-all text-red-500">
                                             <IconComponent size={22} />
                                         </div>
                                         <div className="text-center">
-                                            <p className="font-semibold text-xs text-slate-800 leading-tight mb-1">{conf.label}</p>
-                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-[9px] font-medium">+{conf.poin} Poin</span>
+                                            <p className="font-semibold text-xs text-zinc-200 leading-tight mb-1">{conf.label}</p>
+                                            <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-md text-[9px] font-medium">+{conf.poin} Poin</span>
                                         </div>
                                     </button>
                                 );
                             })}
                         </motion.div>
                     ) : (
-                        <motion.div key="s1" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} className={`bg-white ${boxBorder} rounded-3xl ${cardShadow} p-6`}>
+                        <motion.div key="s1" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} className={`bg-zinc-900/80 backdrop-blur-md ${boxBorder} rounded-3xl ${cardShadow} p-6`}>
 
                             {/* 🚀 IDENTITY BANNER */}
-                            <div className="grid grid-cols-3 gap-2 items-center bg-slate-50/80 border border-slate-200 p-3 rounded-2xl mb-6 shadow-xs text-center">
+                            <div className="grid grid-cols-3 gap-2 items-center bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-2xl mb-6 shadow-xs text-center">
                                 <div className="truncate text-left px-1">
-                                    <p className="text-[9px] font-medium text-slate-400 uppercase">Nama</p>
-                                    <p className="text-[11px] font-bold text-slate-800 truncate">{formData.nama_petugas}</p>
+                                    <p className="text-[9px] font-medium text-zinc-500 uppercase">Nama</p>
+                                    <p className="text-[11px] font-bold text-zinc-200 truncate">{formData.nama_petugas}</p>
                                 </div>
-                                <div className="truncate border-x border-slate-200 px-1">
-                                    <p className="text-[9px] font-medium text-slate-400 uppercase">Pangkat</p>
-                                    <p className="text-[11px] font-bold text-blue-600 truncate">{formData.pangkat}</p>
+                                <div className="truncate border-x border-zinc-800 px-1">
+                                    <p className="text-[9px] font-medium text-zinc-500 uppercase">Pangkat</p>
+                                    <p className="text-[11px] font-bold text-red-500 truncate">{formData.pangkat}</p>
                                 </div>
                                 <div className="truncate text-right px-1">
-                                    <p className="text-[9px] font-medium text-slate-400 uppercase">Badge</p>
-                                    <p className="text-[11px] font-bold text-slate-800 truncate">#{formData.badge_number}</p>
+                                    <p className="text-[9px] font-medium text-zinc-500 uppercase">Badge</p>
+                                    <p className="text-[11px] font-bold text-zinc-200 truncate">#{formData.badge_number}</p>
                                 </div>
                             </div>
 
                             <form onSubmit={submitLaporan} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
-                                        <label className={labelStyle}><CalendarIcon size={12} /> Tanggal</label>
+                                        <label className={labelStyle}><CalendarIcon size={12} className="text-red-500" /> Tanggal</label>
                                         <input
                                             type="date"
                                             value={format(formData.tanggal, 'yyyy-MM-dd')}
@@ -368,11 +368,13 @@ export default function LaporanMultiForm() {
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className={labelStyle}><Clock size={12} /> Shift</label>
+                                        <label className={labelStyle}><Clock size={12} className="text-red-500" /> Shift</label>
                                         <select name="waktu_shift" required value={formData.waktu_shift} onChange={handleInputChange} className={inputStyle}>
-                                            <option value="">-- PILIH --</option>
-                                            <option value="Pagi">PAGI</option><option value="Siang">SIANG</option>
-                                            <option value="Sore">SORE</option><option value="Malam">MALAM</option>
+                                            <option value="" className="bg-zinc-900">-- PILIH --</option>
+                                            <option value="Pagi" className="bg-zinc-900">PAGI</option>
+                                            <option value="Siang" className="bg-zinc-900">SIANG</option>
+                                            <option value="Sore" className="bg-zinc-900">SORE</option>
+                                            <option value="Malam" className="bg-zinc-900">MALAM</option>
                                         </select>
                                     </div>
                                 </div>
@@ -407,10 +409,10 @@ export default function LaporanMultiForm() {
                                             <div className="space-y-1">
                                                 <label className={labelStyle}>Jenis Kendaraan</label>
                                                 <select name="kendaraan" required value={formData.kendaraan} onChange={handleInputChange} className={inputStyle}>
-                                                    <option value="">-- PILIH --</option>
-                                                    <option value="Roda 2">Roda 2</option>
-                                                    <option value="Roda 4">Roda 4</option>
-                                                    <option value="Roda 6+">Roda 6+</option>
+                                                    <option value="" className="bg-zinc-900">-- PILIH --</option>
+                                                    <option value="Roda 2" className="bg-zinc-900">Roda 2</option>
+                                                    <option value="Roda 4" className="bg-zinc-900">Roda 4</option>
+                                                    <option value="Roda 6+" className="bg-zinc-900">Roda 6+</option>
                                                 </select>
                                             </div>
                                             <div className="space-y-1">
@@ -433,11 +435,11 @@ export default function LaporanMultiForm() {
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
-                                                <label className={labelStyle}><Clock size={12} /> Jam Buka</label>
+                                                <label className={labelStyle}><Clock size={12} className="text-red-500" /> Jam Buka</label>
                                                 <input type="time" name="jam_buka" required onChange={handleInputChange} className={inputStyle} />
                                             </div>
                                             <div className="space-y-1">
-                                                <label className={labelStyle}><Clock size={12} /> Jam Tutup</label>
+                                                <label className={labelStyle}><Clock size={12} className="text-red-500" /> Jam Tutup</label>
                                                 <input type="time" name="jam_tutup" required onChange={handleInputChange} className={inputStyle} />
                                             </div>
                                         </div>
@@ -462,30 +464,30 @@ export default function LaporanMultiForm() {
 
                                 <div className="space-y-2 pt-2">
                                     <div className="flex items-center justify-between">
-                                        <label className={labelStyle}><Camera size={12} /> Bukti Visual</label>
-                                        {tipe === 'admin' && <span className="text-[9px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">Min. 2 Foto</span>}
+                                        <label className={labelStyle}><Camera size={12} className="text-red-500" /> Bukti Visual</label>
+                                        {tipe === 'admin' && <span className="text-[9px] font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Min. 2 Foto</span>}
                                     </div>
 
                                     <div className="flex flex-wrap gap-2.5 items-center">
                                         {previews.map((prev, index) => (
-                                            <div key={index} className="relative w-16 h-16 shrink-0 border border-slate-200 rounded-2xl overflow-hidden shadow-xs bg-white">
+                                            <div key={index} className="relative w-16 h-16 shrink-0 border border-zinc-800 rounded-2xl overflow-hidden shadow-xs bg-zinc-900">
                                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                                 <img src={prev} alt={`Bukti ${index + 1}`} className="w-full h-full object-cover" />
-                                                <button type="button" onClick={() => removeFoto(index)} className="absolute top-1 right-1 bg-slate-900/80 hover:bg-rose-600 text-white p-1 rounded-full backdrop-blur-xs transition-colors"><X size={10} /></button>
+                                                <button type="button" onClick={() => removeFoto(index)} className="absolute top-1 right-1 bg-zinc-950/80 hover:bg-red-600 text-white p-1 rounded-full backdrop-blur-xs transition-colors"><X size={10} /></button>
                                             </div>
                                         ))}
 
                                         {previews.length < 4 && (
-                                            <label className="w-16 h-16 shrink-0 border border-dashed border-slate-300 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-100/80 transition-colors">
-                                                <Camera size={16} className="text-slate-400" />
-                                                <span className="text-[9px] font-medium text-slate-400 uppercase leading-none">Tambah</span>
+                                            <label className="w-16 h-16 shrink-0 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-red-500/50 hover:bg-zinc-900 transition-all">
+                                                <Camera size={16} className="text-zinc-500" />
+                                                <span className="text-[9px] font-medium text-zinc-500 uppercase leading-none">Tambah</span>
                                                 <input type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" />
                                             </label>
                                         )}
                                     </div>
                                 </div>
 
-                                <button disabled={loading} type="submit" className="w-full py-3.5 mt-4 rounded-xl font-semibold tracking-wide text-white transition-all flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 shadow-sm active:scale-[0.99] disabled:opacity-50">
+                                <button disabled={loading} type="submit" className="w-full py-3.5 mt-4 rounded-xl font-semibold tracking-wider text-white transition-all flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/30 active:scale-[0.99] disabled:opacity-50">
                                     {loading ? "TRANSMITTING..." : "KIRIM LAPORAN"}
                                 </button>
                             </form>

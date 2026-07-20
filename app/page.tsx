@@ -4,46 +4,36 @@ import { motion, Variants } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, KeySquare } from 'lucide-react';
+import { KeyRound, KeySquare, Shield, Clock, ArrowRight, AlertTriangle } from 'lucide-react';
+import Image from 'next/image';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// --- ANIMASI ---
-const dropIn: Variants = {
-  hidden: { opacity: 0, y: -100 },
+const fadeIn: Variants = {
+  hidden: { opacity: 0, y: 15 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { type: "spring", stiffness: 120, damping: 12 }
-  }
-};
-
-const float: Variants = {
-  animate: {
-    y: [0, -10, 0],
-    transition: { duration: 3, repeat: Infinity, ease: "easeInOut" }
+    transition: { duration: 0.4, ease: "easeOut" }
   }
 };
 
 export default function LandingPage() {
   const router = useRouter();
   const [time, setTime] = useState('');
-  const [status, setStatus] = useState('LOG MASUK');
+  const [status, setStatus] = useState('MASUK DENGAN DISCORD');
   const [isLoading, setIsLoading] = useState(false);
-
-  // 🚀 STATE UNTUK MODE DARURAT (TOKEN)
   const [isTokenMode, setIsTokenMode] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString());
+      setTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     }, 1000);
 
-    // --- 🚀 FAST TRACK INTERCEPTOR ---
     if (typeof window !== 'undefined') {
       const localSession = localStorage.getItem('police_session');
       if (localSession) {
@@ -54,7 +44,6 @@ export default function LandingPage() {
 
     let isProcessing = false;
 
-    // --- LOGIKA CEK ROLE & ANTI-DUPLIKAT (DISCORD OAUTH) ---
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         if (localStorage.getItem('police_session')) {
@@ -77,9 +66,7 @@ export default function LandingPage() {
             session.user.user_metadata?.name ||
             "UNKNOWN PERSONEL";
 
-          if (!discordId) {
-            throw new Error("INVALID_ID");
-          }
+          if (!discordId) throw new Error("INVALID_ID");
 
           const response = await fetch('/api/check-role', {
             method: 'POST',
@@ -107,27 +94,21 @@ export default function LandingPage() {
 
             if (syncError) console.error("Sync Error Details:", syncError);
 
-            setStatus('AKSES DIBERIKAN!');
+            setStatus('AKSES DIBERIKAN');
             localStorage.setItem('police_session', JSON.stringify({ ...result, discord_id: discordId }));
-
             window.location.href = '/dashboard';
           } else {
-            setStatus('AKSES DITOLAK!');
+            setStatus('AKSES DITOLAK');
             await supabase.auth.signOut();
             localStorage.removeItem('police_session');
             router.push('/unauthorized');
           }
-        } catch (err: any) {
-          console.error("Gagal Verifikasi:", err);
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.error("Gagal Verifikasi:", errorMessage);
           await supabase.auth.signOut();
           localStorage.removeItem('police_session');
-
-          if (err.message === "INVALID_ID") {
-            setStatus('AKSES ILEGAL DIBLOKIR');
-          } else {
-            setStatus('GAGAL SISTEM. COBA LAGI.');
-          }
-
+          setStatus(errorMessage === "INVALID_ID" ? 'AKSES ILEGAL' : 'GAGAL SISTEM');
           setIsLoading(false);
           isProcessing = false;
         }
@@ -140,7 +121,6 @@ export default function LandingPage() {
     };
   }, [router]);
 
-  // --- OAUTH LOGIN ---
   const handleLogin = async () => {
     if (isLoading) return;
     setStatus('MENGHUBUNGKAN...');
@@ -151,11 +131,10 @@ export default function LandingPage() {
 
     if (error) {
       console.error("Gagal Login:", error.message);
-      setStatus('LOG MASUK');
+      setStatus('MASUK DENGAN DISCORD');
     }
   };
 
-  // --- 🚀 BYPASS TOKEN LOGIN DENGAN SINKRONISASI DISCORD ---
   const handleTokenLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tokenInput.trim() || isLoading) return;
@@ -164,34 +143,27 @@ export default function LandingPage() {
     setStatus('VERIFIKASI TOKEN...');
 
     try {
-      // 1. Cari token di database
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('bypass_token', tokenInput.trim())
         .single();
 
-      if (error || !data || !data.discord_id) {
-        throw new Error("TOKEN_INVALID");
-      }
+      if (error || !data || !data.discord_id) throw new Error("TOKEN_INVALID");
 
-      setStatus('SINKRONISASI DISCORD...');
+      setStatus('SINKRONISASI...');
 
-      // 2. Tarik data role TERBARU langsung dari Discord Server (Sama seperti login normal!)
       const response = await fetch('/api/check-role', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: data.discord_id }), // Tembak API pakai ID dari database
+        body: JSON.stringify({ userId: data.discord_id }),
       });
 
       if (!response.ok) throw new Error("API_ERROR");
       const result = await response.json();
 
-      // 3. Pastikan dia masih berstatus Polisi di server Discord
       if (result.isPolice === true) {
-        setStatus('MEMPERBARUI DOSSIER...');
-
-        // 4. Update data di Supabase jika ada kenaikan pangkat/perubahan divisi
+        setStatus('MEMPERBARUI...');
         await supabase
           .from('users')
           .update({
@@ -200,9 +172,6 @@ export default function LandingPage() {
           })
           .eq('discord_id', data.discord_id);
 
-        setStatus('BYPASS BERHASIL!');
-
-        // 5. Injeksi session dengan role paling baru (bukan sekadar data usang)
         const sessionData = {
           discord_id: data.discord_id,
           name: data.name,
@@ -213,149 +182,129 @@ export default function LandingPage() {
 
         localStorage.setItem('police_session', JSON.stringify(sessionData));
         window.location.href = '/dashboard';
-
       } else {
-        // Jika ternyata role polisinya dicabut di Discord, tolak aksesnya meski punya token
         throw new Error("ROLE_REVOKED");
       }
-
-    } catch (err: any) {
-      console.error(err);
-
-      if (err.message === "ROLE_REVOKED") {
-        setStatus('ROLE DICABUT!');
-      } else if (err.message === "TOKEN_INVALID") {
-        setStatus('TOKEN TIDAK VALID!');
-      } else {
-        setStatus('GAGAL SINKRONISASI!');
-      }
-
-      setTimeout(() => setStatus('LOG MASUK'), 3000);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(errorMessage);
+      setStatus(errorMessage === "ROLE_REVOKED" ? 'ROLE DICABUT' : errorMessage === "TOKEN_INVALID" ? 'TOKEN TIDAK VALID' : 'GAGAL');
+      setTimeout(() => setStatus('MASUK DENGAN DISCORD'), 3000);
       setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#E0E7FF] text-black flex items-center justify-center p-6 relative overflow-hidden font-sans">
-      {/* --- DEKORASI BACKGROUND --- */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-50">
-        <div className="absolute top-[10%] left-[5%] w-32 h-32 bg-[#FFD100] border-4 border-black rounded-full shadow-[8px_8px_0_0_#000] rotate-12 hidden lg:block" />
-        <div className="absolute bottom-[15%] right-[10%] w-48 h-48 bg-[#00E676] border-4 border-black shadow-[12px_12px_0_0_#000] -rotate-6 hidden lg:block" />
-        <div className="absolute top-[20%] right-[5%] w-24 h-24 bg-[#FF4D4D] border-b-[20px] border-black hidden lg:block" />
+    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4 relative overflow-hidden font-mono">
+      {/* Background Ambient Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-600/5 blur-[140px] rounded-full pointer-events-none" />
+
+      {/* Top Bar Info */}
+      <div className="absolute top-6 left-6 right-6 flex justify-between items-center max-w-7xl mx-auto text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span>MDT SECURE LINK // v2.1</span>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg text-zinc-300">
+          <Clock size={13} className="text-red-500" />
+          <span>{time || '00:00:00'}</span>
+        </div>
       </div>
 
-      {/* --- WIDGET KIRI: TIME --- */}
+      {/* Main Authentication Card */}
       <motion.div
-        variants={float} animate="animate"
-        className="hidden lg:flex absolute left-12 top-24 w-64 bg-white border-4 border-black p-4 flex-col gap-2 shadow-[10px_10px_0px_0px_#3B82F6] rotate-[-2deg]"
+        initial="hidden"
+        animate="visible"
+        variants={fadeIn}
+        className="w-full max-w-md bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/80 rounded-2xl relative overflow-hidden flex flex-col p-6 sm:p-8"
       >
-        <div className="bg-[#3B82F6] p-2 font-black text-center border-b-4 border-black uppercase italic">
-          Mandalika Time
-        </div>
-        <p className="text-4xl font-black text-center py-4 tracking-tighter">{time || '00:00:00'}</p>
-        <p className="text-[10px] font-black bg-[#FFD100] p-1 text-center border-2 border-black uppercase">
-          RADAR_STATUS: ACTIVE
-        </p>
-      </motion.div>
-
-      {/* --- KARTU UTAMA --- */}
-      <motion.div
-        initial="hidden" animate="visible" variants={dropIn}
-        className="w-full max-w-sm bg-white border-[6px] border-black shadow-[20px_20px_0px_0px_rgba(0,0,0,1)] z-10 relative overflow-hidden flex flex-col"
-      >
-        <div className="bg-[#FFD100] border-b-4 border-black p-2 flex justify-between items-center px-4">
-          <span className="font-black text-[12px] italic uppercase tracking-widest">Official MDT v2.1</span>
-          <div className={`w-4 h-4 bg-[#FF4D4D] border-2 border-black rounded-full ${isLoading ? 'animate-ping' : 'animate-pulse'}`} />
-        </div>
-
-        <div className="p-8 flex flex-col items-center text-black flex-1">
-          <motion.div
-            whileHover={{ scale: 1.1, rotate: 5 }}
-            className="bg-[#A78BFA] border-4 border-black p-4 shadow-[8px_8px_0px_0px_#000] mb-8"
-          >
-            <img src="/logo-polisi.png" alt="Logo" className="w-20 h-20 md:w-24 md:h-24 object-contain" />
-          </motion.div>
-
-          <h1 className="text-5xl font-[1000] text-center uppercase leading-none tracking-tighter mb-2 italic">
-            MANDALIKA<br />
-            <span className="text-[#3B82F6] underline decoration-black decoration-8 underline-offset-4 italic">POLICE</span>
-          </h1>
-          <p className="bg-black text-[#00E676] px-4 py-1 font-black text-sm uppercase mb-8 italic">
-            Mobile Data Terminal
-          </p>
-
-          <div className="w-full space-y-4">
-
-            {/* 🚀 LOGIC TOGGLE: Tampilkan tombol Discord ATAU form Token */}
-            {!isTokenMode ? (
-              <>
-                <motion.button
-                  onClick={handleLogin}
-                  disabled={isLoading}
-                  whileHover={{ x: 8, y: -8, boxShadow: "0px 0px 0px 0px #000" }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`w-full ${isLoading ? 'bg-gray-400' : 'bg-[#5865F2]'} text-black font-[1000] text-2xl py-5 border-4 border-black shadow-[10px_10px_0px_0px_#000] flex items-center justify-center gap-4 transition-all`}
-                >
-                  <img src="/discord-login.png" alt="Discord" className="w-10 h-10" />
-                  <span>{status}</span>
-                </motion.button>
-
-                {/* Tombol beralih ke Mode Darurat */}
-                <button
-                  onClick={() => setIsTokenMode(true)}
-                  className="w-full text-[10px] font-black uppercase text-slate-500 hover:text-black underline decoration-2 underline-offset-4 flex justify-center items-center gap-2 mt-2 transition-colors"
-                >
-                  <KeySquare size={12} /> Kendala Login Discord? Akses Darurat
-                </button>
-              </>
-            ) : (
-              <motion.form
-                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                onSubmit={handleTokenLogin}
-                className="w-full space-y-3"
-              >
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <input
-                    type="password"
-                    placeholder="MASUKKAN BYPASS TOKEN..."
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                    className="w-full bg-slate-100 border-4 border-black pl-10 pr-4 py-4 font-black uppercase italic placeholder:opacity-50 outline-none focus:bg-[#FFD100] transition-colors"
-                    disabled={isLoading}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsTokenMode(false)}
-                    className="bg-slate-200 border-4 border-black p-4 font-black hover:bg-slate-300"
-                    disabled={isLoading}
-                  >
-                    X
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className={`flex-1 ${isLoading ? 'bg-gray-400' : 'bg-[#00E676] hover:bg-[#A3E635]'} text-black font-[1000] text-xl py-4 border-4 border-black shadow-[6px_6px_0px_0px_#000] active:translate-y-1 active:shadow-[2px_2px_0px_0px_#000] transition-all uppercase italic`}
-                  >
-                    {status === 'LOG MASUK' ? 'VERIFIKASI' : status}
-                  </button>
-                </div>
-              </motion.form>
-            )}
-
-            <div className="bg-[#FF4D4D] border-4 border-black p-3 shadow-[6px_6px_0px_0px_#000] mt-4">
-              <p className="text-[10px] font-black text-center uppercase leading-tight italic">
-                PERINGATAN: AKSES TANPA IZIN AKAN DILACAK DAN DITINDAK TEGAS OLEH DIVISI PROPAM.
-              </p>
-            </div>
+        {/* Header Icon & Title */}
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center mb-4 shadow-inner">
+            <Image src="/logo-polisi.png" alt="Logo" width={40} height={40} className="object-contain" />
           </div>
+          <h1 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-white mb-1">
+            Mandalika Police
+          </h1>
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+            Mobile Data Terminal Authentication
+          </p>
         </div>
 
-        <div className="bg-black py-2 px-4 flex justify-between items-center font-black italic text-[10px] mt-auto">
-          <span className="text-[#CCFF00] uppercase">Mandalika_Secure_Link</span>
-          <span className="text-white opacity-40">v2.1.0-BYPASS</span>
+        {/* Form / Actions */}
+        <div className="space-y-4">
+          {!isTokenMode ? (
+            <>
+              <motion.button
+                onClick={handleLogin}
+                disabled={isLoading}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-3 transition-all cursor-pointer shadow-lg ${
+                  isLoading
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                    : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-[#5865F2]/20'
+                }`}
+              >
+                <Shield size={16} />
+                <span>{status}</span>
+              </motion.button>
+
+              <button
+                onClick={() => setIsTokenMode(true)}
+                className="w-full text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors flex items-center justify-center gap-1.5 pt-2 cursor-pointer"
+              >
+                <KeySquare size={13} className="text-red-500" /> Kendala Login? Gunakan Bypass Token
+              </button>
+            </>
+          ) : (
+            <motion.form
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              onSubmit={handleTokenLogin}
+              className="space-y-3"
+            >
+              <div className="relative">
+                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                <input
+                  type="password"
+                  placeholder="MASUKKAN BYPASS TOKEN..."
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs font-mono uppercase tracking-wider text-zinc-100 placeholder:text-zinc-600 focus:border-red-500 outline-none transition-all"
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTokenMode(false)}
+                  className="px-4 py-3 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 rounded-xl font-bold text-xs uppercase transition-all cursor-pointer"
+                  disabled={isLoading}
+                >
+                  BATAL
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>{status === 'MASUK DENGAN DISCORD' ? 'VERIFIKASI' : status}</span>
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            </motion.form>
+          )}
+        </div>
+
+        {/* Footer Warning */}
+        <div className="mt-8 pt-4 border-t border-zinc-800/80 flex items-start gap-2.5">
+          <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
+          <p className="text-[9px] font-medium text-zinc-500 uppercase tracking-tight leading-relaxed">
+            Akses terbatas untuk personel resmi. Segala aktivitas login dicatat dan dipantau oleh Divisi Propam.
+          </p>
         </div>
       </motion.div>
     </main>

@@ -41,7 +41,7 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
     };
 
     return (
-        <div className="relative z-[999]" ref={dropdownRef}>
+        <div className="relative z-999" ref={dropdownRef}>
             {/* BUTTON PROFIL */}
             <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -52,7 +52,7 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
                     <span className="text-[11px] font-medium text-neutral-400 group-hover:text-red-500 transition-colors">{pangkat}</span>
                 </div>
 
-                <div className="w-10 h-10 rounded-full border border-neutral-800 bg-[#161616] overflow-hidden relative flex-shrink-0 transition-all">
+                <div className="w-10 h-10 rounded-full border border-neutral-800 bg-[#161616] overflow-hidden relative shrink-0 transition-all">
                     {image ? (
                         <NextImage src={image} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
                     ) : (
@@ -114,15 +114,39 @@ function ProfileDropdownMenu({ nickname, pangkat, image }: { nickname: string, p
 
 // ----------------------------------------------------
 
+interface UserData {
+    name: string;
+    image?: string;
+    is_admin?: boolean;
+    is_highadmin?: boolean;
+    point_prp?: number;
+    total_jam_duty?: number;
+    pangkat?: string;
+    divisi?: string;
+}
+
+interface PayrollLog {
+    id: string | number;
+    jumlah_gaji: number | string;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    status: string;
+}
+
 export default function PortalPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('home');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [nickname, setNickname] = useState("LOADING...");
-    const [userData, setUserData] = useState<any>(null);
-
+    
+    const [userData, setUserData] = useState<UserData | null>(null);
     const [dbStatus, setDbStatus] = useState({ is_admin: false, is_highadmin: false });
     const [realtimeData, setRealtimeData] = useState({ point_prp: 0, total_jam_duty: 0, pangkat: "RECRUIT", divisi: "SABHARA" });
+
+    // State untuk data gaji / payroll
+    const [payrollLogs, setPayrollLogs] = useState<PayrollLog[]>([]);
+    const [payrollPage, setPayrollPage] = useState(1);
+    const itemsPerPage = 5;
 
     useEffect(() => {
         const checkUser = async () => {
@@ -158,6 +182,31 @@ export default function PortalPage() {
         checkUser();
     }, [router]);
 
+    // Fetch riwayat gaji dari database Supabase
+    useEffect(() => {
+        const fetchPayroll = async () => {
+            const sessionData = localStorage.getItem('police_session');
+            if (!sessionData) return;
+            const parsed = JSON.parse(sessionData);
+
+            const { data, error } = await supabase
+                .from('gaji')
+                .select('*')
+                .eq('discord_id', parsed.discord_id)
+                .order('tanggal_mulai', { ascending: false });
+
+            if (data) {
+                setPayrollLogs(data);
+            } else if (error) {
+                setPayrollLogs([]);
+            }
+        };
+        fetchPayroll();
+    }, []);
+
+    const totalPages = Math.ceil(payrollLogs.length / itemsPerPage) || 1;
+    const currentLogs = payrollLogs.slice((payrollPage - 1) * itemsPerPage, payrollPage * itemsPerPage);
+
     return (
         <div className="flex min-h-screen bg-[#121212] font-sans overflow-hidden text-neutral-200 selection:bg-red-600/20">
             {/* SIDEBAR CONTAINER */}
@@ -192,14 +241,30 @@ export default function PortalPage() {
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 bg-[#121212]">
                     <AnimatePresence mode="wait">
                         {activeTab === 'home' && <SectionHome key="home" nickname={nickname} realtimeData={realtimeData} />}
-                        {activeTab === 'log' && <SectionLog key="log" />}
-                        {activeTab === 'payroll' && <SectionSalary key="salary" realtimeData={realtimeData} nickname={nickname} />}
+                        {activeTab === 'log' && (
+                            <SectionLog 
+                                key="log" 
+                                currentLogs={currentLogs}
+                                currentPage={payrollPage}
+                                setCurrentPage={setPayrollPage}
+                                totalPages={totalPages}
+                            />
+                        )}
+                        {activeTab === 'payroll' && (
+                            <SectionSalary 
+                                key="salary" 
+                                currentLogs={currentLogs}
+                                currentPage={payrollPage}
+                                setCurrentPage={setPayrollPage}
+                                totalPages={totalPages}
+                            />
+                        )}
                         {activeTab === 'handbook' && <SectionHandbook key="handbook" divisi={realtimeData.divisi} isPetinggi={dbStatus.is_admin} />}
                     </AnimatePresence>
                 </main>
 
                 {/* BOTTOM NAVIGATION (MOBILE - CAPSULE PILL VERSION) */}
-                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[#161616]/95 backdrop-blur-md border-t border-neutral-800/60 flex justify-around items-center py-2 pb-6 z-[60]">
+                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[#161616]/95 backdrop-blur-md border-t border-neutral-800/60 flex justify-around items-center py-2 pb-6 z-60">
                     <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 py-1.5 px-4 rounded-xl transition-all ${activeTab === 'home' ? 'text-red-500 bg-neutral-800/40' : 'text-neutral-500 hover:text-neutral-300'}`}>
                         <Home size={20} />
                         <span className="text-[10px] font-medium tracking-wide">Home</span>

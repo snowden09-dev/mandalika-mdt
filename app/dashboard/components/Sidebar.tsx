@@ -4,17 +4,30 @@ import { motion } from 'framer-motion';
 import { Home, Banknote, ShieldAlert, Radar, History, BookOpen } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: { isOpen: boolean, activeTab: string, setActiveTab: (tab: string) => void, dbStatus: any }) {
+// Interface untuk menghindari error no-explicit-any
+interface DbStatusProps {
+    is_admin?: boolean;
+    is_highadmin?: boolean;
+}
+
+interface SidebarProps {
+    isOpen: boolean;
+    activeTab: string;
+    setActiveTab: (tab: string) => void;
+    dbStatus: DbStatusProps;
+}
+
+export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: SidebarProps) {
     const router = useRouter();
 
     const fontBlack = "font-mono font-[1000] italic uppercase tracking-tighter text-black";
-    const boxBorder = "border-[4px] border-black";
+    const boxBorder = "border-4 border-black";
 
     const menu = [
         { id: 'home', label: 'DASHBOARD', icon: <Home size={20} />, color: '#FFD100' },
         { id: 'log', label: 'ACTIVITY LOG', icon: <History size={20} />, color: '#FF90E8' },
         { id: 'payroll', label: 'SALARY SYSTEM', icon: <Banknote size={20} />, color: '#00E676' },
-        { id: 'handbook', label: 'HANDBOOK DIVISI', icon: <BookOpen size={20} />, color: '#3B82F6' }, // 🚀 MENU BARU DITAMBAHKAN
+        { id: 'handbook', label: 'HANDBOOK DIVISI', icon: <BookOpen size={20} />, color: '#3B82F6' },
     ];
 
     return (
@@ -27,7 +40,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
             }}
             className="hidden md:flex flex-col bg-white border-r-[6px] border-black z-50 shrink-0 overflow-hidden h-screen shadow-[10px_0px_0px_0px_rgba(0,0,0,0.1)]"
         >
-            <div className="p-6 h-full flex flex-col w-[280px]">
+            <div className="p-6 h-full flex flex-col w-70">
 
                 <div className={`bg-[#3B82F6] ${boxBorder} px-4 py-3 shadow-[6px_6px_0px_#000] ${fontBlack} text-center text-xs mb-10 flex items-center justify-center gap-2`}>
                     <Radar size={16} className="animate-pulse" />
@@ -39,23 +52,23 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
-                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-[4px] ${activeTab === item.id
-                                ? `border-black shadow-[6px_6px_0px_#000] translate-x-[-2px] translate-y-[-2px]`
+                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-4 ${activeTab === item.id
+                                ? `border-black shadow-[6px_6px_0px_#000] -translate-x-0.5 -translate-y-0.5`
                                 : 'border-transparent opacity-40 hover:opacity-100'
                                 }`}
                             style={{ backgroundColor: activeTab === item.id ? item.color : 'transparent' }}
                         >
-                            <span className="flex-shrink-0">{item.icon}</span>
+                            <span className="shrink-0">{item.icon}</span>
                             <span className="truncate">{item.label}</span>
                         </button>
                     ))}
 
-                    {/* --- FIX: TOMBOL ADMIN SEKARANG BISA BACA is_highadmin --- */}
+                    {/* --- TOMBOL ADMIN --- */}
                     {(dbStatus?.is_admin || dbStatus?.is_highadmin) && (
                         <motion.button
                             whileHover={{ scale: 1.02 }}
                             onClick={() => router.push('/admin')}
-                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-[4px] bg-[#A78BFA] border-black shadow-[6px_6px_0px_#000] hover:translate-y-[-2px] active:shadow-none`}
+                            className={`w-full flex items-center gap-4 p-4 ${fontBlack} text-sm transition-all border-4 bg-[#A78BFA] border-black shadow-[6px_6px_0px_#000] hover:-translate-y-0.5 active:shadow-none`}
                         >
                             <ShieldAlert size={20} strokeWidth={3} />
                             <span>ADMIN PANEL</span>
@@ -63,7 +76,6 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, dbStatus }: {
                     )}
                 </nav>
 
-                {/* mt-auto ditambahkan di sini agar teks footer tetap berada di paling bawah */}
                 <div className="mt-auto pt-6 text-center text-[8px] font-black uppercase opacity-30 italic">
                     Mandalika Security Protocol v3.7
                 </div>

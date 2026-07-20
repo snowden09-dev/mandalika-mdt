@@ -14,6 +14,23 @@ import { format, startOfWeek, endOfWeek } from "date-fns";
 import { id } from "date-fns/locale";
 import { toast, Toaster } from "sonner";
 
+// --- INTERFACE TYPING ---
+interface UserData {
+    name?: string;
+    discord_id?: string;
+    pangkat?: string;
+    point_prp?: number;
+    total_jam_duty?: number;
+    divisi?: string;
+    roles?: string | string[];
+    [key: string]: unknown;
+}
+
+interface SectionHomeProps {
+    nickname: string;
+    realtimeData: UserData;
+}
+
 // --- STRUKTUR PANGKAT ---
 const RANKS_DB = [
     { name: "CASIS", prp: 0, hrs: 0 },
@@ -41,10 +58,10 @@ const RANKS_DB = [
 
 const PETINGGI_ROLE_ID = "1449382385090166844";
 
-export default function SectionHome({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
+export default function SectionHome({ nickname, realtimeData }: SectionHomeProps) {
     const router = useRouter();
 
-    const [userData, setUserData] = useState<any>(realtimeData);
+    const [userData, setUserData] = useState<UserData>(realtimeData);
     const [navState, setNavState] = useState<{ active: boolean, type: 'STAR' | 'COMPUTER' }>({
         active: false,
         type: 'STAR'
@@ -90,7 +107,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
                     .single();
 
                 if (data && !error) {
-                    let finalData = { ...data };
+                    const finalData = { ...data };
                     const newRank = data.pangkat?.toUpperCase();
 
                     if (currentLocalRank && newRank && currentLocalRank !== newRank) {
@@ -206,7 +223,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 ${cardBase} min-h-[220px] bg-gradient-to-br from-[#18181B] to-[#09090B]`}>
+            <motion.div variants={item} className={`col-span-2 ${cardBase} min-h-[220px] bg-linear-to-br from-[#18181B] to-[#09090B]`}>
                 <div className="absolute -right-6 -bottom-6 opacity-5 pointer-events-none">
                     <Fingerprint size={200} className="text-white" />
                 </div>
@@ -345,7 +362,7 @@ export default function SectionHome({ nickname, realtimeData }: { nickname: stri
 
             {/* --- KHUSUS SATLANTAS --- */}
             {isSatlantas && !isCasis && (
-                <motion.div variants={item} className={`col-span-2 ${cardBase} bg-gradient-to-br from-orange-950/30 to-zinc-900 border-orange-500/20`}>
+                <motion.div variants={item} className={`col-span-2 ${cardBase} bg-linear-to-br from-orange-950/30 to-zinc-900 border-orange-500/20`}>
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-2">
                             <div className="p-2 bg-orange-500/10 rounded-lg">

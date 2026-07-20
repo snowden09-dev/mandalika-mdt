@@ -133,6 +133,16 @@ interface PayrollLog {
     status: string;
 }
 
+type PayrollSectionProps = {
+    currentLogs: PayrollLog[];
+    currentPage: number;
+    setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
+    totalPages: number;
+};
+
+const SectionLogComponent = SectionLog as React.ComponentType<PayrollSectionProps>;
+const SectionSalaryComponent = SectionSalary as React.ComponentType<PayrollSectionProps>;
+
 export default function PortalPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('home');
@@ -207,20 +217,6 @@ export default function PortalPage() {
     const totalPages = Math.ceil(payrollLogs.length / itemsPerPage) || 1;
     const currentLogs = payrollLogs.slice((payrollPage - 1) * itemsPerPage, payrollPage * itemsPerPage);
 
-    const SectionLogComponent = SectionLog as React.ComponentType<{
-        currentLogs: PayrollLog[];
-        currentPage: number;
-        setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
-        totalPages: number;
-    }>;
-
-    const SectionSalaryComponent = SectionSalary as React.ComponentType<{
-        currentLogs: PayrollLog[];
-        currentPage: number;
-        setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
-        totalPages: number;
-    }>;
-
     return (
         <div className="flex min-h-screen bg-[#121212] font-sans overflow-hidden text-neutral-200 selection:bg-red-600/20">
             {/* SIDEBAR CONTAINER */}
@@ -256,7 +252,7 @@ export default function PortalPage() {
                     <AnimatePresence mode="wait">
                         {activeTab === 'home' && <SectionHome key="home" nickname={nickname} realtimeData={realtimeData} />}
                         {activeTab === 'log' && (
-                            <SectionLog 
+                            <SectionLogComponent 
                                 key="log" 
                                 currentLogs={currentLogs}
                                 currentPage={payrollPage}
@@ -265,7 +261,7 @@ export default function PortalPage() {
                             />
                         )}
                         {activeTab === 'payroll' && (
-                            <SectionSalary 
+                            <SectionSalaryComponent 
                                 key="salary" 
                                 currentLogs={currentLogs}
                                 currentPage={payrollPage}

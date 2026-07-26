@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import nacl from "tweetnacl";
 import { createClient } from "@supabase/supabase-js";
 
-// Inisialisasi Supabase menggunakan Service Role
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-// DAFTAR PANGKAT (Tertinggi ke Terendah)
 const RANK_HIERARCHY = [
     { name: "JENDRAL", id: "1393368961940324462" }, { name: "KOMJEN", id: "1393369949988327624" },
     { name: "IRJEN", id: "1393371303779500154" }, { name: "BRIGJEN", id: "1393373068709335121" },
@@ -29,6 +27,38 @@ const DIVISI_ID = {
     SATLANTAS: "1427725693126574121",
     SABHARA: "1423062503646298262"
 };
+
+// Fungsi pintar hitung durasi otomatis
+function hitungDurasiDuty(teksJam: string) {
+    try {
+        const parts = teksJam.split(/-|s\/d/i).map(s => s.trim());
+        if (parts.length !== 2) return "Format Jam Tidak Valid";
+
+        const parseTime = (t: string) => {
+            const clean = t.replace(".", ":");
+            const [h, m] = clean.split(":").map(Number);
+            if (isNaN(h) || isNaN(m)) return null;
+            return h * 60 + m;
+        };
+
+        const start = parseTime(parts[0]);
+        const end = parseTime(parts[1]);
+
+        if (start === null || end === null) return "Format Jam Tidak Valid";
+
+        let diff = end - start;
+        if (diff < 0) diff += 24 * 60;
+
+        const jam = Math.floor(diff / 60);
+        const menit = diff % 60;
+
+        if (jam > 0 && menit > 0) return `${jam} Jam ${menit} Menit`;
+        if (jam > 0) return `${jam} Jam`;
+        return `${menit} Menit`;
+    } catch {
+        return "Manual / Cek Format";
+    }
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -52,28 +82,27 @@ export async function POST(req: NextRequest) {
 
         const interaction = JSON.parse(bodyText);
 
-        // 1. Tanggapi PING dari Discord
         if (interaction.type === 1) {
             return NextResponse.json({ type: 1 });
         }
 
-        // 2. Saat user mengetik /absen -> Munculkan Modal Form
+        // Saat /absen diketik -> Munculkan form tanggal & jam doang
         if (interaction.type === 2 && interaction.data.name === "absen") {
             return NextResponse.json({
-                type: 9, // Modal Response
+                type: 9,
                 data: {
                     custom_id: "form_absen_duty",
-                    title: "Form Laporan Duty Polisi",
+                    title: "Form Absensi Duty",
                     components: [
                         {
                             type: 1,
                             components: [
                                 {
                                     type: 4,
-                                    custom_id: "input_jam_duty",
-                                    label: "Jam Duty (Contoh: 16.30 - 17.57)",
+                                    custom_id: "input_tanggal",
+                                    label: "Tanggal Duty (Contoh: 28/07/2026)",
                                     style: 1,
-                                    placeholder: "16.30 - 17.57",
+                                    placeholder: "DD/MM/YYYY",
                                     required: true,
                                 },
                             ],
@@ -83,10 +112,10 @@ export async function POST(req: NextRequest) {
                             components: [
                                 {
                                     type: 4,
-                                    custom_id: "input_catatan",
-                                    label: "Catatan Aktivitas / Kegiatan",
-                                    style: 2,
-                                    placeholder: "Patroli & nangkep suspect...",
+                                    custom_id: "input_jam_duty",
+                                    label: "Jam Duty (Contoh: 14.00 - 15.30)",
+                                    style: 1,
+                                    placeholder: "14.00 - 15.30",
                                     required: true,
                                 },
                             ],
@@ -96,26 +125,24 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // 3. Saat Modal Form di-submit oleh Anggota
+        // Saat form di-submit
         if (interaction.type === 5 && interaction.data.custom_id === "form_absen_duty") {
             const member = interaction.member;
             const user = member?.user || interaction.user;
             const userId = user.id;
             const roles = member?.roles || [];
 
-            // Validasi role Kepolisian utama
             const isPolice = roles.includes("1393366590942085220");
             if (!isPolice) {
                 return NextResponse.json({
                     type: 4,
                     data: {
-                        content: "❌ **Akses Ditolak:** Kamu tidak memiliki role Kepolisian yang sah untuk melakukan absensi.",
+                        content: "❌ **Akses Ditolak:** Kamu bukan anggota kepolisian yang sah.",
                         flags: 64,
                     },
                 });
             }
 
-            // Deteksi Pangkat Otomatis
             let detectedPangkat = "RECRUIT";
             for (const rank of RANK_HIERARCHY) {
                 if (roles.includes(rank.id)) {
@@ -124,7 +151,6 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-            // Deteksi Divisi Otomatis
             let detectedDivisi = "NON DIVISI";
             for (const [name, id] of Object.entries(DIVISI_ID)) {
                 if (roles.includes(id)) {
@@ -134,12 +160,13 @@ export async function POST(req: NextRequest) {
             }
 
             const values = interaction.data.components;
-            const jamDuty = values[0].components[0].value;
-            const catatan = values[1].components[0].value;
+            const tanggalDuty = values[0].components[0].value;
+            const jamDuty = values[1].components[0].value;
+            const durasi = hitungDurasiDuty(jamDuty); // Hitung otomatis durasinya!
+
             const userName = member.nick || user.global_name || user.username;
             const userAvatar = user.avatar ? `https://cdn.discordapp.com/avatars/${userId}/${user.avatar}.png` : null;
 
-            // Upsert data user ke tabel 'users' sesuai struktur database kamu
             await supabaseAdmin.from('users').upsert({
                 discord_id: userId,
                 id: userId,
@@ -151,24 +178,20 @@ export async function POST(req: NextRequest) {
                 last_login: new Date().toISOString(),
             }, { onConflict: 'discord_id' });
 
-            // Simpan data presensi ke tabel 'presensi_duty'
-            const { error: presensiError } = await supabaseAdmin.from("presensi_duty").insert([
+            // Simpan ke database dengan format yang rapi
+            await supabaseAdmin.from("presensi_duty").insert([
                 {
                     user_id_discord: userId,
-                    catatan_duty: `[${detectedPangkat}] [${detectedDivisi}] ${userName} | Jam: ${jamDuty} | Catatan: ${catatan}`,
+                    catatan_duty: `[${detectedPangkat}] [${detectedDivisi}] ${userName} | Tanggal: ${tanggalDuty} | Jam: ${jamDuty} | Total Durasi: ${durasi}`,
                     status: "VALID",
                     created_at: new Date().toISOString(),
                 },
             ]);
 
-            if (presensiError) {
-                console.error("Gagal simpan presensi:", presensiError);
-            }
-
             return NextResponse.json({
                 type: 4,
                 data: {
-                    content: `✅ **Absensi Berhasil Dicatat!**\n• Pangkat: **${detectedPangkat}**\n• Divisi: **${detectedDivisi}**\n• Jam Duty: **${jamDuty}**\n\nData sudah masuk ke Dashboard Web MDT.`,
+                    content: `✅ **Absensi Berhasil Dicatat!**\n• Tanggal: **${tanggalDuty}**\n• Jam Duty: **${jamDuty}**\n• Total Durasi: **${durasi}**\n• Pangkat/Divisi: **${detectedPangkat} / ${detectedDivisi}**\n\n*Jangan lupa upload screenshot bukti foto duty di channel galeri ya!*`,
                     flags: 64,
                 },
             });
@@ -176,7 +199,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ error: "Unknown interaction" }, { status: 400 });
     } catch (err) {
-        console.error("Error Discord Endpoint:", err);
+        console.error("Error:", err);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

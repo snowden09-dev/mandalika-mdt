@@ -2,67 +2,89 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Hammer, ShieldAlert } from 'lucide-react';
+import { motion, Variants } from 'framer-motion';
+import { ArrowLeft, Wrench, ShieldAlert } from 'lucide-react';
+
+const fadeIn: Variants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { 
+        opacity: 1, 
+        y: 0,
+        transition: { duration: 0.4, ease: "easeOut" }
+    }
+};
 
 export default function ComingSoonPage() {
     const router = useRouter();
 
     return (
-        <div className="min-h-screen bg-[#e2e8f0] text-slate-950 font-mono p-6 flex flex-col items-center justify-center relative overflow-hidden">
-
-            {/* Garis Polisi Background */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none"
-                style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 2px, transparent 2px, transparent 8px)' }}
-            />
-
+        <main className="min-h-screen bg-[#09090b] text-zinc-100 flex items-center justify-center p-4 font-sans selection:bg-red-500 selection:text-white relative overflow-hidden">
+            
+            {/* CONTAINER UTAMA */}
             <motion.div
-                initial={{ scale: 0.8, y: 50, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                className="w-full max-w-md bg-[#FFD100] border-[6px] border-black shadow-[15px_15px_0px_#000] rounded-[40px] p-8 md:p-12 flex flex-col items-center text-center relative z-10"
+                initial="hidden"
+                animate="visible"
+                variants={fadeIn}
+                className="w-full max-w-md bg-[#121214] border border-zinc-800/80 rounded-2xl p-8 shadow-2xl relative overflow-hidden"
             >
-                {/* Header Badge */}
-                <div className="absolute -top-4 bg-black text-white px-4 py-1 rounded-full font-black text-[10px] uppercase tracking-widest border-2 border-white shadow-[4px_4px_0_#000]">
-                    RESTRICTED ZONE
+                {/* Aksen Garis Merah Minimalis di Atas */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-600 via-rose-500 to-red-600" />
+
+                {/* HEADER / STATUS */}
+                <div className="flex justify-between items-center mb-8">
+                    <span className="text-xs font-mono tracking-widest text-zinc-500 uppercase">
+                        MDT // Maintenance
+                    </span>
+                    <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-[10px] font-medium text-red-400 tracking-wider uppercase">Under Construction</span>
+                    </div>
                 </div>
 
-                {/* Ikon Animasi */}
-                <motion.div
-                    animate={{ rotate: [-10, 10, -10] }}
-                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                    className="w-24 h-24 bg-white border-[4px] border-black rounded-3xl shadow-inner flex items-center justify-center mb-6"
-                >
-                    <Hammer size={48} className="text-black" />
-                </motion.div>
+                {/* KONTEN UTAMA */}
+                <div className="space-y-6">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
+                            Area Dalam Pengembangan
+                        </h1>
+                        <p className="text-sm text-zinc-400 leading-relaxed">
+                            Dokumen intelijen dan regulasi sedang dalam proses penyusunan oleh Markas Besar. Akses ditutup sementara.
+                        </p>
+                    </div>
 
-                <h1 className="text-5xl font-[1000] italic uppercase tracking-tighter leading-none mb-4 text-black">
-                    AREA <br />
-                    <span className="text-[#FF4D4D] underline decoration-black decoration-[6px] underline-offset-4">DIBLOKIR</span>
-                </h1>
+                    {/* DETAIL INFO BOX */}
+                    <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-4">
+                        <div className="flex gap-3">
+                            <div className="text-red-500 mt-0.5">
+                                <ShieldAlert className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-semibold text-red-400 tracking-wide uppercase">Restricted Zone</h3>
+                                <p className="text-xs text-red-300/80 mt-0.5">Silakan kembali ke dashboard utama sementara sistem diperbarui.</p>
+                            </div>
+                        </div>
+                    </div>
 
-                <div className="flex items-center gap-2 bg-black text-[#CCFF00] px-4 py-2 rounded-xl border-2 border-black mb-6 shadow-[4px_4px_0_#FF4D4D]">
-                    <ShieldAlert size={16} />
-                    <p className="text-[10px] font-black uppercase tracking-widest italic">
-                        Under Construction
+                    {/* TOMBOL AKSI */}
+                    <div className="pt-2">
+                        <button
+                            onClick={() => router.push('/dashboard')}
+                            className="w-full bg-red-600 hover:bg-red-500 text-white font-medium text-sm py-3.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 shadow-lg shadow-red-900/20 active:scale-[0.98] group"
+                        >
+                            <ArrowLeft className="w-4 h-4 opacity-80 group-hover:-translate-x-1 transition-transform" />
+                            <span>Kembali ke Markas</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* FOOTER */}
+                <div className="mt-8 pt-4 border-t border-zinc-800/60 text-center">
+                    <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
+                        Mandalika Police Department &bull; Secure Portal
                     </p>
                 </div>
-
-                <p className="text-xs font-bold mb-10 opacity-80 leading-relaxed">
-                    Dokumen intelijen dan regulasi sedang dalam proses penyusunan oleh Markas Besar. Akses ditutup sementara!
-                </p>
-
-                {/* Tombol Kembali */}
-                <button
-                    onClick={() => router.push('/dashboard')}
-                    className="w-full flex items-center justify-center gap-3 bg-white border-[4px] border-black px-6 py-4 rounded-2xl text-sm font-black uppercase italic shadow-[6px_6px_0px_#000] active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all group"
-                >
-                    <div className="bg-slate-200 p-1.5 rounded-lg border-2 border-black group-hover:bg-black group-hover:text-white transition-colors">
-                        <ArrowLeft size={16} />
-                    </div>
-                    Kembali Ke Markas
-                </button>
-
             </motion.div>
-        </div>
+
+        </main>
     );
 }

@@ -2,14 +2,28 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Scale, Calculator, Trash2, Copy, CheckSquare } from 'lucide-react';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { ArrowLeft, Scale, Calculator, Trash2, Copy, Check } from 'lucide-react';
+
+interface LawItem {
+    id: string;
+    name: string;
+    desc: string;
+    fine: number;
+    jail: string;
+}
+
+interface CategoryItem {
+    category: string;
+    borderAccent: string;
+    items: LawItem[];
+}
 
 // --- DATABASE PASAL MANDALIKA ---
-const UU_DATABASE = [
+const UU_DATABASE: CategoryItem[] = [
     {
         category: "PELANGGARAN RINGAN",
-        color: "bg-[#00E676]", // Hijau
+        borderAccent: "border-l-emerald-500",
         items: [
             { id: "A1", name: "GANGGUAN KETERTIBAN UMUM", desc: "KERIBUTAN / ONAR", fine: 3200, jail: "10 BULAN" },
             { id: "A2", name: "MENGHINA PETUGAS APARAT", desc: "VERBAL / GESTUR", fine: 2000, jail: "10 BULAN" },
@@ -42,7 +56,7 @@ const UU_DATABASE = [
     },
     {
         category: "MENENGAH UMUM",
-        color: "bg-[#FFD100]", // Kuning
+        borderAccent: "border-l-amber-500",
         items: [
             { id: "B1", name: "PERLAWANAN APARAT", desc: "FISIK", fine: 5000, jail: "20 BULAN" },
             { id: "B2", name: "ANCAMAN KEKERASAN", desc: "SERIUS", fine: 8000, jail: "15 BULAN" },
@@ -73,7 +87,7 @@ const UU_DATABASE = [
     },
     {
         category: "MENENGAH (MINUMAN & NARKOTIKA)",
-        color: "bg-[#A78BFA]", // Ungu
+        borderAccent: "border-l-purple-500",
         items: [
             { id: "B26", name: "KONSUMSI ALKOHOL DI UMUM", desc: "FASILITAS PUBLIK", fine: 5000, jail: "10 BULAN" },
             { id: "B27", name: "MABUK DI TEMPAT UMUM", desc: "GANGGU KEAMANAN", fine: 5000, jail: "5 BULAN" },
@@ -89,7 +103,7 @@ const UU_DATABASE = [
     },
     {
         category: "PELANGGARAN BERAT",
-        color: "bg-[#FF4D4D]", // Merah
+        borderAccent: "border-l-red-500",
         items: [
             { id: "C1", name: "SENJATA API ILEGAL", desc: "TANPA IZIN", fine: 9000, jail: "20 BULAN" },
             { id: "C2", name: "SENJATA LARAS PENDEK ILEGAL", desc: "PISTOL, DEAGLE", fine: 10000, jail: "20 BULAN" },
@@ -107,10 +121,20 @@ const UU_DATABASE = [
     }
 ];
 
+const fadeIn: Variants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { 
+        opacity: 1, 
+        y: 0,
+        transition: { duration: 0.3, ease: "easeOut" }
+    }
+};
+
 export default function UUPage() {
     const router = useRouter();
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [showCopyNotif, setShowCopyNotif] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     // Fungsi Toggle Ceklis Pasal
     const toggleSelection = (id: string) => {
@@ -121,8 +145,8 @@ export default function UUPage() {
     const calculations = useMemo(() => {
         let tFine = 0;
         let tMonths = 0;
-        let specials: string[] = [];
-        let selectedLaws: any[] = [];
+        const specials: string[] = [];
+        const selectedLaws: LawItem[] = [];
 
         UU_DATABASE.forEach(cat => {
             cat.items.forEach(law => {
@@ -131,7 +155,7 @@ export default function UUPage() {
                     tFine += law.fine;
 
                     if (law.jail.includes("BULAN")) {
-                        tMonths += parseInt(law.jail.replace(/\D/g, ""));
+                        tMonths += parseInt(law.jail.replace(/\D/g, ""), 10);
                     } else {
                         if (!specials.includes(law.jail)) specials.push(law.jail);
                     }
@@ -160,97 +184,155 @@ export default function UUPage() {
         setTimeout(() => setShowCopyNotif(false), 2000);
     };
 
+    // Filter database berdasarkan pencarian
+    const filteredDatabase = useMemo(() => {
+        if (!searchQuery.trim()) return UU_DATABASE;
+        const q = searchQuery.toLowerCase();
+        return UU_DATABASE.map(cat => ({
+            ...cat,
+            items: cat.items.filter(law => 
+                law.id.toLowerCase().includes(q) || 
+                law.name.toLowerCase().includes(q) || 
+                law.desc.toLowerCase().includes(q)
+            )
+        })).filter(cat => cat.items.length > 0);
+    }, [searchQuery]);
+
     return (
-        <div className="min-h-screen bg-[#e2e8f0] text-slate-950 font-sans pb-40">
+        <main className="min-h-screen bg-[#09090b] text-zinc-100 font-sans pb-48 selection:bg-red-500 selection:text-white">
+            
             {/* HEADER NAV */}
-            <div className="bg-white border-b-[6px] border-black p-4 sticky top-0 z-50 shadow-[0_4px_0_0_#000] flex justify-between items-center">
+            <header className="bg-[#121214]/80 backdrop-blur-md border-b border-zinc-800/80 p-4 sticky top-0 z-50 flex justify-between items-center px-6 lg:px-12">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push('/dashboard')} className="p-2 bg-[#FFD100] border-[3px] border-black shadow-[3px_3px_0_0_#000] hover:-translate-y-1 transition-all active:translate-y-0">
-                        <ArrowLeft size={24} />
+                    <button 
+                        onClick={() => router.push('/dashboard')} 
+                        className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 transition-all text-zinc-300 hover:text-white flex items-center justify-center"
+                    >
+                        <ArrowLeft size={18} />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-[1000] italic uppercase tracking-tighter flex items-center gap-2">
-                            <Scale size={24} className="text-[#3B82F6]" /> KUHP Mandalika
+                        <h1 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <Scale size={18} className="text-red-500" /> KUHP Mandalika
                         </h1>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Kalkulator Pidana Otomatis v1.0</p>
+                        <p className="text-xs text-zinc-400 font-mono">Kalkulator Pidana Otomatis</p>
                     </div>
                 </div>
-            </div>
 
-            <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-12">
-                {UU_DATABASE.map((category, idx) => (
-                    <div key={idx} className="bg-white border-[5px] border-black shadow-[10px_10px_0_0_#000] overflow-hidden">
-                        <div className={`${category.color} border-b-[5px] border-black p-4 flex items-center justify-between`}>
-                            <h2 className="text-xl font-[1000] italic uppercase tracking-tight text-black flex items-center gap-2">
-                                <CheckSquare size={20} /> {category.category}
+                {/* Search Bar Singkat */}
+                <div className="hidden md:block w-72">
+                    <input
+                        type="text"
+                        placeholder="Cari pasal atau pelanggaran..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-xs rounded-xl px-3.5 py-2 text-zinc-200 focus:outline-none focus:border-red-500 transition-colors font-sans"
+                    />
+                </div>
+            </header>
+
+            <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
+                
+                {/* Search Bar Mobile */}
+                <div className="md:hidden">
+                    <input
+                        type="text"
+                        placeholder="Cari pasal atau pelanggaran..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-xs rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:border-red-500 transition-colors"
+                    />
+                </div>
+
+                {filteredDatabase.map((category, idx) => (
+                    <motion.div 
+                        key={idx} 
+                        initial="hidden"
+                        animate="visible"
+                        variants={fadeIn}
+                        className="bg-[#121214] border border-zinc-800/80 rounded-2xl overflow-hidden shadow-xl"
+                    >
+                        {/* Kategori Header dengan Border Aksen Kiri */}
+                        <div className={`bg-zinc-900/60 border-b border-zinc-800/80 p-4 px-6 flex items-center justify-between border-l-4 ${category.borderAccent}`}>
+                            <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                                {category.category}
                             </h2>
+                            <span className="text-[11px] font-mono text-zinc-500">
+                                {category.items.length} Pasal Tersedia
+                            </span>
                         </div>
+
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse min-w-[600px]">
-                                <thead className="bg-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b-[3px] border-black">
+                            <table className="w-full text-left border-collapse min-w-150">
+                                <thead className="bg-zinc-900/30 text-[11px] font-mono text-zinc-400 border-b border-zinc-800/60 uppercase">
                                     <tr>
-                                        <th className="p-3 border-r-[3px] border-black text-center w-16">PILIH</th>
-                                        <th className="p-3 border-r-[3px] border-black w-16 text-center">PASAL</th>
-                                        <th className="p-3 border-r-[3px] border-black">PELANGGARAN</th>
-                                        <th className="p-3 border-r-[3px] border-black">DENDA</th>
-                                        <th className="p-3">PENJARA</th>
+                                        <th className="p-3.5 pl-6 w-16 text-center">Pilihlah</th>
+                                        <th className="p-3.5 w-20 text-center font-mono">Pasal</th>
+                                        <th className="p-3.5">Pelanggaran</th>
+                                        <th className="p-3.5">Denda</th>
+                                        <th className="p-3.5 pr-6">Penjara</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-sm font-bold uppercase">
+                                <tbody className="text-xs text-zinc-300 divide-y divide-zinc-800/50">
                                     {category.items.map((law) => {
                                         const isSelected = selectedIds.includes(law.id);
                                         return (
                                             <tr
                                                 key={law.id}
                                                 onClick={() => toggleSelection(law.id)}
-                                                className={`border-b-2 border-slate-200 cursor-pointer transition-colors ${isSelected ? 'bg-blue-100' : 'hover:bg-slate-50'}`}
+                                                className={`cursor-pointer transition-colors ${isSelected ? 'bg-red-500/10 hover:bg-red-500/15' : 'hover:bg-zinc-900/40'}`}
                                             >
-                                                <td className="p-3 border-r-[3px] border-black text-center relative">
+                                                <td className="p-3.5 pl-6 text-center">
                                                     <input
                                                         type="checkbox"
                                                         checked={isSelected}
                                                         readOnly
-                                                        className="w-5 h-5 accent-blue-600 border-2 border-black rounded-sm cursor-pointer pointer-events-none"
+                                                        className="w-4 h-4 accent-red-600 bg-zinc-900 border-zinc-700 rounded cursor-pointer pointer-events-none"
                                                     />
                                                 </td>
-                                                <td className="p-3 border-r-[3px] border-black text-center text-blue-600 font-[1000] italic">{law.id}</td>
-                                                <td className="p-3 border-r-[3px] border-black leading-tight">
-                                                    <span className="block">{law.name}</span>
-                                                    <span className="text-[10px] text-slate-500 font-medium normal-case">{law.desc}</span>
+                                                <td className="p-3.5 text-center font-mono font-semibold text-red-400">{law.id}</td>
+                                                <td className="p-3.5 leading-relaxed">
+                                                    <span className="block font-medium text-white">{law.name}</span>
+                                                    <span className="text-[11px] text-zinc-500 uppercase">{law.desc}</span>
                                                 </td>
-                                                <td className="p-3 border-r-[3px] border-black font-[1000] text-emerald-600">${law.fine.toLocaleString()}</td>
-                                                <td className={`p-3 font-[1000] ${law.jail.includes("BULAN") ? 'text-amber-600' : 'text-red-600 animate-pulse'}`}>{law.jail}</td>
+                                                <td className="p-3.5 font-mono font-semibold text-emerald-400">${law.fine.toLocaleString()}</td>
+                                                <td className={`p-3.5 pr-6 font-mono font-semibold ${law.jail.includes("BULAN") ? 'text-amber-400' : 'text-red-400'}`}>{law.jail}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </motion.div>
                 ))}
             </div>
 
-            {/* 🚀 KALKULATOR REKAP (STICKY BOTTOM BAR) */}
+            {/* STICKY BOTTOM BAR (KALKULATOR REKAP) */}
             <AnimatePresence>
                 {selectedIds.length > 0 && (
                     <motion.div
-                        initial={{ y: 150 }} animate={{ y: 0 }} exit={{ y: 150 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                        className="fixed bottom-0 left-0 w-full bg-slate-900 border-t-[6px] border-[#CCFF00] p-4 md:p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-[100] flex flex-col md:flex-row items-center justify-between gap-4"
+                        initial={{ y: 150, opacity: 0 }} 
+                        animate={{ y: 0, opacity: 1 }} 
+                        exit={{ y: 150, opacity: 0 }} 
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        className="fixed bottom-0 left-0 w-full bg-[#121214] border-t border-zinc-800 p-4 md:p-6 shadow-2xl z-100 flex flex-col md:flex-row items-center justify-between gap-4"
                     >
                         <div className="flex items-center gap-4 w-full md:w-auto">
-                            <div className="bg-[#CCFF00] p-3 border-[3px] border-black rounded-xl hidden md:block">
-                                <Calculator size={32} className="text-black" />
+                            <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl hidden md:flex items-center justify-center text-red-400">
+                                <Calculator size={24} />
                             </div>
                             <div>
-                                <p className="text-[#CCFF00] text-[10px] font-black uppercase tracking-widest mb-1">Total {selectedIds.length} Pasal Terpilih</p>
-                                <div className="flex gap-4 sm:gap-8 flex-wrap">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                    <p className="text-red-400 text-[11px] font-mono uppercase tracking-wider">Total {selectedIds.length} Pasal Terpilih</p>
+                                </div>
+                                <div className="flex gap-6 sm:gap-10 flex-wrap">
                                     <div>
-                                        <span className="text-slate-400 text-xs font-bold mr-2">DENDA:</span>
-                                        <span className="text-2xl md:text-3xl font-[1000] text-emerald-400 italic">${calculations.totalFine.toLocaleString()}</span>
+                                        <span className="text-zinc-500 font-mono text-[11px] mr-2 uppercase">Denda:</span>
+                                        <span className="text-xl md:text-2xl font-mono font-bold text-emerald-400">${calculations.totalFine.toLocaleString()}</span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 text-xs font-bold mr-2">PENJARA:</span>
-                                        <span className="text-2xl md:text-3xl font-[1000] text-amber-400 italic">
+                                        <span className="text-zinc-500 font-mono text-[11px] mr-2 uppercase">Penjara:</span>
+                                        <span className="text-xl md:text-2xl font-mono font-bold text-amber-400">
                                             {calculations.totalMonths > 0 ? `${calculations.totalMonths} BLN` : ''}
                                             {calculations.specials.length > 0 && ` + ${calculations.specials.join(' & ')}`}
                                         </span>
@@ -260,20 +342,24 @@ export default function UUPage() {
                         </div>
 
                         <div className="flex w-full md:w-auto gap-3">
-                            <button onClick={() => setSelectedIds([])} className="p-4 bg-red-500 text-white border-[3px] border-black hover:bg-red-600 active:translate-y-1 transition-all rounded-xl shadow-[4px_4px_0_0_#000]">
-                                <Trash2 size={24} />
+                            <button 
+                                onClick={() => setSelectedIds([])} 
+                                className="p-3 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-[0.98] transition-all rounded-xl"
+                                title="Reset Pilihan"
+                            >
+                                <Trash2 size={20} />
                             </button>
                             <button
                                 onClick={handleCopy}
-                                className={`flex-1 md:w-48 flex items-center justify-center gap-2 p-4 border-[3px] border-black rounded-xl shadow-[4px_4px_0_0_#000] font-[1000] italic uppercase active:translate-y-1 transition-all ${showCopyNotif ? 'bg-[#00E676] text-black' : 'bg-white text-black hover:bg-slate-200'}`}
+                                className={`flex-1 md:w-48 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-200 shadow-lg ${showCopyNotif ? 'bg-emerald-600 text-white shadow-emerald-900/20' : 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/20 active:scale-[0.98]'}`}
                             >
-                                {showCopyNotif ? <><CheckSquare size={20} /> TERSALIN!</> : <><Copy size={20} /> COPY LAPORAN</>}
+                                {showCopyNotif ? <><Check size={16} /> Tersalin!</> : <><Copy size={16} /> Copy Laporan</>}
                             </button>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-        </div>
+        </main>
     );
 }

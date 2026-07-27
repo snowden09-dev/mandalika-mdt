@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Trash2, Image as ImageIcon,
+    Trash2,
     Filter, ExternalLink, X, AlertOctagon,
     FileText, CheckSquare, Loader2
 } from 'lucide-react';
@@ -24,7 +24,8 @@ interface UserRelation {
 interface ReportItem {
     id: string;
     user_id_discord?: string;
-    point_estimasi?: number;
+    poin_estimasi?: number; // Sesuai dengan kolom DB: 'poin_estimasi'
+    point_estimasi?: number; // Fallback jika ada perbedaan penamaan
     status: StatusFilter;
     jenis_laporan?: string;
     isi_laporan?: string;
@@ -105,26 +106,57 @@ export default function SectionAdminLaporan() {
     }, [filteredData, currentPage]);
 
 
-    // --- HELPER FUNGSI: PROSES 1 LAPORAN (ACC POIN SAJA) ---
+    // --- HELPER FUNGSI: PROSES 1 LAPORAN (PERBAIKAN BUG) ---
     const processSingleApprove = async (report: ReportItem) => {
-        // 1. Tambah PRP ke User
-        if (report.user_id_discord) {
-            const { data: userData } = await supabase.from('users').select('point_prp').eq('discord_id', report.user_id_discord).single();
-            const currentPoin = Number(userData?.point_prp) || 0;
-            const poinTambahan = Number(report.point_estimasi) || 0;
+        const discordId = report.user_id_discord;
+        const poinTambahan = Number(report.poin_estimasi ?? report.point_estimasi) || 0;
 
-            const { error: prpErr } = await supabase.from('users').update({ point_prp: currentPoin + poinTambahan }).eq('discord_id', report.user_id_discord);
-            if (prpErr) throw prpErr;
+        if (!discordId) {
+            throw new Error("Laporan ini tidak memiliki ID Discord pelapor!");
         }
 
-        // 2. Update Status Laporan
-        const { error: dbErr } = await supabase.from('laporan_aktivitas').update({ status: 'APPROVED' }).eq('id', report.id);
-        if (dbErr) throw dbErr;
+        // 1. Cek keberadaan user di tabel 'users'
+        const { data: userData, error: fetchErr } = await supabase
+            .from('users')
+            .select('point_prp')
+            .eq('discord_id', discordId)
+            .maybeSingle();
+
+        if (fetchErr) {
+            throw new Error(`Gagal mengambil data user: ${fetchErr.message}`);
+        }
+
+        if (!userData) {
+            throw new Error(`User ID ${discordId} belum terdaftar di tabel 'users'!`);
+        }
+
+        const currentPoin = Number(userData.point_prp) || 0;
+        const totalPoinBaru = currentPoin + poinTambahan;
+
+        // 2. Update Poin User
+        const { error: prpErr } = await supabase
+            .from('users')
+            .update({ point_prp: totalPoinBaru })
+            .eq('discord_id', discordId);
+
+        if (prpErr) {
+            throw new Error(`Gagal update poin: ${prpErr.message}`);
+        }
+
+        // 3. Update Status Laporan Ke APPROVED
+        const { error: dbErr } = await supabase
+            .from('laporan_aktivitas')
+            .update({ status: 'APPROVED' })
+            .eq('id', report.id);
+
+        if (dbErr) {
+            throw new Error(`Gagal update status laporan: ${dbErr.message}`);
+        }
     };
 
     // --- SINGLE ACTION HANDLER ---
     const handleAction = async (report: ReportItem, status: 'APPROVED' | 'REJECTED') => {
-        const tId = toast.loading(`Processing ${status}...`);
+        const tId = toast.loading(`Memproses ${status}...`);
         try {
             if (status === 'APPROVED') {
                 await processSingleApprove(report);
@@ -145,7 +177,7 @@ export default function SectionAdminLaporan() {
     // --- MASS ACTION HANDLER (ACC ALL POIN) ---
     const handleApproveAll = async () => {
         if (filteredData.length === 0) return;
-        const confirm = window.confirm(`PERINGATAN: Yakin ingin menyetujui ${filteredData.length} Laporan sekaligus?\n\nSistem akan menambahkan PRP anggota secara massal. Pastikan Anda sudah mengecek keaslian foto di Discord!`);
+        const confirm = window.confirm(`PERINGATAN: Yakin ingin menyetujui ${filteredData.length} Laporan sekaligus?\n\nSistem akan menambahkan PRP anggota secara massal.`);
         if (!confirm) return;
 
         setIsProcessingMassal(true);
@@ -165,7 +197,7 @@ export default function SectionAdminLaporan() {
             }
         }
 
-        toast.success(`Operasi Selesai! Poin Masuk: ${successCount} | Gagal: ${failCount}`, { id: tId, duration: 5000 });
+        toast.success(`Operasi Selesai! Berhasil: ${successCount} | Gagal: ${failCount}`, { id: tId, duration: 5000 });
         setIsProcessingMassal(false);
         verifyAndFetch();
     };
@@ -299,7 +331,7 @@ export default function SectionAdminLaporan() {
                                             </p>
                                         </div>
                                         <div className="bg-red-950/60 text-red-400 border border-red-900/50 px-2.5 py-1 rounded-lg font-bold text-[10px] tracking-wider shrink-0">
-                                            +{lap.point_estimasi} PRP
+                                            +{lap.poin_estimasi ?? lap.point_estimasi ?? 0} PRP
                                         </div>
                                     </div>
 

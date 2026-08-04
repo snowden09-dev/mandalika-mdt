@@ -17,7 +17,7 @@ const inputStyle = "w-full bg-[#18181b] border-2 border-zinc-800 focus:border-re
 
 type TipeAbsen = 'ON_DUTY' | 'IZIN';
 
-// Helper: Mendapatkan YYYY-MM-DD waktu lokal perangkat (Mencegah bug timezone UTC)
+// Helper: Mendapatkan YYYY-MM-DD waktu lokal perangkat
 const getLocalDateString = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -51,7 +51,7 @@ export default function AbsenPage() {
 
     const [tipe, setTipe] = useState<TipeAbsen>('ON_DUTY');
 
-    // Form State untuk Presensi Duty (bukti_foto_urls menjadi array untuk >1 foto)
+    // Form State untuk Presensi Duty
     const [dutyForm, setDutyForm] = useState({
         tanggal: currentDateStr,
         jam_duty: currentTimeStr,
@@ -120,10 +120,15 @@ export default function AbsenPage() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // 📤 Upload Multi-Foto (Maksimal 3)
+    // 📤 Upload Multi-Foto (Minimal 2, Maksimal 3)
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
+
+        if (files.length < 2) {
+            toast.error("Minimal harus memilih 2 foto bukti sekaligus!");
+            return;
+        }
 
         if (files.length > 3) {
             toast.error("Maksimal hanya bisa upload 3 foto sekaligus!");
@@ -168,7 +173,6 @@ export default function AbsenPage() {
             toast.error(error.message || "Gagal mengunggah gambar ke storage.", { id: tId });
         } finally {
             setUploadingFile(false);
-            // Reset input file sehingga pengguna bisa mengklik dan upload ulang jika mau
             e.target.value = '';
         }
     };
@@ -183,8 +187,8 @@ export default function AbsenPage() {
             if (tipe === 'ON_DUTY') {
                 if (!dutyForm.tanggal) return toast.error("Tanggal wajib diisi!", { id: tId });
                 if (!dutyForm.jam_duty) return toast.error("Jam duty wajib diisi!", { id: tId });
-                if (dutyForm.bukti_foto_urls.length === 0) return toast.error("Minimal 1 bukti foto wajib diupload!", { id: tId });
-                if (dutyForm.bukti_foto_urls.length > 3) return toast.error("Maksimal bukti foto yang dijinkan adalah 3!", { id: tId });
+                if (dutyForm.bukti_foto_urls.length < 2) return toast.error("Minimal 2 bukti foto wajib diunggah!", { id: tId });
+                if (dutyForm.bukti_foto_urls.length > 3) return toast.error("Maksimal bukti foto yang diizinkan adalah 3!", { id: tId });
 
                 // Hitung durasi dan cross-midnight check
                 let durasi = 0;
@@ -197,15 +201,13 @@ export default function AbsenPage() {
                     let startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
                     let endMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_off_duty}:00`).getTime();
                     
-                    // Jika end time lebih kecil dari start time, asumsikan shift melewati tengah malam
                     if (endMs < startMs) {
-                        endMs += 24 * 60 * 60 * 1000; // Tambah 1 hari
+                        endMs += 24 * 60 * 60 * 1000;
                     }
                     
                     durasi = Math.floor((endMs - startMs) / (1000 * 60));
                 }
 
-                // Insert ke tabel: presensi_duty
                 const { error: insertError } = await supabase.from('presensi_duty').insert([
                     {
                         user_id_discord: identity.discordId,
@@ -224,7 +226,7 @@ export default function AbsenPage() {
 
                 if (insertError) throw insertError;
 
-                // 🔄 UPDATE TOTAL JAM DUTY KE TABEL USERS
+                // UPDATE TOTAL JAM DUTY KE TABEL USERS
                 if (durasi > 0) {
                     const durasiJam = durasi / 60;
                     
@@ -245,24 +247,14 @@ export default function AbsenPage() {
                     }
                 }
 
-                toast.success("Presensi Duty berhasil dicatat!", { id: tId });
-
-                // Reset Duty Form
-                setDutyForm({
-                    tanggal: currentDateStr,
-                    jam_duty: currentTimeStr,
-                    jam_off_duty: '',
-                    catatan_duty: '',
-                    bukti_foto_urls: [],
-                    kategori_presensi: 'OPERASIONAL'
-                });
+                toast.success("Presensi Duty berhasil dicatat! Mengalihkan ke halaman utama...", { id: tId });
+                handleNavigation('/dashboard'); // REDIRECT KE HOME
 
             } else {
                 if (!cutiForm.tanggal_mulai) return toast.error("Tanggal mulai wajib diisi!", { id: tId });
                 if (!cutiForm.tanggal_selesai) return toast.error("Tanggal selesai wajib diisi!", { id: tId });
                 if (!cutiForm.alasan) return toast.error("Alasan wajib diisi!", { id: tId });
 
-                // Insert ke tabel: pengajuan_cuti
                 const { error } = await supabase.from('pengajuan_cuti').insert([
                     {
                         user_id_discord: identity.discordId,
@@ -278,22 +270,14 @@ export default function AbsenPage() {
                 ]);
 
                 if (error) throw error;
-                toast.success("Pengajuan izin/cuti berhasil terkirim!", { id: tId });
-
-                // Reset Cuti Form
-                setCutiForm({
-                    tanggal_mulai: currentDateStr,
-                    tanggal_selesai: currentDateStr,
-                    jenis_izin: 'IZIN',
-                    alasan: ''
-                });
+                toast.success("Pengajuan izin/cuti berhasil terkirim! Mengalihkan ke halaman utama...", { id: tId });
+                handleNavigation('/dashboard'); // REDIRECT KE HOME
             }
 
         } catch (error: any) {
             console.error("Error submit data:", error);
             toast.error(error.message || "Gagal menyimpan data ke sistem.", { id: tId });
-        } finally {
-            setIsSubmitting(false);
+            setIsSubmitting(false); // Enable kembali jika terjadi error
         }
     };
 
@@ -436,10 +420,10 @@ export default function AbsenPage() {
                                     />
                                 </div>
 
-                                {/* UPLOAD FOTO (1-3 FOTO) */}
+                                {/* UPLOAD FOTO (2-3 FOTO) */}
                                 <div className="space-y-2">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                        <ImageIcon size={12} className="text-red-500" /> Upload Bukti Foto (1-3)
+                                        <ImageIcon size={12} className="text-red-500" /> Upload Bukti Foto (2-3)
                                     </label>
                                     <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
                                         <div className="flex flex-col items-center justify-center pt-3 pb-3 px-4 text-center">
@@ -453,7 +437,7 @@ export default function AbsenPage() {
                                                     ? `${dutyForm.bukti_foto_urls.length} Foto Siap Dikirim` 
                                                     : "Klik untuk unggah gambar"}
                                             </p>
-                                            <p className="text-[8px] text-zinc-600 uppercase mt-0.5">Format: PNG/JPG (Maks 3 File)</p>
+                                            <p className="text-[8px] text-zinc-600 uppercase mt-0.5">Format: PNG/JPG (Minimal 2, Maksimal 3 File)</p>
                                         </div>
                                         <input
                                             type="file"
@@ -544,11 +528,11 @@ export default function AbsenPage() {
                     {/* SUBMIT BUTTON */}
                     <button
                         type="submit"
-                        disabled={isSubmitting || uploadingFile}
+                        disabled={isSubmitting || uploadingFile || isNavigating}
                         className="w-full py-4 mt-3 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 border-2 border-zinc-950 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isSubmitting ? (
-                            <><Loader2 size={18} className="animate-spin" /> MENGIRIM...</>
+                        {isSubmitting || isNavigating ? (
+                            <><Loader2 size={18} className="animate-spin" /> MENGIRIM / MENGALIHKAN...</>
                         ) : (
                             <><Send size={18} /> {tipe === 'ON_DUTY' ? 'SIMPAN PRESENSI DUTY' : 'KIRIM PENGAJUAN CUTI'}</>
                         )}

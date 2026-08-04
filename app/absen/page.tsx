@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, ShieldAlert, Send, Clock, FileText, Upload,
-    Calendar, Loader2, CheckCircle, X, Image as ImageIcon
+    Calendar, Loader2, Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
@@ -97,7 +97,6 @@ export default function AbsenPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Validasi tipe file gambar
         if (!file.type.startsWith('image/')) {
             toast.error("File harus berupa gambar (PNG/JPG/JPEG)!");
             return;
@@ -111,14 +110,12 @@ export default function AbsenPage() {
             const fileName = `${identity.discordId}_${Date.now()}.${fileExt}`;
             const filePath = `${fileName}`;
 
-            // Upload ke bucket 'bukti_absen-duty'
             const { error: uploadError } = await supabase.storage
                 .from('bukti_absen-duty')
                 .upload(filePath, file, { upsert: true });
 
             if (uploadError) throw uploadError;
 
-            // Dapatkan Public URL dari file yang diupload
             const { data: { publicUrl } } = supabase.storage
                 .from('bukti_absen-duty')
                 .getPublicUrl(filePath);
@@ -138,9 +135,12 @@ export default function AbsenPage() {
         e.preventDefault();
         
         if (!form.tanggal) return toast.error("Tanggal wajib diisi!");
-        if (!form.jam_duty) return toast.error("Jam duty wajib diisi!");
         if (!form.keterangan) return toast.error("Keterangan wajib diisi!");
-        if (!form.bukti_foto) return toast.error("Bukti foto wajib diupload!");
+        
+        if (form.tipe === 'ON_DUTY') {
+            if (!form.jam_duty) return toast.error("Jam duty wajib diisi!");
+            if (!form.bukti_foto) return toast.error("Bukti foto wajib diupload!");
+        }
 
         setIsSubmitting(true);
         const tId = toast.loading("Mengirim laporan absensi...");
@@ -151,10 +151,10 @@ export default function AbsenPage() {
                     discord_id: identity.discordId,
                     tipe_absen: form.tipe,
                     tanggal: form.tanggal,
-                    jam_duty: form.jam_duty,
-                    jam_off_duty: form.jam_off_duty || null,
+                    jam_duty: form.tipe === 'ON_DUTY' ? form.jam_duty : null,
+                    jam_off_duty: form.tipe === 'ON_DUTY' ? (form.jam_off_duty || null) : null,
                     keterangan: form.keterangan,
-                    bukti_foto: form.bukti_foto,
+                    bukti_foto: form.tipe === 'ON_DUTY' ? form.bukti_foto : null,
                     nama_ic: identity.nama,
                     pangkat: identity.pangkat
                 }
@@ -162,9 +162,9 @@ export default function AbsenPage() {
 
             if (error) throw error;
 
-            toast.success("Absen Berhasil Dicatat!", { id: tId });
+            toast.success(form.tipe === 'ON_DUTY' ? "Absen On Duty Berhasil Dicatat!" : "Pengajuan Izin/Cuti Berhasil Dikirim!", { id: tId });
             
-            // Reset form sebagian
+            // Reset form
             setForm({
                 tipe: 'ON_DUTY',
                 tanggal: currentDate,
@@ -177,7 +177,7 @@ export default function AbsenPage() {
 
         } catch (error: any) {
             console.error("Error submit absen:", error);
-            toast.error(error.message || "Gagal mencatat absen ke database.", { id: tId });
+            toast.error(error.message || "Gagal mencatat data ke database.", { id: tId });
         } finally {
             setIsSubmitting(false);
         }
@@ -223,10 +223,10 @@ export default function AbsenPage() {
                     </div>
                 </div>
 
-                {/* 🚀 FORM ABSENSI */}
+                {/* 🚀 FORM ABSENSI / IZIN */}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     
-                    {/* TIPE ABSEN (Hanya On Duty & Izin) */}
+                    {/* TIPE LAPORAN */}
                     <div className="space-y-2">
                         <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
                             <Clock size={12} className="text-red-500" /> Tipe Laporan
@@ -243,7 +243,7 @@ export default function AbsenPage() {
                                             : 'bg-[#18181b] border-zinc-800 text-zinc-500 hover:border-zinc-700'
                                     }`}
                                 >
-                                    {t.replace('_', ' ')}
+                                    {t === 'ON_DUTY' ? 'On Duty' : 'Izin / Cuti'}
                                 </button>
                             ))}
                         </div>
@@ -252,7 +252,7 @@ export default function AbsenPage() {
                     {/* TANGGAL */}
                     <div className="space-y-2">
                         <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                            <Calendar size={12} className="text-red-500" /> Tanggal Laporan
+                            <Calendar size={12} className="text-red-500" /> {form.tipe === 'ON_DUTY' ? 'Tanggal Laporan' : 'Tanggal Cuti'}
                         </label>
                         <input
                             type="date"
@@ -262,71 +262,83 @@ export default function AbsenPage() {
                         />
                     </div>
 
-                    {/* JAM DUTY & JAM OFF DUTY */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                <Clock size={12} className="text-red-500" /> Jam Duty
-                            </label>
-                            <input
-                                type="time"
-                                value={form.jam_duty}
-                                onChange={(e) => setForm({ ...form, jam_duty: e.target.value })}
-                                className={inputStyle}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                <Clock size={12} className="text-zinc-500" /> Jam Off Duty
-                            </label>
-                            <input
-                                type="time"
-                                value={form.jam_off_duty}
-                                onChange={(e) => setForm({ ...form, jam_off_duty: e.target.value })}
-                                className={inputStyle}
-                            />
-                        </div>
-                    </div>
+                    {/* FIELD KHUSUS ON DUTY */}
+                    <AnimatePresence>
+                        {form.tipe === 'ON_DUTY' && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0 }} 
+                                animate={{ opacity: 1, height: 'auto' }} 
+                                exit={{ opacity: 0, height: 0 }}
+                                className="space-y-4 overflow-hidden"
+                            >
+                                {/* JAM DUTY & OFF DUTY */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
+                                            <Clock size={12} className="text-red-500" /> Jam Duty
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={form.jam_duty}
+                                            onChange={(e) => setForm({ ...form, jam_duty: e.target.value })}
+                                            className={inputStyle}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
+                                            <Clock size={12} className="text-zinc-500" /> Jam Off Duty
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={form.jam_off_duty}
+                                            onChange={(e) => setForm({ ...form, jam_off_duty: e.target.value })}
+                                            className={inputStyle}
+                                        />
+                                    </div>
+                                </div>
 
-                    {/* KETERANGAN */}
+                                {/* UPLOAD BUKTI FOTO */}
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
+                                        <ImageIcon size={12} className="text-red-500" /> Bukti Foto (Storage: bukti_absen-duty)
+                                    </label>
+                                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
+                                        <div className="flex flex-col items-center justify-center pt-3 pb-3 px-4 text-center">
+                                            {uploadingFile ? (
+                                                <Loader2 className="w-6 h-6 text-red-500 animate-spin mb-1" />
+                                            ) : (
+                                                <Upload className="w-6 h-6 text-zinc-500 mb-1" />
+                                            )}
+                                            <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-[260px]">
+                                                {selectedFileName ? selectedFileName : "Klik untuk pilih gambar bukti"}
+                                            </p>
+                                            <p className="text-[8px] text-zinc-600 uppercase mt-0.5">PNG, JPG, JPEG (Max 5MB)</p>
+                                        </div>
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            onChange={handleFileUpload} 
+                                            disabled={uploadingFile}
+                                        />
+                                    </label>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* KETERANGAN / KETERANGAN CUTI */}
                     <div className="space-y-2">
                         <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                            <FileText size={12} className="text-red-500" /> Keterangan / Area / Alasan
+                            <FileText size={12} className="text-red-500" /> {form.tipe === 'ON_DUTY' ? 'Keterangan / Area Patroli' : 'Keterangan Cuti'}
                         </label>
                         <textarea
                             value={form.keterangan}
                             onChange={(e) => setForm({ ...form, keterangan: e.target.value })}
-                            placeholder={form.tipe === 'IZIN' ? "Alasan izin/cuti..." : "Misal: Patroli wilayah kota Mandalika..."}
+                            placeholder={form.tipe === 'IZIN' ? "Tuliskan alasan pengajuan cuti/izin..." : "Misal: Patroli wilayah kota Mandalika..."}
                             rows={3}
                             className={`${inputStyle} resize-none custom-scrollbar`}
                         />
-                    </div>
-
-                    {/* UPLOAD BUKTI FOTO KE BUCKET: bukti_absen-duty */}
-                    <div className="space-y-2">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                            <ImageIcon size={12} className="text-red-500" /> Upload Bukti (Storage: bukti_absen-duty)
-                        </label>
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
-                            <div className="flex flex-col items-center justify-center pt-3 pb-3 px-4 text-center">
-                                {uploadingFile ? (
-                                    <Loader2 className="w-6 h-6 text-red-500 animate-spin mb-1" />
-                                ) : (
-                                    <Upload className="w-6 h-6 text-zinc-500 mb-1" />
-                                )}
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-[260px]">
-                                    {selectedFileName ? selectedFileName : "Klik untuk pilih gambar bukti"}
-                                </p>
-                                <p className="text-[8px] text-zinc-600 uppercase mt-0.5">PNG, JPG, JPEG (Max 5MB)</p>
-                            </div>
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={handleFileUpload} 
-                                disabled={uploadingFile}
-                            />
-                        </label>
                     </div>
 
                     {/* SUBMIT BUTTON */}
@@ -336,9 +348,9 @@ export default function AbsenPage() {
                         className="w-full py-4 mt-2 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 border-2 border-zinc-950 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSubmitting ? (
-                            <><Loader2 size={18} className="animate-spin" /> MENGIRIM ABSEN...</>
+                            <><Loader2 size={18} className="animate-spin" /> MENGIRIM...</>
                         ) : (
-                            <><Send size={18} /> KIRIM ABSENSI</>
+                            <><Send size={18} /> {form.tipe === 'ON_DUTY' ? 'KIRIM ABSENSI' : 'KIRIM PENGAJUAN CUTI'}</>
                         )}
                     </button>
                 </form>

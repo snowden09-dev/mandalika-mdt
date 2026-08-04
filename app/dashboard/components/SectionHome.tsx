@@ -83,23 +83,25 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
     const cardBase = "bg-[#18181B] border border-white/5 rounded-[28px] overflow-hidden relative flex flex-col p-5 md:p-6 shadow-xl shadow-black/20";
     const glassPill = "bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-white/90 flex items-center gap-1.5";
 
+    // FETCH & SYNC DATA (Database Source of Truth & Realtime)
     useEffect(() => {
+        // Ambil Discord ID dari realtimeData prop, atau fallback ke localStorage
+        const sessionData = localStorage.getItem('police_session');
+        const parsedSession = sessionData ? JSON.parse(sessionData) : {};
+        const discordId = realtimeData?.discord_id || parsedSession?.discord_id;
+
+        if (!discordId) return;
+
         const syncFreshData = async () => {
-            const sessionData = localStorage.getItem('police_session');
-            if (!sessionData) return;
-            const parsed = JSON.parse(sessionData);
-            const discordId = parsed.discord_id;
-            const currentLocalRank = parsed.pangkat?.toUpperCase();
+            try {
+                // Background check role via API
+                fetch('/api/check-role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: discordId })
+                }).catch(() => {});
 
-            if (discordId) {
-                try {
-                    await fetch('/api/check-role', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: discordId })
-                    });
-                } catch (err) { console.error("Sync Error:", err); }
-
+                // Fetch Database Terkini
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -107,36 +109,66 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                     .single();
 
                 if (data && !error) {
-                    const finalData = { ...data };
+                    let finalData = { ...data };
                     const newRank = data.pangkat?.toUpperCase();
+                    const oldRank = parsedSession.pangkat?.toUpperCase() || realtimeData.pangkat?.toUpperCase();
 
-                    if (currentLocalRank && newRank && currentLocalRank !== newRank) {
-                        const oldRankIndex = RANKS_DB.findIndex(r => r.name === currentLocalRank);
-                        const newRankIndex = RANKS_DB.findIndex(r => r.name === newRank);
+                    // LOGIKA RESET: Jika Pangkat Lama ada dan Pangkat Baru berbeda (Berganti Pangkat)
+                    if (oldRank && newRank && oldRank !== newRank) {
+                        await supabase
+                            .from('users')
+                            .update({ point_prp: 0, total_jam_duty: 0 })
+                            .eq('discord_id', discordId);
 
-                        if (newRankIndex > oldRankIndex && oldRankIndex !== -1) {
-                            await supabase
-                                .from('users')
-                                .update({ point_prp: 0, total_jam_duty: 0 })
-                                .eq('discord_id', discordId);
+                        finalData.point_prp = 0;
+                        finalData.total_jam_duty = 0;
 
-                            finalData.point_prp = 0;
-                            finalData.total_jam_duty = 0;
-
-                            toast.success(`Naik Pangkat: ${newRank}`, {
-                                description: "Poin PRP dan Jam Duty telah di-reset untuk jenjang berikutnya."
-                            });
-                        }
+                        toast.success(`Perubahan Pangkat: ${newRank}`, {
+                            description: "Poin PRP dan Total Jam Duty otomatis di-reset ke 0."
+                        });
                     }
 
                     setUserData(finalData);
-                    const updatedSession = { ...parsed, ...finalData };
-                    localStorage.setItem('police_session', JSON.stringify(updatedSession));
+                    localStorage.setItem('police_session', JSON.stringify({ ...parsedSession, ...finalData }));
                 }
+            } catch (err) {
+                console.error("Sync Error:", err);
             }
         };
+
         syncFreshData();
-    }, []);
+
+        // REALTIME LISTENER: Supaya Jam Duty terupdate langsung di UI saat berubah di DB
+        const channel = supabase
+            .channel('realtime_user_stats')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'users',
+                filter: `discord_id=eq.${discordId}`
+            }, (payload) => {
+                const newData = payload.new as UserData;
+                
+                setUserData(prev => {
+                    // Cek jika update terjadi di backend dan menyebabkan pangkat berubah
+                    if (prev.pangkat && newData.pangkat && prev.pangkat.toUpperCase() !== newData.pangkat.toUpperCase()) {
+                        // Memastikan jika dirubah paksa dari db, frontend mendeteksi dan trigger reset jam
+                        supabase.from('users').update({ point_prp: 0, total_jam_duty: 0 }).eq('discord_id', discordId);
+                        
+                        toast.info(`Status Pangkat Diperbarui: ${newData.pangkat}`, {
+                            description: "Sistem mereset PRP dan Duty untuk role baru."
+                        });
+                        return { ...prev, ...newData, point_prp: 0, total_jam_duty: 0 };
+                    }
+                    return { ...prev, ...newData };
+                });
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [realtimeData]);
 
     const handleAction = (path: string, type: 'STAR' | 'COMPUTER') => {
         setNavState({ active: true, type });
@@ -280,7 +312,8 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 <div className="relative z-10 mb-4">
                     <p className="text-xs text-zinc-400 font-medium mb-1">Reputation Points</p>
                     <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                        {userData.point_prp || 0}
+                        {/* Diperbaiki agar proper dirender walau nilainya 0 (bukan fallback semu) */}
+                        {userData.point_prp ?? 0}
                     </h2>
                 </div>
                 <div className="mt-auto pt-2">
@@ -312,7 +345,8 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 <div className="relative z-10 mb-4">
                     <p className="text-xs text-zinc-400 font-medium mb-1">Duty Records</p>
                     <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                        {userData.total_jam_duty || 0}
+                        {/* Membaca total_jam_duty dari DB, support 0. */}
+                        {userData.total_jam_duty ?? 0}
                     </h2>
                 </div>
                 <div className="mt-auto pt-2">

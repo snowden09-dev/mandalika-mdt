@@ -129,13 +129,13 @@ export default function AbsenPage() {
             const filePath = `duty/${fileName}`; // Folder: duty
 
             const { error: uploadError } = await supabase.storage
-                .from('bukti_absen') // Bucket: bukti_absen
+                .from('bukti-absen') // Bucket: bukti_absen
                 .upload(filePath, file, { upsert: true });
 
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage
-                .from('bukti_absen')
+                .from('bukti-absen')
                 .getPublicUrl(filePath);
 
             setDutyForm(prev => ({ ...prev, bukti_foto_url: publicUrl }));

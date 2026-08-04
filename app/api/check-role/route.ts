@@ -47,7 +47,8 @@ export async function POST(req: Request) {
             PROPAM: "1458009275472281672",
             BRIMOB: "1417238500025040987",
             SATLANTAS: "1427725693126574121",
-            SABHARA: "1423062503646298262"
+            SABHARA: "1423062503646298262",
+            SETUM : "1518414822318800987"
         };
 
         // Default diatur ke NON DIVISI

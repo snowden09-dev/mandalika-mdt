@@ -17,11 +17,28 @@ const inputStyle = "w-full bg-[#18181b] border-2 border-zinc-800 focus:border-re
 
 type TipeAbsen = 'ON_DUTY' | 'IZIN';
 
+// Helper: Mendapatkan YYYY-MM-DD waktu lokal perangkat (Mencegah bug timezone UTC)
+const getLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export default function AbsenPage() {
     const router = useRouter();
     const [isNavigating, setIsNavigating] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
+
+    // Setup Waktu & Batas Tanggal (Maks hari ini, Min H-3)
+    const now = new Date();
+    const currentDateStr = getLocalDateString(now);
+    const currentTimeStr = now.toTimeString().slice(0, 5);
+
+    const minDateObj = new Date();
+    minDateObj.setDate(now.getDate() - 3);
+    const minDateStr = getLocalDateString(minDateObj);
 
     // Identitas Pengguna
     const [identity, setIdentity] = useState({
@@ -32,32 +49,25 @@ export default function AbsenPage() {
         discordId: ''
     });
 
-    const now = new Date();
-    const currentDate = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().slice(0, 5);
-
-    // Tab State
     const [tipe, setTipe] = useState<TipeAbsen>('ON_DUTY');
 
-    // Form State untuk Presensi Duty
+    // Form State untuk Presensi Duty (bukti_foto_urls menjadi array untuk >1 foto)
     const [dutyForm, setDutyForm] = useState({
-        tanggal: currentDate,
-        jam_duty: currentTime,
+        tanggal: currentDateStr,
+        jam_duty: currentTimeStr,
         jam_off_duty: '',
         catatan_duty: '',
-        bukti_foto_url: '',
+        bukti_foto_urls: [] as string[],
         kategori_presensi: 'OPERASIONAL'
     });
 
     // Form State untuk Pengajuan Cuti / Izin
     const [cutiForm, setCutiForm] = useState({
-        tanggal_mulai: currentDate,
-        tanggal_selesai: currentDate,
+        tanggal_mulai: currentDateStr,
+        tanggal_selesai: currentDateStr,
         jenis_izin: 'IZIN',
         alasan: ''
     });
-
-    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
 
     useEffect(() => {
         async function getActiveUser() {
@@ -110,43 +120,56 @@ export default function AbsenPage() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // 📤 Upload Foto Ke Storage: bucket 'bukti_absen', folder 'duty/'
+    // 📤 Upload Multi-Foto (Maksimal 3)
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        if (!file.type.startsWith('image/')) {
-            toast.error("File harus berupa gambar (PNG/JPG/JPEG)!");
+        if (files.length > 3) {
+            toast.error("Maksimal hanya bisa upload 3 foto sekaligus!");
+            return;
+        }
+
+        const validFiles = files.filter(f => f.type.startsWith('image/'));
+        if (validFiles.length !== files.length) {
+            toast.error("Semua file harus berupa format gambar (PNG/JPG/JPEG)!");
             return;
         }
 
         setUploadingFile(true);
-        const tId = toast.loading("Mengunggah foto ke folder duty...");
+        const tId = toast.loading(`Mengunggah ${validFiles.length} foto ke folder duty...`);
 
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${identity.discordId}_${Date.now()}.${fileExt}`;
-            const filePath = `duty/${fileName}`; // Folder: duty
+            const uploadedUrls: string[] = [];
 
-            const { error: uploadError } = await supabase.storage
-                .from('bukti-absen') // Bucket: bukti_absen
-                .upload(filePath, file, { upsert: true });
+            for (const file of validFiles) {
+                const fileExt = file.name.split('.').pop();
+                const randomStr = Math.random().toString(36).substring(7);
+                const fileName = `${identity.discordId}_${Date.now()}_${randomStr}.${fileExt}`;
+                const filePath = `duty/${fileName}`;
 
-            if (uploadError) throw uploadError;
+                const { error: uploadError } = await supabase.storage
+                    .from('bukti-absen')
+                    .upload(filePath, file, { upsert: true });
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('bukti-absen')
-                .getPublicUrl(filePath);
+                if (uploadError) throw uploadError;
 
-            setDutyForm(prev => ({ ...prev, bukti_foto_url: publicUrl }));
-            setSelectedFileName(file.name);
-            toast.success("Bukti foto berhasil diunggah!", { id: tId });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Gagal mengunggah gambar ke storage.";
+                const { data: { publicUrl } } = supabase.storage
+                    .from('bukti-absen')
+                    .getPublicUrl(filePath);
+
+                uploadedUrls.push(publicUrl);
+            }
+
+            setDutyForm(prev => ({ ...prev, bukti_foto_urls: uploadedUrls }));
+            toast.success(`${uploadedUrls.length} Bukti foto berhasil diunggah!`, { id: tId });
+        } catch (error: any) {
             console.error("Gagal upload:", error);
-            toast.error(errorMessage, { id: tId });
+            toast.error(error.message || "Gagal mengunggah gambar ke storage.", { id: tId });
         } finally {
             setUploadingFile(false);
+            // Reset input file sehingga pengguna bisa mengklik dan upload ulang jika mau
+            e.target.value = '';
         }
     };
 
@@ -158,27 +181,32 @@ export default function AbsenPage() {
 
         try {
             if (tipe === 'ON_DUTY') {
-                // Validasi On Duty
                 if (!dutyForm.tanggal) return toast.error("Tanggal wajib diisi!", { id: tId });
                 if (!dutyForm.jam_duty) return toast.error("Jam duty wajib diisi!", { id: tId });
-                if (!dutyForm.bukti_foto_url) return toast.error("Bukti foto wajib diupload!", { id: tId });
+                if (dutyForm.bukti_foto_urls.length === 0) return toast.error("Minimal 1 bukti foto wajib diupload!", { id: tId });
+                if (dutyForm.bukti_foto_urls.length > 3) return toast.error("Maksimal bukti foto yang dijinkan adalah 3!", { id: tId });
 
-                // Hitung durasi menit jika jam_off_duty terisi
+                // Hitung durasi dan cross-midnight check
                 let durasi = 0;
                 let startTimeISO = `${dutyForm.tanggal}T${dutyForm.jam_duty}:00+00`;
                 let endTimeISO = null;
 
                 if (dutyForm.jam_off_duty) {
                     endTimeISO = `${dutyForm.tanggal}T${dutyForm.jam_off_duty}:00+00`;
-                    const startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
-                    const endMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_off_duty}:00`).getTime();
-                    if (endMs > startMs) {
-                        durasi = Math.floor((endMs - startMs) / (1000 * 60));
+                    
+                    let startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
+                    let endMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_off_duty}:00`).getTime();
+                    
+                    // Jika end time lebih kecil dari start time, asumsikan shift melewati tengah malam
+                    if (endMs < startMs) {
+                        endMs += 24 * 60 * 60 * 1000; // Tambah 1 hari
                     }
+                    
+                    durasi = Math.floor((endMs - startMs) / (1000 * 60));
                 }
 
                 // Insert ke tabel: presensi_duty
-                const { error } = await supabase.from('presensi_duty').insert([
+                const { error: insertError } = await supabase.from('presensi_duty').insert([
                     {
                         user_id_discord: identity.discordId,
                         nama_panggilan: identity.nama,
@@ -189,27 +217,47 @@ export default function AbsenPage() {
                         durasi_menit: durasi,
                         status: dutyForm.jam_off_duty ? 'OFF_DUTY' : 'ON_DUTY',
                         catatan_duty: dutyForm.catatan_duty || null,
-                        bukti_foto: [dutyForm.bukti_foto_url], // Array URL foto
+                        bukti_foto: dutyForm.bukti_foto_urls, 
                         kategori_presensi: dutyForm.kategori_presensi
                     }
                 ]);
 
-                if (error) throw error;
+                if (insertError) throw insertError;
+
+                // 🔄 UPDATE TOTAL JAM DUTY KE TABEL USERS
+                if (durasi > 0) {
+                    const durasiJam = durasi / 60;
+                    
+                    const { data: userData, error: userErr } = await supabase
+                        .from('users')
+                        .select('total_jam_duty')
+                        .eq('discord_id', identity.discordId)
+                        .single();
+                        
+                    if (!userErr && userData) {
+                        const currentTotal = parseFloat(userData.total_jam_duty || "0");
+                        const newTotal = (currentTotal + durasiJam).toFixed(2);
+                        
+                        await supabase
+                            .from('users')
+                            .update({ total_jam_duty: newTotal })
+                            .eq('discord_id', identity.discordId);
+                    }
+                }
+
                 toast.success("Presensi Duty berhasil dicatat!", { id: tId });
 
                 // Reset Duty Form
                 setDutyForm({
-                    tanggal: currentDate,
-                    jam_duty: currentTime,
+                    tanggal: currentDateStr,
+                    jam_duty: currentTimeStr,
                     jam_off_duty: '',
                     catatan_duty: '',
-                    bukti_foto_url: '',
+                    bukti_foto_urls: [],
                     kategori_presensi: 'OPERASIONAL'
                 });
-                setSelectedFileName(null);
 
             } else {
-                // Validasi Cuti/Izin
                 if (!cutiForm.tanggal_mulai) return toast.error("Tanggal mulai wajib diisi!", { id: tId });
                 if (!cutiForm.tanggal_selesai) return toast.error("Tanggal selesai wajib diisi!", { id: tId });
                 if (!cutiForm.alasan) return toast.error("Alasan wajib diisi!", { id: tId });
@@ -234,8 +282,8 @@ export default function AbsenPage() {
 
                 // Reset Cuti Form
                 setCutiForm({
-                    tanggal_mulai: currentDate,
-                    tanggal_selesai: currentDate,
+                    tanggal_mulai: currentDateStr,
+                    tanggal_selesai: currentDateStr,
                     jenis_izin: 'IZIN',
                     alasan: ''
                 });
@@ -340,6 +388,8 @@ export default function AbsenPage() {
                                     </label>
                                     <input
                                         type="date"
+                                        min={minDateStr} 
+                                        max={currentDateStr}
                                         value={dutyForm.tanggal}
                                         onChange={(e) => setDutyForm({ ...dutyForm, tanggal: e.target.value })}
                                         className={inputStyle}
@@ -386,10 +436,10 @@ export default function AbsenPage() {
                                     />
                                 </div>
 
-                                {/* UPLOAD FOTO (BUCKET: bukti_absen, FOLDER: duty) */}
+                                {/* UPLOAD FOTO (1-3 FOTO) */}
                                 <div className="space-y-2">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                        <ImageIcon size={12} className="text-red-500" /> Upload Bukti Foto (duty/)
+                                        <ImageIcon size={12} className="text-red-500" /> Upload Bukti Foto (1-3)
                                     </label>
                                     <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
                                         <div className="flex flex-col items-center justify-center pt-3 pb-3 px-4 text-center">
@@ -399,13 +449,16 @@ export default function AbsenPage() {
                                                 <Upload className="w-6 h-6 text-zinc-500 mb-1" />
                                             )}
                                             <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-[260px]">
-                                                {selectedFileName ? selectedFileName : "Klik untuk unggah gambar"}
+                                                {dutyForm.bukti_foto_urls.length > 0 
+                                                    ? `${dutyForm.bukti_foto_urls.length} Foto Siap Dikirim` 
+                                                    : "Klik untuk unggah gambar"}
                                             </p>
-                                            <p className="text-[8px] text-zinc-600 uppercase mt-0.5">Tersimpan di: bukti_absen/duty/</p>
+                                            <p className="text-[8px] text-zinc-600 uppercase mt-0.5">Format: PNG/JPG (Maks 3 File)</p>
                                         </div>
                                         <input
                                             type="file"
                                             accept="image/*"
+                                            multiple
                                             className="hidden"
                                             onChange={handleFileUpload}
                                             disabled={uploadingFile}

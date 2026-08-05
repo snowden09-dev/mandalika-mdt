@@ -63,7 +63,7 @@ export default function SectionLog() {
 
     const handleTabChange = (tab: 'DUTY' | 'CUTI' | 'LAPORAN') => {
         setActiveTab(tab);
-        setPage(1); // Reset halaman langsung saat tab diganti (menggantikan useEffect setState)
+        setPage(1); // Reset halaman langsung saat tab diganti
     };
 
     const getStatusBadge = (status: string | undefined, currentTab: string) => {
@@ -182,10 +182,12 @@ export default function SectionLog() {
                                                     {/* Tengah: Deskripsi Utama */}
                                                     <div className="col-span-1 md:col-span-6 flex flex-col justify-center">
                                                         <p className="text-[10px] font-bold uppercase text-zinc-500 mb-0.5 tracking-wider">
-                                                            {activeTab === 'DUTY' ? 'Log Aktivitas Patroli' : activeTab === 'CUTI' ? 'Alasan Izin/Cuti' : `Laporan ${log.jenis || log.jenis_laporan}`}
+                                                            {activeTab === 'DUTY' ? 'Log Aktivitas Patroli' : activeTab === 'CUTI' ? 'Alasan Izin/Cuti' : 'Jenis Laporan'}
                                                         </p>
                                                         <p className="text-xs font-medium text-zinc-300 uppercase leading-relaxed line-clamp-2">
-                                                            {log.catatan_duty || log.alasan || log.isi_laporan || '-'}
+                                                            {activeTab === 'LAPORAN' 
+                                                                ? (log.jenis || log.jenis_laporan || '-') 
+                                                                : (log.catatan_duty || log.alasan || '-')}
                                                         </p>
                                                     </div>
 

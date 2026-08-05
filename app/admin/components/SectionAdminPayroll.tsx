@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check
+    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check, Clock, Award
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -66,6 +66,18 @@ interface PayrollRequest {
 interface Duty {
     user_id_discord: string;
     start_time: string;
+    end_time?: string;
+    duration?: number; // jam atau menit
+}
+
+interface UserRecord {
+    discord_id: string;
+    name?: string;
+    roles?: string[] | string;
+    jabatan?: string;
+    pangkat?: string;
+    divisi?: string;
+    total_duty?: number;
 }
 
 interface Cuti {
@@ -98,6 +110,12 @@ type SlipData = PayrollRequest & {
     cuti: number;
     alpha: number;
     total_hari: number;
+    totalDutyHours: number;
+    is100HoursDuty: boolean;
+    isKadiv: boolean;
+    isWakadiv: boolean;
+    bonusJabatan: number;
+    bonusJabatanLabel: string;
     tilangCount: number;
     isTargetMet: boolean;
     isSatlantas: boolean;
@@ -122,6 +140,7 @@ export default function SectionAdminPayroll() {
     const slipRef = useRef<HTMLDivElement>(null);
     const [requests, setRequests] = useState<PayrollRequest[]>([]);
     const [duties, setDuties] = useState<Duty[]>([]);
+    const [users, setUsers] = useState<UserRecord[]>([]);
     const [cutis, setCutis] = useState<Cuti[]>([]);
     const [laporans, setLaporans] = useState<Laporan[]>([]);
     const [loading, setLoading] = useState(true);
@@ -143,7 +162,7 @@ export default function SectionAdminPayroll() {
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
     const [confirmInput, setConfirmInput] = useState("");
 
-    // State tambahan untuk Tampilan Aturan Bonus
+    // State Tampilan Aturan Bonus
     const [showRules, setShowRules] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -159,8 +178,11 @@ export default function SectionAdminPayroll() {
         const { data: reqData } = await supabase.from('pengajuan_gaji').select('*').order('created_at', { ascending: false });
         if (reqData) setRequests(reqData);
 
-        const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time');
+        const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, duration');
         if (dutyData) setDuties(dutyData);
+
+        const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_duty');
+        if (userData) setUsers(userData);
 
         const { data: cutiData } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_mulai, tanggal_selesai, status');
         if (cutiData) setCutis(cutiData);
@@ -222,15 +244,72 @@ export default function SectionAdminPayroll() {
         return Array.from(periods).sort().reverse();
     }, [requests]);
 
-    // 🚀 ENGINE SUPER KALKULASI: ADMIN AUTHORITY
+    // 🚀 ENGINE SUPER KALKULASI & AUTO-DETECT ROLE / DUTY
     const augmentedRequests = useMemo(() => {
+        const kadivIds = BONUS_RULES.kadivRoles.map(r => r.id);
+        const wakadivIds = BONUS_RULES.wakadivRoles.map(r => r.id);
+
         return requests.map(req => {
             const start = startOfDay(getLocalSafeDate(req.tanggal_mulai));
             const end = startOfDay(getLocalSafeDate(req.tanggal_selesai));
             const daysInPeriod = eachDayOfInterval({ start, end });
             const discordId = req.user_id_discord;
 
-            // 🚀 PARSING NAMA DAN BADGE
+            // 1. MATCH DATA USER
+            const userObj = users.find(u => u.discord_id === discordId);
+            let userRolesArr: string[] = [];
+            if (userObj?.roles) {
+                if (Array.isArray(userObj.roles)) userRolesArr = userObj.roles;
+                else if (typeof userObj.roles === 'string') {
+                    try { userRolesArr = JSON.parse(userObj.roles); } catch { userRolesArr = [userObj.roles]; }
+                }
+            }
+
+            // 2. AUTO DETECT ROLE KADIV / WAKADIV
+            const isKadivRole = kadivIds.some(id => userRolesArr.includes(id));
+            const isWakadivRole = wakadivIds.some(id => userRolesArr.includes(id));
+
+            const isKadivText = (req.pangkat || "").toUpperCase().includes('KADIV') || (userObj?.jabatan || "").toUpperCase().includes('KADIV');
+            const isWakadivText = (req.pangkat || "").toUpperCase().includes('WAKADIV') || (userObj?.jabatan || "").toUpperCase().includes('WAKADIV');
+
+            const isKadiv = isKadivRole || isKadivText;
+            const isWakadiv = !isKadiv && (isWakadivRole || isWakadivText);
+
+            let bonusJabatan = 0;
+            let bonusJabatanLabel = '';
+            if (isKadiv) {
+                bonusJabatan = 70000;
+                bonusJabatanLabel = 'Bonus Kadiv';
+            } else if (isWakadiv) {
+                bonusJabatan = 60000;
+                bonusJabatanLabel = 'Bonus Wakadiv';
+            }
+
+            // 3. AUTO DETECT JAM DUTY DARI DATABASE
+            let totalDutyMinutes = 0;
+            const userDutiesInPeriod = duties.filter(d => {
+                if (d.user_id_discord !== discordId) return false;
+                const dDate = startOfDay(getLocalSafeDate(d.start_time));
+                return dDate >= start && dDate <= end;
+            });
+
+            userDutiesInPeriod.forEach(d => {
+                if (d.duration && d.duration > 0) {
+                    totalDutyMinutes += d.duration > 24 ? d.duration : d.duration * 60;
+                } else if (d.end_time) {
+                    const diffMs = new Date(d.end_time).getTime() - new Date(d.start_time).getTime();
+                    if (diffMs > 0) totalDutyMinutes += diffMs / (1000 * 60);
+                } else {
+                    totalDutyMinutes += 60; // Default 1 jam per sesi jika log open
+                }
+            });
+
+            const dbTotalDuty = userObj?.total_duty || 0;
+            const calculatedHours = Math.round((totalDutyMinutes / 60) * 10) / 10;
+            const totalDutyHours = calculatedHours > 0 ? calculatedHours : dbTotalDuty;
+            const is100HoursDuty = totalDutyHours >= 100;
+
+            // 4. PARSING NAMA DAN BADGE
             let rawName = req.nama_panggilan || "OFFICER";
             let badgeNumber = "-";
 
@@ -287,6 +366,7 @@ export default function SectionAdminPayroll() {
                 return {
                     ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                     total_hari: daysInPeriod.length, tilangCount: tilangData.length,
+                    totalDutyHours, is100HoursDuty, isKadiv, isWakadiv, bonusJabatan, bonusJabatanLabel,
                     isTargetMet, isSatlantas, isPetinggi, cleanName, badgeNumber,
                     baseGaji: extractLegacy('BASE') || req.jumlah_gaji,
                     potonganAlpha: extractLegacy('ALPH'),
@@ -298,13 +378,19 @@ export default function SectionAdminPayroll() {
             }
 
             const weeksCount = daysInPeriod.length >= 13 ? 2 : 1;
-            const baseGajiPokok = getGajiByRank(req.pangkat) * weeksCount;
+            let baseGajiPokok = getGajiByRank(req.pangkat) * weeksCount;
+
+            // 🚀 SYARAT 100 JAM DUTY = 2x LIPAT GAJI POKOK
+            if (is100HoursDuty) {
+                baseGajiPokok *= 2;
+            }
 
             const divisiUser = (req.divisi || "").toUpperCase();
-            let earnedBonus = 0;
+            let earnedBonus = bonusJabatan; // Auto Bonus Kadiv/Wakadiv
+
             if (isTargetMet) {
-                if (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) earnedBonus = 35000;
-                else if (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) earnedBonus = 50000;
+                if (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) earnedBonus += 35000;
+                else if (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) earnedBonus += 50000;
             }
 
             const baseGajiSubmit = baseGajiPokok + earnedBonus;
@@ -319,12 +405,13 @@ export default function SectionAdminPayroll() {
             return {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
+                totalDutyHours, is100HoursDuty, isKadiv, isWakadiv, bonusJabatan, bonusJabatanLabel,
                 isTargetMet, isSatlantas, isPetinggi, cleanName, badgeNumber,
                 baseGaji: baseGajiSubmit,
                 potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
             };
         });
-    }, [requests, duties, cutis, laporans, manualAdjustments]);
+    }, [requests, duties, users, cutis, laporans, manualAdjustments]);
 
     const filteredData = useMemo(() => {
         if (activeTab === 'NOT_SENT') return augmentedRequests.filter(r => r.status === 'PAID' && !r.bukti_transfer);
@@ -383,7 +470,8 @@ export default function SectionAdminPayroll() {
             } catch {
                 toast.error("Sistem gagal mengambil foto slip.", { id: tId });
                 setCurrentSlipData(null);
-            } finally { setIsGenerating(false); }
+            }
+            setIsGenerating(false);
         }, 800);
     };
 
@@ -740,18 +828,23 @@ export default function SectionAdminPayroll() {
                                         <th className="p-4">Nama Personel</th>
                                         <th className="p-4">Periode Gaji</th>
                                         <th className="p-4 text-center">Rekap (H/C/A)</th>
+                                        <th className="p-4 text-center">Duty (Jam)</th>
                                         <th className="p-4 text-right">Total Gaji</th>
                                         <th className="p-4 text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-zinc-800/60 text-xs">
                                     {paginatedData.length === 0 ? (
-                                        <tr><td colSpan={5} className="p-10 text-center text-zinc-500">Belum ada data gaji yang telah dibayarkan di halaman ini.</td></tr>
+                                        <tr><td colSpan={6} className="p-10 text-center text-zinc-500">Belum ada data gaji yang telah dibayarkan di halaman ini.</td></tr>
                                     ) : (
                                         paginatedData.map((req) => (
                                             <tr key={req.id} className="hover:bg-zinc-800/30 transition-colors">
                                                 <td className="p-4">
-                                                    <p className="font-bold text-zinc-100">{req.cleanName}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-zinc-100">{req.cleanName}</p>
+                                                        {req.isKadiv && <span className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded">KADIV</span>}
+                                                        {req.isWakadiv && <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded">WAKADIV</span>}
+                                                    </div>
                                                     <p className="text-[10px] text-red-400 font-mono mt-0.5">{req.pangkat} • #{req.badgeNumber}</p>
                                                 </td>
                                                 <td className="p-4 text-zinc-400 font-medium">
@@ -759,6 +852,11 @@ export default function SectionAdminPayroll() {
                                                 </td>
                                                 <td className="p-4 text-center font-mono">
                                                     <span className="text-emerald-400">{req.hadir}</span> / <span className="text-amber-400">{req.cuti}</span> / <span className="text-red-400">{req.alpha}</span>
+                                                </td>
+                                                <td className="p-4 text-center font-mono">
+                                                    <span className={cn("px-2 py-0.5 rounded border text-[11px]", req.is100HoursDuty ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold" : "text-zinc-300 border-zinc-800 bg-zinc-950")}>
+                                                        {req.totalDutyHours}h {req.is100HoursDuty && '🔥'}
+                                                    </span>
                                                 </td>
                                                 <td className="p-4 text-right font-bold text-emerald-400">
                                                     ${Number(req.jumlah_gaji).toLocaleString()}
@@ -780,7 +878,7 @@ export default function SectionAdminPayroll() {
                 </>
             )}
 
-            {/* KARTU PENGANJUAN (GRID VIEW) */}
+            {/* KARTU PENGAJUAN (GRID VIEW) */}
             {!loading && activeTab !== 'REKAP' && (
                 paginatedData.length === 0 ? (
                     <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
@@ -798,7 +896,11 @@ export default function SectionAdminPayroll() {
                                     {/* CARD HEADER */}
                                     <div className="bg-zinc-950/80 border-b border-zinc-800/80 p-4 flex justify-between items-start">
                                         <div>
-                                            <h4 className="font-bold text-zinc-100 text-sm">{req.cleanName}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-bold text-zinc-100 text-sm">{req.cleanName}</h4>
+                                                {req.isKadiv && <span className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded">KADIV</span>}
+                                                {req.isWakadiv && <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded">WAKADIV</span>}
+                                            </div>
                                             <p className="text-[11px] text-red-400 font-mono mt-0.5">{req.pangkat} • #{req.badgeNumber} • {req.divisi || 'UNIT'}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -813,35 +915,53 @@ export default function SectionAdminPayroll() {
 
                                     {/* CARD BODY */}
                                     <div className="p-4 space-y-4 flex-1">
-                                        <div className={cn("grid gap-3", req.isSatlantas ? "grid-cols-2" : "grid-cols-1")}>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {/* KEHADIRAN */}
                                             <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
                                                 <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Kehadiran ({req.total_hari} Hari)</p>
-                                                <div className="flex gap-2 text-xs font-mono font-bold">
-                                                    <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">H: {req.hadir}</span>
-                                                    <span className="text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">C: {req.cuti}</span>
-                                                    <span className={cn("px-2 py-0.5 rounded border", req.alpha > 0 ? "text-red-400 bg-red-500/10 border-red-500/20" : "text-zinc-400 bg-zinc-800/50 border-zinc-700/50")}>A: {req.alpha}</span>
+                                                <div className="flex gap-1.5 text-xs font-mono font-bold">
+                                                    <span className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">H:{req.hadir}</span>
+                                                    <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">C:{req.cuti}</span>
+                                                    <span className={cn("px-1.5 py-0.5 rounded border", req.alpha > 0 ? "text-red-400 bg-red-500/10 border-red-500/20" : "text-zinc-400 bg-zinc-800/50 border-zinc-700/50")}>A:{req.alpha}</span>
                                                 </div>
                                             </div>
 
-                                            {req.isSatlantas && (
-                                                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
-                                                    <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Target Ops Tilang</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={cn("text-xs font-bold font-mono px-2 py-0.5 rounded border", req.isTargetMet ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20")}>
-                                                            {req.tilangCount}/15
-                                                        </span>
-                                                        <span className="text-[10px] text-zinc-400">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
-                                                    </div>
+                                            {/* AUTO DUTY HOURS COUNTER */}
+                                            <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
+                                                <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1 flex items-center gap-1">
+                                                    <Clock size={11} className="text-red-400" /> Jam Duty DB
+                                                </p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={cn("text-xs font-bold font-mono px-2 py-0.5 rounded border", req.is100HoursDuty ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-zinc-900 text-zinc-300 border-zinc-800")}>
+                                                        {req.totalDutyHours} Jam
+                                                    </span>
+                                                    {req.is100HoursDuty && <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold">2x GAJI</span>}
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
+
+                                        {req.isSatlantas && (
+                                            <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-2.5 flex items-center justify-between">
+                                                <span className="text-[11px] text-zinc-400">Target Ops Tilang Satlantas</span>
+                                                <span className={cn("text-xs font-bold font-mono px-2 py-0.5 rounded border", req.isTargetMet ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20")}>
+                                                    {req.tilangCount}/15 {req.isTargetMet ? '✓ Terpenuhi' : 'Belum'}
+                                                </span>
+                                            </div>
+                                        )}
 
                                         {/* BREAKDOWN RINCIAN GAJI */}
                                         <div className="border-t border-zinc-800/60 pt-3 space-y-1 text-xs">
                                             <div className="flex justify-between text-zinc-400">
-                                                <span>Gaji Awal {req.isTargetMet ? '(Incl. Bonus Target)' : '(Pokok)'}</span>
+                                                <span>Gaji Pokok {req.is100HoursDuty ? '(Bonus 100 Jam Duty 2x)' : ''}</span>
                                                 <span className="font-mono text-zinc-200">${req.baseGaji.toLocaleString()}</span>
                                             </div>
+
+                                            {req.bonusJabatan > 0 && (
+                                                <div className="flex justify-between text-emerald-400 font-medium">
+                                                    <span className="flex items-center gap-1"><Award size={12} /> {req.bonusJabatanLabel} (Auto)</span>
+                                                    <span className="font-mono">+ ${req.bonusJabatan.toLocaleString()}</span>
+                                                </div>
+                                            )}
 
                                             {req.potonganAlpha > 0 && <div className="flex justify-between text-red-400"><span>Potongan Alpha (5% x {req.alpha})</span><span className="font-mono">- ${req.potonganAlpha.toLocaleString()}</span></div>}
                                             {req.potonganCuti > 0 && <div className="flex justify-between text-amber-400"><span>Potongan Cuti (2% x {req.cuti})</span><span className="font-mono">- ${req.potonganCuti.toLocaleString()}</span></div>}
@@ -907,7 +1027,7 @@ export default function SectionAdminPayroll() {
                                     {/* CARD FOOTER (TOTAL & AKSI) */}
                                     <div className="bg-zinc-950/80 border-t border-zinc-800/80 p-4 flex justify-between items-center">
                                         <div>
-                                            <p className="text-[10px] text-zinc-500 uppercase font-semibold">Total Final Payout</p>
+                                            <p className="text-[10px] text-zinc-500 uppercase font-semibold">Total Net Payout</p>
                                             <p className="text-xl font-bold text-emerald-400 font-mono tracking-tight">${req.finalGaji.toLocaleString()}</p>
                                         </div>
 
@@ -1019,10 +1139,11 @@ export default function SectionAdminPayroll() {
                             <div className="space-y-3">
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Nama Personel</p><p className="font-bold text-sm text-zinc-100">{currentSlipData.cleanName}</p></div>
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Pangkat / Badge</p><p className="font-bold text-sm text-red-400 font-mono">{currentSlipData.pangkat} / #{currentSlipData.badgeNumber}</p></div>
-                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Divisi</p><p className="font-bold text-zinc-200">{currentSlipData.divisi || 'UNIT'}</p></div>
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Divisi & Jabatan</p><p className="font-bold text-zinc-200">{currentSlipData.divisi || 'UNIT'} {currentSlipData.bonusJabatanLabel ? `(${currentSlipData.bonusJabatanLabel.replace('Bonus ', '')})` : ''}</p></div>
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Periode Gaji</p><p className="font-medium text-zinc-300">{format(getLocalSafeDate(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(getLocalSafeDate(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
                             <div className="space-y-4">
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Total Jam Duty DB</p><p className="font-bold text-emerald-400 font-mono">{currentSlipData.totalDutyHours} Jam {currentSlipData.is100HoursDuty && '(2x Bonus)'}</p></div>
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Tanggal Pencairan</p><p className="font-medium text-zinc-300">{format(new Date(currentSlipData.updated_at || currentSlipData.created_at), 'dd MMMM yyyy', { locale: localeId })}</p></div>
                                 <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
                                     <p className="text-[9px] uppercase text-zinc-500 font-semibold mb-0.5">Approved By</p>
@@ -1034,11 +1155,18 @@ export default function SectionAdminPayroll() {
                         </div>
 
                         <div className="border border-zinc-800 p-5 rounded-xl bg-zinc-900/40 relative z-10 text-xs space-y-2">
-                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-800 pb-2 mb-3">Rincian Kompensasi</h4>
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-800 pb-2 mb-3">Rincian Kompensasi & Bonus</h4>
                             <div className="flex justify-between items-center">
-                                <span className="text-zinc-400">Gaji Awal / Pokok</span>
+                                <span className="text-zinc-400">Gaji Pokok {currentSlipData.is100HoursDuty ? '(2x Lipat 100 Jam Duty)' : ''}</span>
                                 <span className="font-mono text-zinc-200">${currentSlipData.baseGaji.toLocaleString()}</span>
                             </div>
+
+                            {currentSlipData.bonusJabatan > 0 && (
+                                <div className="flex justify-between items-center text-emerald-400">
+                                    <span>{currentSlipData.bonusJabatanLabel} (Auto Role)</span>
+                                    <span className="font-mono">+ ${currentSlipData.bonusJabatan.toLocaleString()}</span>
+                                </div>
+                            )}
 
                             {currentSlipData.potonganAlpha > 0 && (
                                 <div className="flex justify-between items-center text-red-400">

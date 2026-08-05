@@ -11,7 +11,8 @@ import SectionAdminPersonnel from './components/SectionAdminPersonnel';
 import SectionAdminSystem from './components/SectionAdminSystem';
 import SectionAdminLaporan from './components/SectionAdminLaporan';
 import SectionAdminConfig from './components/SectionAdminConfig';
-import SectionAdminPayroll from './components/SectionAdminPayroll'; // 👈 IMPORTED
+import SectionAdminPayroll from './components/SectionAdminPayroll';
+import SectionAdminCuti from './components/SectionAdminCuti'; // 👈 IMPORT BARU
 
 const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
 
@@ -19,7 +20,7 @@ export default function AdminHQPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'PERSONEL' | 'PAYROLL' | 'LAPORAN' | 'SYSTEM'>('PERSONEL');
-    const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
+    const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'MANAJEMEN_CUTI' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -118,13 +119,14 @@ export default function AdminHQPage() {
                                 <div className="flex bg-zinc-900/80 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-800/80 w-fit max-w-full overflow-x-auto shadow-xs hide-scrollbar">
                                     {([
                                         { id: 'DATA_ANGGOTA', label: 'Data Anggota' },
+                                        { id: 'MANAJEMEN_CUTI', label: 'Manajemen Cuti' },
                                         { id: 'REKAP_ABSEN', label: 'Rekap Absensi' }
-                                    ] as { id: 'DATA_ANGGOTA' | 'REKAP_ABSEN'; label: string }[]).map(sub => (
+                                    ] as { id: 'DATA_ANGGOTA' | 'MANAJEMEN_CUTI' | 'REKAP_ABSEN'; label: string }[]).map(sub => (
                                         <button 
                                             key={sub.id} 
                                             onClick={() => setPersonelSubTab(sub.id)} 
                                             className={cn(
-                                                "px-3.5 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider transition-all whitespace-nowrap", 
+                                                "px-3.5 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer", 
                                                 personelSubTab === sub.id 
                                                     ? "bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-xs" 
                                                     : "text-zinc-500 hover:text-zinc-300"
@@ -135,6 +137,7 @@ export default function AdminHQPage() {
                                     ))}
                                 </div>
                                 {personelSubTab === 'DATA_ANGGOTA' && <SectionAdminPersonnel />}
+                                {personelSubTab === 'MANAJEMEN_CUTI' && <SectionAdminCuti />}
                                 {personelSubTab === 'REKAP_ABSEN' && <SectionAdminSystem />}
                             </div>
                         )}

@@ -23,24 +23,28 @@ import { supabase } from "@/lib/supabase";
 interface RealtimeData {
     id?: string;
     discord_id?: string;
+    user_id_discord?: string;
     pangkat?: string;
     divisi?: string;
     name?: string;
+    nama_panggilan?: string;
     [key: string]: unknown;
 }
 
 interface PengajuanGaji {
+    idx?: number;
     id: string;
     user_id_discord: string;
     nama_panggilan: string;
     pangkat: string;
     divisi: string;
-    jumlah_gaji: number;
+    jumlah_gaji: number | string;
     tanggal_mulai: string;
     tanggal_selesai: string;
     status: 'PENDING' | 'PAID' | 'REJECTED';
     created_at: string;
     keterangan_admin?: string;
+    bukti_transfer?: string;
 }
 
 interface UserReport {
@@ -58,6 +62,16 @@ const getWIBTime = () => {
     const utc = localTime + localOffset;
     const wibOffset = 7 * 3600000; // +7 Jam (WIB)
     return new Date(utc + wibOffset);
+};
+
+// 💡 HELPER SAFELY PARSE DATE STRINGS FROM POSTGRES
+const safeParseDate = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    try {
+        return parseISO(dateStr.replace(' ', 'T'));
+    } catch {
+        return new Date(dateStr);
+    }
 };
 
 export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: RealtimeData }) {
@@ -81,67 +95,76 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         setNotif({ show: true, title, message, type });
     };
 
-    // 💡 PENAMBAHAN: Ditambahkan pangkat RECRUIT & SISWA ke dalam daftar
-    const getGajiByRank = (pangkat?: string) => {
-        const p = pangkat?.toUpperCase().trim() || "";
-        switch (p) {
-            case "JENDRAL": return 190000;
-            case "KOMJEN": return 180000;
-            case "IRJEN": return 175000;
-            case "BRIGJEN": return 170000;
-            case "KOMBESPOL":
-            case "KOMBES": return 165000;
-            case "AKBP": return 160000;
-            case "KOMPOL": return 155000;
-            case "AKP": return 150000;
-            case "IPTU": return 145000;
-            case "IPDA": return 140000;
-            case "AIPTU": return 135000;
-            case "AIPDA": return 130000;
-            case "BRIPKA": return 125000;
-            case "BRIGPOL": return 120000;
-            case "BRIPTU": return 115000;
-            case "BRIPDA": return 110000;
-            case "BHARATU": return 105000;
-            case "BHARADA": return 100000;
-            case "RECRUIT": return 90000;  // 👈 Ditambahkan
-            case "SISWA": return 80000;    // 👈 Ditambahkan
-            default: return 90000;
-        }
+    // 💡 PERBAIKAN: Flexibel Matching untuk Pangkat (Fuzzy/Includes Check)
+    const getGajiByRank = (pangkatRaw?: string) => {
+        if (!pangkatRaw) return 90000;
+        const p = String(pangkatRaw).toUpperCase().trim();
+
+        if (p.includes("JENDRAL")) return 190000;
+        if (p.includes("KOMJEN")) return 180000;
+        if (p.includes("IRJEN")) return 175000;
+        if (p.includes("BRIGJEN")) return 170000;
+        if (p.includes("KOMBES")) return 165000;
+        if (p.includes("AKBP")) return 160000;
+        if (p.includes("KOMPOL")) return 155000;
+        if (p.includes("AKP")) return 150000;
+        if (p.includes("IPTU")) return 145000;
+        if (p.includes("IPDA")) return 140000;
+        if (p.includes("AIPTU")) return 135000;
+        if (p.includes("AIPDA")) return 130000;
+        if (p.includes("BRIPKA")) return 125000;
+        if (p.includes("BRIGPOL") || p.includes("BRIGADIR")) return 120000;
+        if (p.includes("BRIPTU")) return 115000;
+        if (p.includes("BRIPDA")) return 110000;
+        if (p.includes("BHARATU")) return 105000;
+        if (p.includes("BHARADA")) return 100000;
+        if (p.includes("RECRUIT")) return 90000;
+        if (p.includes("SISWA")) return 80000;
+
+        return 90000; // Default
     };
 
-    const baseSalary = useMemo(() => getGajiByRank(realtimeData?.pangkat), [realtimeData?.pangkat]);
+    const userPangkat = realtimeData?.pangkat || (realtimeData as Record<string, unknown>)?.Pangkat as string || "";
+    const baseSalary = useMemo(() => getGajiByRank(userPangkat), [userPangkat]);
 
-    // 💡 PERBAIKAN: Fallback ke realtimeData.discord_id / realtimeData.id jika Supabase Auth null
     const fetchHistoryAndReports = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        const discordId = user?.user_metadata?.provider_id || user?.id || realtimeData?.discord_id || realtimeData?.id;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const discordId = user?.user_metadata?.provider_id || 
+                              user?.user_metadata?.sub || 
+                              user?.id || 
+                              realtimeData?.user_id_discord || 
+                              realtimeData?.discord_id || 
+                              realtimeData?.id;
 
-        if (!discordId) return;
+            if (!discordId) return;
 
-        const { data: historyData } = await supabase
-            .from('pengajuan_gaji')
-            .select('*')
-            .eq('user_id_discord', discordId)
-            .order('created_at', { ascending: false });
+            const { data: historyData } = await supabase
+                .from('pengajuan_gaji')
+                .select('*')
+                .eq('user_id_discord', String(discordId))
+                .order('created_at', { ascending: false });
 
-        if (historyData) setHistory(historyData as PengajuanGaji[]);
+            if (historyData) setHistory(historyData as PengajuanGaji[]);
 
-        const { data: reportsData } = await supabase
-            .from('laporan_aktivitas')
-            .select('created_at')
-            .eq('user_id_discord', discordId)
-            .eq('jenis_laporan', 'Penilangan')
-            .eq('status', 'APPROVED');
+            const { data: reportsData } = await supabase
+                .from('laporan_aktivitas')
+                .select('created_at')
+                .eq('user_id_discord', String(discordId))
+                .eq('jenis_laporan', 'Penilangan')
+                .eq('status', 'APPROVED');
 
-        if (reportsData) setUserReports(reportsData as UserReport[]);
+            if (reportsData) setUserReports(reportsData as UserReport[]);
+        } catch (e) {
+            console.error("Fetch history error:", e);
+        }
     };
 
     useEffect(() => { 
         fetchHistoryAndReports(); 
     }, [realtimeData]);
 
-    const divisiUser = realtimeData?.divisi?.toUpperCase() || "";
+    const divisiUser = (realtimeData?.divisi || "").toUpperCase();
     const isSatlantas = divisiUser.includes('SATLANTAS');
 
     const bonusPotential = (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) ? 35000 :
@@ -153,7 +176,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         if (!range.from || !range.to) return 0;
         const endRange = endOfDay(range.to);
         return userReports.filter(r => {
-            const reportDate = parseISO(r.created_at);
+            const reportDate = safeParseDate(r.created_at);
             return reportDate >= range.from! && reportDate <= endRange;
         }).length;
     }, [range, userReports]);
@@ -233,9 +256,14 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            // 💡 PERBAIKAN: Dapatkan Discord ID dari realtimeData jika Supabase user null
+            // 💡 PERBAIKAN: Resolusi Discord ID dengan Fallback Lengkap
             const { data: { user } } = await supabase.auth.getUser();
-            const discordId = user?.user_metadata?.provider_id || user?.id || realtimeData?.discord_id || realtimeData?.id;
+            const discordId = user?.user_metadata?.provider_id || 
+                              user?.user_metadata?.sub || 
+                              user?.id || 
+                              realtimeData?.user_id_discord || 
+                              realtimeData?.discord_id || 
+                              realtimeData?.id;
 
             if (!discordId) {
                 showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi Discord ID akun Anda.", "ERROR");
@@ -245,30 +273,44 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
             const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
 
-            const { data: existing } = await supabase.from('pengajuan_gaji')
+            const { data: existing, error: checkError } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
-                .eq('user_id_discord', discordId);
+                .eq('user_id_discord', String(discordId));
 
-            const isOverlap = existing?.some(c => (range.from! <= new Date(c.tanggal_selesai) && range.to! >= new Date(c.tanggal_mulai)));
+            if (checkError) {
+                console.error("Check existing error:", checkError);
+            }
+
+            // Safe parsing tanggal overlap
+            const isOverlap = existing?.some(c => {
+                const existingStart = safeParseDate(c.tanggal_mulai);
+                const existingEnd = safeParseDate(c.tanggal_selesai);
+                return (range.from! <= existingEnd && range.to! >= existingStart);
+            });
+
             if (isOverlap) {
                 showNotif("JANGAN OVER-CLAIM", "Tanggal ini sudah pernah diajukan (Termasuk yang telah PENDING/PAID/DITOLAK). Cek History Log.", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // 💡 PERBAIKAN: Penanganan error Supabase secara eksplisit
-            const { error } = await supabase.from('pengajuan_gaji').insert([{
+            // 💡 PERBAIKAN: Insert Payload & Error Logging Detail
+            const payload = {
                 user_id_discord: String(discordId),
-                nama_panggilan: nickname || realtimeData?.name || "Unknown",
-                pangkat: realtimeData?.pangkat || "RECRUIT",
+                nama_panggilan: nickname || realtimeData?.nama_panggilan || realtimeData?.name || "Unknown",
+                pangkat: userPangkat || "RECRUIT",
                 divisi: realtimeData?.divisi || "NON DIVISI",
-                jumlah_gaji: finalSalary,
+                jumlah_gaji: Number(finalSalary),
                 tanggal_mulai: startStr,
                 tanggal_selesai: endStr,
-                status: 'PENDING'
-            }]);
+                status: 'PENDING' as const
+            };
 
-            if (error) {
-                showNotif("GAGAL PENGAJUAN", error.message || "Gagal menyimpan pengajuan ke database.", "ERROR");
+            const { error: insertError } = await supabase.from('pengajuan_gaji').insert([payload]);
+
+            if (insertError) {
+                console.error("Supabase Insert Detail Error:", insertError);
+                const detailMsg = insertError.message || insertError.details || insertError.hint || "Gagal menyimpan pengajuan ke database.";
+                showNotif("GAGAL PENGAJUAN", detailMsg, "ERROR");
                 setIsVerifying(false);
                 return;
             }
@@ -277,6 +319,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             setRange({ from: null, to: null }); 
             fetchHistoryAndReports();
         } catch (err: unknown) {
+            console.error("System Catch Error:", err);
             const errorMsg = err instanceof Error ? err.message : 
                 (typeof err === 'object' && err !== null && 'message' in err) ? String((err as Record<string, unknown>).message) : "Terjadi kesalahan sistem.";
             showNotif("SISTEM ERROR", errorMsg, "ERROR");
@@ -299,7 +342,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     });
 
                     const link = document.createElement('a');
-                    link.download = `MPD_Payslip_${log.nama_panggilan}_${format(new Date(log.tanggal_mulai), 'MMM_yyyy')}.png`;
+                    link.download = `MPD_Payslip_${log.nama_panggilan}_${format(safeParseDate(log.tanggal_mulai), 'MMM_yyyy')}.png`;
                     link.href = dataUrl;
                     link.click();
 
@@ -347,7 +390,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <Wallet size={20} />
                         </div>
                         <span className="text-[10px] font-semibold tracking-wider bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-1 rounded-full uppercase">
-                            {realtimeData?.pangkat || 'RECRUIT'}
+                            {userPangkat || 'RECRUIT'}
                         </span>
                     </div>
                     <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">Base Salary {selectedWeeksCount > 1 ? '(x2 Weeks)' : ''}</p>
@@ -487,7 +530,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                     <div className="space-y-1.5">
                                         <h4 className="text-2xl font-bold tracking-tight text-white">${Number(log.jumlah_gaji).toLocaleString()}</h4>
                                         <p className="text-xs text-zinc-400">
-                                            Period: {format(new Date(log.tanggal_mulai), 'dd MMM')} - {format(new Date(log.tanggal_selesai), 'dd MMM')}
+                                            Period: {format(safeParseDate(log.tanggal_mulai), 'dd MMM')} - {format(safeParseDate(log.tanggal_selesai), 'dd MMM')}
                                         </p>
 
                                         <div className={cn(
@@ -544,7 +587,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                 <p className="text-xs text-zinc-400 flex items-center gap-1"><MapPin size={12} /> HQ Mandalika • Central District</p>
                             </div>
                             <div className="bg-zinc-900 border border-zinc-800 text-zinc-300 px-4 py-2 rounded-xl font-mono text-xs font-semibold">
-                                #MPD-{selectedSlip.id.substring(0, 6).toUpperCase()}
+                                #MPD-{selectedSlip.id ? selectedSlip.id.substring(0, 6).toUpperCase() : 'PAYSLIP'}
                             </div>
                         </div>
 
@@ -552,10 +595,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <div className="space-y-4">
                                 <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Nama Lengkap</p><p className="font-bold text-sm text-zinc-200 mt-0.5">{selectedSlip.nama_panggilan}</p></div>
                                 <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Pangkat / Divisi</p><p className="font-bold text-sm text-red-400 mt-0.5">{selectedSlip.pangkat} / {selectedSlip.divisi || 'UNIT'}</p></div>
-                                <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Periode Gaji</p><p className="font-medium text-zinc-300 mt-0.5">{format(new Date(selectedSlip.tanggal_mulai), 'dd MMM')} - {format(new Date(selectedSlip.tanggal_selesai), 'dd MMM yyyy')}</p></div>
+                                <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Periode Gaji</p><p className="font-medium text-zinc-300 mt-0.5">{format(safeParseDate(selectedSlip.tanggal_mulai), 'dd MMM')} - {format(safeParseDate(selectedSlip.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
                             <div className="space-y-4">
-                                <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Tanggal Pengajuan</p><p className="font-medium text-zinc-300 mt-0.5">{format(parseISO(selectedSlip.created_at), 'dd MMMM yyyy', { locale: id })}</p></div>
+                                <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Tanggal Pengajuan</p><p className="font-medium text-zinc-300 mt-0.5">{format(safeParseDate(selectedSlip.created_at), 'dd MMMM yyyy', { locale: id })}</p></div>
                                 <div><p className="text-zinc-500 uppercase tracking-wider text-[10px] font-semibold">Tanggal Pencairan</p><p className="font-medium text-zinc-300 mt-0.5">{format(new Date(), 'dd MMMM yyyy', { locale: id })}</p></div>
                                 <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
                                     <p className="text-[9px] uppercase tracking-wider text-zinc-500 font-semibold mb-0.5">Approved By</p>

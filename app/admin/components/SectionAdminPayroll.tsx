@@ -67,7 +67,8 @@ interface Duty {
     user_id_discord: string;
     start_time: string;
     end_time?: string;
-    duration?: number;
+    durasi_menit?: number;
+    status?: string;
 }
 
 interface UserRecord {
@@ -128,11 +129,23 @@ type SlipData = PayrollRequest & {
     finalGaji: number;
 };
 
-const getLocalSafeDate = (isoString: string) => {
-    if (!isoString) return new Date();
-    const d = new Date(isoString);
-    d.setHours(d.getHours() + 12);
-    return d;
+// 🛠️ HELPER PARSING TANGGAL WIB (UTC+7) AGAR TEPAT TANPA SHIFT DAY / OFF-BY-ONE
+const getWIBDateStr = (dateInput: string | Date) => {
+    if (!dateInput) return '';
+    try {
+        const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+        if (isNaN(d.getTime())) return '';
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d);
+    } catch {
+        return '';
+    }
+};
+
+const parseDateOnly = (str: string) => {
+    if (!str) return new Date();
+    const datePart = str.split('T')[0];
+    const [y, m, d] = datePart.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
 };
 
 export default function SectionAdminPayroll() {
@@ -176,7 +189,8 @@ export default function SectionAdminPayroll() {
         const { data: reqData } = await supabase.from('pengajuan_gaji').select('*').order('created_at', { ascending: false });
         if (reqData) setRequests(reqData);
 
-        const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, duration');
+        // FIX: Ambil durasi_menit & status dari presensi_duty
+        const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, durasi_menit, status');
         if (dutyData) setDuties(dutyData);
 
         const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_jam_duty');
@@ -234,9 +248,9 @@ export default function SectionAdminPayroll() {
     const availablePeriods = useMemo(() => {
         const periods = new Set<string>();
         requests.filter(r => r.status === 'PAID' && r.tanggal_mulai && r.tanggal_selesai).forEach(r => {
-            const s = format(getLocalSafeDate(r.tanggal_mulai), 'yyyy-MM-dd');
-            const e = format(getLocalSafeDate(r.tanggal_selesai), 'yyyy-MM-dd');
-            periods.add(`${s}|${e}`);
+            const s = getWIBDateStr(r.tanggal_mulai);
+            const e = getWIBDateStr(r.tanggal_selesai);
+            if (s && e) periods.add(`${s}|${e}`);
         });
         return Array.from(periods).sort().reverse();
     }, [requests]);
@@ -246,8 +260,8 @@ export default function SectionAdminPayroll() {
         const wakadivIds = BONUS_RULES.wakadivRoles.map(r => r.id);
 
         return requests.map(req => {
-            const start = startOfDay(getLocalSafeDate(req.tanggal_mulai));
-            const end = startOfDay(getLocalSafeDate(req.tanggal_selesai));
+            const start = parseDateOnly(req.tanggal_mulai);
+            const end = parseDateOnly(req.tanggal_selesai);
             const daysInPeriod = eachDayOfInterval({ start, end });
             const discordId = req.user_id_discord;
 
@@ -281,8 +295,21 @@ export default function SectionAdminPayroll() {
                 bonusJabatanLabel = 'Bonus Wakadiv';
             }
 
-            // 3. JAM DUTY DANGSUNG DARI DATABASE USERS (total_jam_duty)
-            const totalDutyHours = parseFloat(String(userObj?.total_jam_duty || "0")) || 0;
+            // 3. KALKULASI JAM DUTY PRESISI DARI presensi_duty KEMUDIAN FALLBACK KE users.total_jam_duty
+            const startStr = getWIBDateStr(start);
+            const endStr = getWIBDateStr(end);
+
+            const userDutiesInPeriod = duties.filter(d => {
+                if (d.user_id_discord !== discordId) return false;
+                const dDateStr = getWIBDateStr(d.start_time);
+                return dDateStr >= startStr && dDateStr <= endStr;
+            });
+
+            const totalMenitInPeriod = userDutiesInPeriod.reduce((sum, d) => sum + (Number(d.durasi_menit) || 0), 0);
+            const calculatedDutyHours = Math.round((totalMenitInPeriod / 60) * 10) / 10;
+            const userObjDuty = parseFloat(String(userObj?.total_jam_duty || "0")) || 0;
+
+            const totalDutyHours = calculatedDutyHours > 0 ? calculatedDutyHours : userObjDuty;
             const is100HoursDuty = totalDutyHours >= 100;
 
             // 4. PARSING NAMA DAN BADGE
@@ -306,15 +333,26 @@ export default function SectionAdminPayroll() {
 
             const cleanName = rawName.toUpperCase();
 
-            let hadirCount = 0; let cutiCount = 0;
+            // 5. KALKULASI HADIR, CUTI, ALFA DENGAN TIMEZONE WIB
+            let hadirCount = 0;
+            let cutiCount = 0;
 
             daysInPeriod.forEach(day => {
-                const targetStr = format(day, 'yyyy-MM-dd');
-                const isHadir = duties.some(d => d.user_id_discord === discordId && format(getLocalSafeDate(d.start_time), 'yyyy-MM-dd') === targetStr);
+                const targetStr = getWIBDateStr(day);
+                const isHadir = duties.some(d =>
+                    d.user_id_discord === discordId &&
+                    getWIBDateStr(d.start_time) === targetStr
+                );
 
-                if (isHadir) hadirCount++;
-                else {
-                    const isCuti = cutis.some(c => c.status === 'APPROVED' && c.user_id_discord === discordId && day >= startOfDay(getLocalSafeDate(c.tanggal_mulai)) && day <= startOfDay(getLocalSafeDate(c.tanggal_selesai)));
+                if (isHadir) {
+                    hadirCount++;
+                } else {
+                    const isCuti = cutis.some(c => {
+                        if (c.status !== 'APPROVED' || c.user_id_discord !== discordId) return false;
+                        const cStartStr = getWIBDateStr(c.tanggal_mulai);
+                        const cEndStr = getWIBDateStr(c.tanggal_selesai);
+                        return targetStr >= cStartStr && targetStr <= cEndStr;
+                    });
                     if (isCuti) cutiCount++;
                 }
             });
@@ -395,8 +433,8 @@ export default function SectionAdminPayroll() {
             if (selectedPeriod !== 'ALL') {
                 const [startTarget, endTarget] = selectedPeriod.split('|');
                 data = data.filter(r =>
-                    format(getLocalSafeDate(r.tanggal_mulai), 'yyyy-MM-dd') === startTarget &&
-                    format(getLocalSafeDate(r.tanggal_selesai), 'yyyy-MM-dd') === endTarget
+                    getWIBDateStr(r.tanggal_mulai) === startTarget &&
+                    getWIBDateStr(r.tanggal_selesai) === endTarget
                 );
             }
             return data;
@@ -755,7 +793,7 @@ export default function SectionAdminPayroll() {
                                 <option value="ALL" className="bg-zinc-900">Semua Periode</option>
                                 {availablePeriods.map(p => {
                                     const [s, e] = p.split('|');
-                                    return <option key={p} value={p} className="bg-zinc-900">{format(new Date(s), 'dd MMM')} - {format(new Date(e), 'dd MMM yyyy')}</option>
+                                    return <option key={p} value={p} className="bg-zinc-900">{format(parseDateOnly(s), 'dd MMM')} - {format(parseDateOnly(e), 'dd MMM yyyy')}</option>
                                 })}
                             </select>
                         </div>
@@ -822,7 +860,7 @@ export default function SectionAdminPayroll() {
                                                     <p className="text-[10px] text-red-400 font-mono mt-0.5">{req.pangkat} • #{req.badgeNumber}</p>
                                                 </td>
                                                 <td className="p-4 text-zinc-400 font-medium">
-                                                    {format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM/yy')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM/yy')}
+                                                    {format(parseDateOnly(req.tanggal_mulai), 'dd/MM/yy')} - {format(parseDateOnly(req.tanggal_selesai), 'dd/MM/yy')}
                                                 </td>
                                                 <td className="p-4 text-center font-mono">
                                                     <span className="text-emerald-400">{req.hadir}</span> / <span className="text-amber-400">{req.cuti}</span> / <span className="text-red-400">{req.alpha}</span>
@@ -879,7 +917,7 @@ export default function SectionAdminPayroll() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-lg text-zinc-400 font-mono">
-                                                {format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM')}
+                                                {format(parseDateOnly(req.tanggal_mulai), 'dd/MM')} - {format(parseDateOnly(req.tanggal_selesai), 'dd/MM')}
                                             </span>
                                             <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-zinc-500 hover:text-red-400 p-1.5 rounded-lg transition-colors">
                                                 <Trash2 size={14} />
@@ -1114,7 +1152,7 @@ export default function SectionAdminPayroll() {
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Nama Personel</p><p className="font-bold text-sm text-zinc-100">{currentSlipData.cleanName}</p></div>
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Pangkat / Badge</p><p className="font-bold text-sm text-red-400 font-mono">{currentSlipData.pangkat} / #{currentSlipData.badgeNumber}</p></div>
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Divisi & Jabatan</p><p className="font-bold text-zinc-200">{currentSlipData.divisi || 'UNIT'} {currentSlipData.bonusJabatanLabel ? `(${currentSlipData.bonusJabatanLabel.replace('Bonus ', '')})` : ''}</p></div>
-                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Periode Gaji</p><p className="font-medium text-zinc-300">{format(getLocalSafeDate(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(getLocalSafeDate(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Periode Gaji</p><p className="font-medium text-zinc-300">{format(parseDateOnly(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(parseDateOnly(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
                             <div className="space-y-4">
                                 <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Total Jam Duty DB</p><p className="font-bold text-emerald-400 font-mono">{currentSlipData.totalDutyHours} Jam {currentSlipData.is100HoursDuty && '(2x Bonus)'}</p></div>

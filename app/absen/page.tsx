@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
-// TacticalTransition removed: unused in this file
 
 const boxBorder = "border-[2px] border-zinc-800";
 const cardShadow = "shadow-[4px_4px_0px_#ef4444]";
@@ -289,6 +288,24 @@ export default function AbsenPage() {
                 ]);
 
                 if (error) throw error;
+
+                // 🚀 KIRIM WEBHOOK DISCORD
+                try {
+                    const discordWebhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA";
+
+                    const discordPayload = {
+                        content: `**SURAT IZIN**\n\n\`\`\`Nama: ${identity.nama}\nBadge : ${identity.badgeNumber}\nRank : ${identity.pangkat}\nDivision : ${identity.divisi} \nIzin tidak duty : ${cutiForm.tanggal_mulai}\nDuty aktif kembali : ${cutiForm.tanggal_selesai} \nAlasan tidak duty : ${cutiForm.alasan}\`\`\`\n\n<@&1449382385090166844> \n<@&1518414822318800987>`
+                    };
+
+                    await fetch(discordWebhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(discordPayload)
+                    });
+                } catch (webhookError) {
+                    console.error("Gagal mengirim webhook ke Discord:", webhookError);
+                }
+
                 toast.success("Pengajuan izin/cuti berhasil terkirim! Mengalihkan ke halaman utama...", { id: tId });
                 handleNavigation('/dashboard');
             }
@@ -303,14 +320,13 @@ export default function AbsenPage() {
 
     return (
         <div className="min-h-screen bg-[#09090b] text-zinc-100 font-mono p-4 flex flex-col items-center overflow-x-hidden relative pb-20">
-            {/* <TacticalTransition isVisible={isNavigating} /> */}
             <Toaster position="top-center" theme="dark" richColors />
 
-            {/* 🚀 HEADER */}
+            {/* HEADER */}
             <div className="w-full max-w-md flex items-center justify-between mb-6 mt-2">
                 <button
                     onClick={() => handleNavigation('/dashboard')}
-                    className="p-2.5 bg-[#121214] text-zinc-200 border-2 border-zinc-800 rounded-lg shadow-[2px_2px_0px_#ef4444] active:translate-y-px transition-all hover:border-red-600"
+                    className="p-2.5 bg-[#121214] text-zinc-200 border-2 border-zinc-800 rounded-lg shadow-[2px_2px_0px_#ef4444] active:translate-y-px transition-all hover:border-red-600 cursor-pointer"
                 >
                     <ArrowLeft size={18} />
                 </button>
@@ -325,7 +341,7 @@ export default function AbsenPage() {
 
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md bg-[#121214] ${boxBorder} rounded-3xl ${cardShadow} p-5`}>
 
-                {/* 🚀 IDENTITY BADGE */}
+                {/* IDENTITY BADGE */}
                 <div className="grid grid-cols-3 gap-2 items-center bg-[#18181b] border-2 border-zinc-800 p-2.5 rounded-xl mb-6 shadow-inner text-center">
                     <div className="truncate text-left">
                         <p className="text-[8px] font-black text-zinc-500 uppercase italic">Personnel</p>
@@ -341,7 +357,7 @@ export default function AbsenPage() {
                     </div>
                 </div>
 
-                {/* 🚀 TAB SELECTION */}
+                {/* TAB SELECTION */}
                 <div className="space-y-2 mb-4">
                     <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
                         <Clock size={12} className="text-red-500" /> Tipe Laporan
@@ -350,7 +366,7 @@ export default function AbsenPage() {
                         <button
                             type="button"
                             onClick={() => setTipe('ON_DUTY')}
-                            className={`py-3 px-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                            className={`py-3 px-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 tipe === 'ON_DUTY'
                                     ? 'bg-red-600/10 border-red-500 text-red-500 shadow-[2px_2px_0px_#ef4444]'
                                     : 'bg-[#18181b] border-zinc-800 text-zinc-500 hover:border-zinc-700'
@@ -361,7 +377,7 @@ export default function AbsenPage() {
                         <button
                             type="button"
                             onClick={() => setTipe('IZIN')}
-                            className={`py-3 px-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                            className={`py-3 px-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 tipe === 'IZIN'
                                     ? 'bg-red-600/10 border-red-500 text-red-500 shadow-[2px_2px_0px_#ef4444]'
                                     : 'bg-[#18181b] border-zinc-800 text-zinc-500 hover:border-zinc-700'
@@ -372,7 +388,7 @@ export default function AbsenPage() {
                     </div>
                 </div>
 
-                {/* 🚀 FORM INPUT */}
+                {/* FORM INPUT */}
                 <form onSubmit={handleSubmit} className="space-y-4">
 
                     <AnimatePresence mode="wait">
@@ -467,7 +483,7 @@ export default function AbsenPage() {
                                         </div>
                                     )}
 
-                                    {/* Tombol Upload (Hanya muncul jika belum 3 foto) */}
+                                    {/* Tombol Upload */}
                                     {dutyForm.bukti_foto_urls.length < 3 && (
                                         <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
                                             <div className="flex flex-col items-center justify-center pt-2 pb-2 px-4 text-center">
@@ -514,7 +530,7 @@ export default function AbsenPage() {
                                                 key={j}
                                                 type="button"
                                                 onClick={() => setCutiForm({ ...cutiForm, jenis_izin: j })}
-                                                className={`py-2 px-1 rounded-xl border-2 text-[9px] font-black uppercase transition-all ${
+                                                className={`py-2 px-1 rounded-xl border-2 text-[9px] font-black uppercase transition-all cursor-pointer ${
                                                     cutiForm.jenis_izin === j
                                                         ? 'bg-red-600/10 border-red-500 text-red-500'
                                                         : 'bg-[#18181b] border-zinc-800 text-zinc-500'
@@ -573,7 +589,7 @@ export default function AbsenPage() {
                     <button
                         type="submit"
                         disabled={isSubmitting || uploadingFile || isNavigating}
-                        className="w-full py-4 mt-3 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 border-2 border-zinc-950 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-4 mt-3 rounded-xl font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 border-2 border-zinc-950 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         {isSubmitting || isNavigating ? (
                             <><Loader2 size={18} className="animate-spin" /> MENGIRIM / MENGALIHKAN...</>

@@ -109,7 +109,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                     .single();
 
                 if (data && !error) {
-                    let finalData = { ...data };
+                    const finalData = { ...data };
                     const newRank = data.pangkat?.toUpperCase();
                     const oldRank = parsedSession.pangkat?.toUpperCase() || realtimeData.pangkat?.toUpperCase();
 
@@ -255,7 +255,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
             <TacticalTransition isVisible={navState.active} type={navState.type} />
 
             {/* --- HERO SECTION --- */}
-            <motion.div variants={item} className={`col-span-2 ${cardBase} min-h-[220px] bg-linear-to-br from-[#18181B] to-[#09090B]`}>
+            <motion.div variants={item} className={`col-span-2 ${cardBase} min-h-55 bg-linear-to-br from-[#18181B] to-[#09090B]`}>
                 <div className="absolute -right-6 -bottom-6 opacity-5 pointer-events-none">
                     <Fingerprint size={200} className="text-white" />
                 </div>
@@ -312,7 +312,6 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 <div className="relative z-10 mb-4">
                     <p className="text-xs text-zinc-400 font-medium mb-1">Reputation Points</p>
                     <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                        {/* Diperbaiki agar proper dirender walau nilainya 0 (bukan fallback semu) */}
                         {userData.point_prp ?? 0}
                     </h2>
                 </div>
@@ -345,7 +344,6 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 <div className="relative z-10 mb-4">
                     <p className="text-xs text-zinc-400 font-medium mb-1">Duty Records</p>
                     <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                        {/* Membaca total_jam_duty dari DB, support 0. */}
                         {userData.total_jam_duty ?? 0}
                     </h2>
                 </div>
@@ -382,11 +380,11 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                     </div>
                     
                     <div className="flex gap-4">
-                        <div className="bg-zinc-800/50 rounded-2xl p-3 px-4 flex flex-col items-center justify-center min-w-[90px]">
+                        <div className="bg-zinc-800/50 rounded-2xl p-3 px-4 flex flex-col items-center justify-center min-w-22.5">
                             <span className="text-zinc-400 text-[10px] mb-1 font-medium">Kurang PRP</span>
                             <span className="font-bold text-lg leading-none">{progress.prpNeed}</span>
                         </div>
-                        <div className="bg-zinc-800/50 rounded-2xl p-3 px-4 flex flex-col items-center justify-center min-w-[90px]">
+                        <div className="bg-zinc-800/50 rounded-2xl p-3 px-4 flex flex-col items-center justify-center min-w-22.5">
                             <span className="text-zinc-400 text-[10px] mb-1 font-medium">Kurang Jam</span>
                             <span className="font-bold text-lg leading-none">{progress.hrNeed}</span>
                         </div>
@@ -434,19 +432,19 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
             <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6 mt-2">
                 {isCasis ? (
                     <>
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen-diklat', 'STAR')} className="bg-blue-600 hover:bg-blue-500 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col items-center justify-center gap-3 relative overflow-hidden group">
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen-diklat', 'STAR')} className="bg-blue-600 hover:bg-blue-500 transition-colors p-4 md:p-6 rounded-3xl flex flex-col items-center justify-center gap-3 relative overflow-hidden group">
                             <GraduationCap size={28} className="text-white" />
                             <span className="text-sm md:text-base font-semibold text-white">Absen Diklat</span>
                         </motion.button>
 
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/izin-diklat', 'COMPUTER')} className="bg-zinc-800 hover:bg-zinc-700 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col items-center justify-center gap-3 relative overflow-hidden group">
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/izin-diklat', 'COMPUTER')} className="bg-zinc-800 hover:bg-zinc-700 transition-colors p-4 md:p-6 rounded-3xl flex flex-col items-center justify-center gap-3 relative overflow-hidden group">
                             <HelpCircle size={28} className="text-zinc-300" />
                             <span className="text-sm md:text-base font-semibold text-zinc-200">Izin / Sakit</span>
                         </motion.button>
                     </>
                 ) : (
                     <>
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen', 'STAR')} className="bg-blue-600 hover:bg-blue-500 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 relative overflow-hidden group col-span-1 shadow-lg shadow-blue-900/20">
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/absen', 'STAR')} className="bg-blue-600 hover:bg-blue-500 transition-colors p-4 md:p-6 rounded-3xl flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 relative overflow-hidden group col-span-1 shadow-lg shadow-blue-900/20">
                             <div className="flex flex-col items-center sm:items-start gap-1">
                                 <Radar size={24} className="text-white/80 hidden sm:block mb-1" />
                                 <span className="text-sm md:text-base font-semibold text-white">Absensi</span>
@@ -456,7 +454,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                             </div>
                         </motion.button>
 
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/laporan', 'COMPUTER')} className="bg-zinc-800 hover:bg-zinc-700 transition-colors p-4 md:p-6 rounded-[24px] flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 relative overflow-hidden group col-span-1">
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleAction('/laporan', 'COMPUTER')} className="bg-zinc-800 hover:bg-zinc-700 transition-colors p-4 md:p-6 rounded-3xl flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 relative overflow-hidden group col-span-1">
                             <div className="flex flex-col items-center sm:items-start gap-1">
                                 <FileText size={24} className="text-zinc-400 hidden sm:block mb-1" />
                                 <span className="text-sm md:text-base font-semibold text-zinc-200">Laporan</span>

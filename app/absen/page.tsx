@@ -292,9 +292,10 @@ export default function AbsenPage() {
                 handleNavigation('/dashboard');
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error submit data:", error);
-            toast.error(error.message || "Gagal menyimpan data ke sistem.", { id: tId });
+            const errorMessage = error instanceof Error ? error.message : "Gagal menyimpan data ke sistem.";
+            toast.error(errorMessage, { id: tId });
             setIsSubmitting(false);
         }
     };

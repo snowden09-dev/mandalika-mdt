@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion, Variants } from 'framer-motion';
 import {
@@ -120,7 +121,7 @@ export default function AboutPage() {
                             <Code size={150} className="text-white" />
                         </div>
                         <div className="w-20 h-20 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-                            <img src="/logo-polisi.png" alt="Dev" className="w-12 h-12 object-contain" />
+                            <Image src="/logo-polisi.png" alt="Dev" width={48} height={48} className="w-12 h-12 object-contain" />
                         </div>
                         <div className="text-center md:text-left relative z-10">
                             <p className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 mb-1">Chief Architect & Developer</p>

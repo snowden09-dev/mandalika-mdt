@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import {
     ArrowLeft, ShieldAlert, Send, Clock, FileText, Upload,
     Calendar, Loader2, Image as ImageIcon, Palmtree, Trash2
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
-import TacticalTransition from '@/app/dashboard/components/TacticalTransition'; // Sesuaikan path jika perlu
+// TacticalTransition removed: unused in this file
 
 const boxBorder = "border-[2px] border-zinc-800";
 const cardShadow = "shadow-[4px_4px_0px_#ef4444]";
@@ -449,7 +450,7 @@ export default function AbsenPage() {
                                         <div className="grid grid-cols-3 gap-2">
                                             {dutyForm.bukti_foto_urls.map((url, index) => (
                                                 <div key={index} className="relative group rounded-xl overflow-hidden border-2 border-zinc-800 bg-[#18181b] aspect-square">
-                                                    <img src={url} alt={`Bukti ${index + 1}`} className="w-full h-full object-cover" />
+                                                    <Image src={url} alt={`Bukti ${index + 1}`} fill className="object-cover" />
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemovePhoto(index)}
@@ -475,7 +476,7 @@ export default function AbsenPage() {
                                                 ) : (
                                                     <Upload className="w-5 h-5 text-zinc-500 mb-1" />
                                                 )}
-                                                <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-[260px]">
+                                                <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-65">
                                                     {uploadingFile ? "Mengunggah..." : "Klik untuk tambah foto"}
                                                 </p>
                                                 <p className="text-[8px] text-zinc-600 uppercase mt-0.5">

@@ -140,8 +140,8 @@ type PayrollSectionProps = {
     totalPages: number;
 };
 
-const SectionLogComponent = SectionLog as React.ComponentType<PayrollSectionProps>;
-const SectionSalaryComponent = SectionSalary as React.ComponentType<PayrollSectionProps>;
+const SectionLogComponent = SectionLog as unknown as React.ComponentType<PayrollSectionProps>;
+const SectionSalaryComponent = SectionSalary as unknown as React.ComponentType<PayrollSectionProps>;
 
 export default function PortalPage() {
     const router = useRouter();

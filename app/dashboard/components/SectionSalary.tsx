@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
@@ -19,7 +19,7 @@ import {
 import { id } from 'date-fns/locale';
 import { supabase } from "@/lib/supabase";
 
-// 🚀 SCHEMATIC INTERFACE TABEL users SUPABASE
+// 🚀 SCHEMATIC INTERFACE TABEL users SUPABASE (PERSIS SESUAI SCHEMA)
 export interface UserData {
     idx?: number;
     id: string;
@@ -85,7 +85,7 @@ const safeParseDate = (dateStr: string): Date => {
     }
 };
 
-export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: UserData }) {
+export default function SectionSalary({ nickname, realtimeData }: { nickname?: string, realtimeData?: UserData }) {
     const slipRef = useRef<HTMLDivElement>(null);
     const [currentMonth, setCurrentMonth] = useState(getWIBTime());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
@@ -109,6 +109,21 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     const showNotif = (title: string, message: string, type: 'ERROR' | 'SUCCESS' | 'INFO') => {
         setNotif({ show: true, title, message, type });
     };
+
+    // 💡 ENHANCED RESOLUTION UNTUK DISCORD ID / USER ID (MULTI-FALLBACK)
+    const activeDiscordId = useMemo(() => {
+        return (
+            dbUser?.discord_id ||
+            dbUser?.id ||
+            realtimeData?.discord_id ||
+            realtimeData?.id ||
+            null
+        );
+    }, [dbUser, realtimeData]);
+
+    const activePangkat = dbUser?.pangkat || realtimeData?.pangkat || "RECRUIT";
+    const activeDivisi = dbUser?.divisi || realtimeData?.divisi || "NON DIVISI";
+    const activeName = dbUser?.name || realtimeData?.name || nickname || "Unknown Officer";
 
     // 💡 FUZZY MATCHING PANGKAT
     const getGajiByRank = (pangkatRaw?: string) => {
@@ -139,62 +154,68 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return 90000;
     };
 
-    // prioritize state dbUser, fallback ke props realtimeData
-    const activePangkat = dbUser?.pangkat || realtimeData?.pangkat || "RECRUIT";
-    const activeDivisi = dbUser?.divisi || realtimeData?.divisi || "NON DIVISI";
-    const activeName = dbUser?.name || nickname || realtimeData?.name || "Unknown";
-    const activeDiscordId = dbUser?.discord_id || dbUser?.id || realtimeData?.discord_id || realtimeData?.id;
-
     const baseSalary = useMemo(() => getGajiByRank(activePangkat), [activePangkat]);
 
-    // 💡 FETCH USER DATA DIRECTLY FROM `users` TABLE & HISTORY `pengajuan_gaji`
-    const fetchUserDataAndHistory = async () => {
+    // 💡 FETCH USER DATA & HISTORY DENGAN IDENTIFIKASI RIGORUS
+    const fetchUserDataAndHistory = useCallback(async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            const targetDiscordId = user?.user_metadata?.provider_id || 
-                                    user?.user_metadata?.sub || 
-                                    user?.id || 
-                                    activeDiscordId;
+            let targetId = activeDiscordId;
 
-            if (!targetDiscordId) return;
+            // Jika belum terdeteksi dari props/state, coba dari Session Auth Supabase
+            if (!targetId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                targetId = 
+                    user?.user_metadata?.provider_id || 
+                    user?.user_metadata?.sub || 
+                    user?.user_metadata?.discord_id ||
+                    user?.id ||
+                    null;
+            }
 
-            // 1. Get exact user info from table `users`
+            if (!targetId) {
+                console.warn("[SectionSalary] Discord ID / User ID belum ditemukan.");
+                return;
+            }
+
+            // 1. Fetch data profil user langsung dari tabel `users`
             const { data: userData, error: userError } = await supabase
                 .from('users')
                 .select('*')
-                .eq('discord_id', String(targetDiscordId))
+                .or(`discord_id.eq.${targetId},id.eq.${targetId}`)
                 .maybeSingle();
 
             if (userData && !userError) {
                 setDbUser(userData as UserData);
             }
 
+            const validId = userData?.discord_id || userData?.id || targetId;
+
             // 2. Fetch history pengajuan_gaji
             const { data: historyData } = await supabase
                 .from('pengajuan_gaji')
                 .select('*')
-                .eq('user_id_discord', String(targetDiscordId))
+                .eq('user_id_discord', String(validId))
                 .order('created_at', { ascending: false });
 
             if (historyData) setHistory(historyData as PengajuanGaji[]);
 
-            // 3. Fetch laporan_aktivitas tilang
+            // 3. Fetch laporan_aktivitas tilang untuk hitung bonus Satlantas
             const { data: reportsData } = await supabase
                 .from('laporan_aktivitas')
                 .select('created_at')
-                .eq('user_id_discord', String(targetDiscordId))
+                .eq('user_id_discord', String(validId))
                 .eq('jenis_laporan', 'Penilangan')
                 .eq('status', 'APPROVED');
 
             if (reportsData) setUserReports(reportsData as UserReport[]);
         } catch (e) {
-            console.error("Error syncing user data:", e);
+            console.error("[SectionSalary] Error syncing data:", e);
         }
-    };
+    }, [activeDiscordId]);
 
     useEffect(() => { 
         fetchUserDataAndHistory(); 
-    }, [realtimeData]);
+    }, [fetchUserDataAndHistory]);
 
     const divisiUser = activeDivisi.toUpperCase();
     const isSatlantas = divisiUser.includes('SATLANTAS');
@@ -263,11 +284,24 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
         setIsVerifying(true);
         try {
+            // Re-check target Discord ID secara dinamis sebelum submit
+            let targetId = activeDiscordId;
+            if (!targetId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                targetId = user?.user_metadata?.provider_id || user?.user_metadata?.sub || user?.id || null;
+            }
+
+            if (!targetId) {
+                showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi ID Discord akun Anda. Coba refresh / re-login.", "ERROR");
+                setIsVerifying(false);
+                return;
+            }
+
             const startDayObj = startOfDay(range.from);
             const endDayObj = startOfDay(range.to);
 
             if (getDay(startDayObj) !== 1 || getDay(endDayObj) !== 0) {
-                showNotif("PILIHAN HARI SALAH", "Pilih periode gaji hari Senin sampai Minggu.", "ERROR");
+                showNotif("PILIHAN HARI SALAH", "Pilih periode gaji dari hari SENIN sampai MINGGU.", "ERROR");
                 setIsVerifying(false); return;
             }
 
@@ -288,17 +322,13 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            if (!activeDiscordId) {
-                showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi Discord ID akun Anda.", "ERROR");
-                setIsVerifying(false); return;
-            }
-
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
             const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
 
+            // Cek apakah tanggal ini pernah diajukan sebelumnya
             const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
-                .eq('user_id_discord', String(activeDiscordId));
+                .eq('user_id_discord', String(targetId));
 
             const isOverlap = existing?.some(c => {
                 const existingStart = safeParseDate(c.tanggal_mulai);
@@ -311,9 +341,9 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            // 💡 INSERT PAYLOAD DISESUAIKAN DENGAN TABLE USERS & PENGAJUAN_GAJI
+            // 💡 PAYLOAD DISESUAIKAN DENGAN TABEL PENGAJUAN_GAJI & USERS
             const payload = {
-                user_id_discord: String(activeDiscordId),
+                user_id_discord: String(targetId),
                 nama_panggilan: activeName,
                 pangkat: activePangkat,
                 divisi: activeDivisi,
@@ -326,7 +356,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const { error: insertError } = await supabase.from('pengajuan_gaji').insert([payload]);
 
             if (insertError) {
-                console.error("Supabase Insert Error Detail:", insertError);
+                console.error("Supabase Insert Error:", insertError);
                 showNotif("GAGAL PENGAJUAN", insertError.message || "Gagal menyimpan pengajuan ke database.", "ERROR");
                 setIsVerifying(false);
                 return;
@@ -378,6 +408,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-12 gap-6 pb-32 font-sans text-zinc-100">
+            
             {/* HERO BENTO */}
             <div className="md:col-span-8 bg-linear-to-br from-zinc-900 via-zinc-900 to-red-950/40 p-6 md:p-8 rounded-2xl border border-zinc-800 relative overflow-hidden shadow-xl shadow-red-950/10 flex flex-col justify-between min-h-45">
                 <div className="absolute -right-12 -top-12 w-48 h-48 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -390,7 +421,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     <div>
                         <div className="flex items-center gap-2 mb-1.5">
                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            <p className="text-xs font-medium tracking-widest text-red-400 uppercase">Finance System Ready</p>
+                            <p className="text-xs font-medium tracking-widest text-red-400 uppercase">Finance System Active</p>
                         </div>
                         <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white uppercase">PAYROLL</h1>
                         <p className="text-sm text-zinc-400 mt-1">Officer: <span className="text-zinc-200 font-semibold">{activeName}</span></p>
@@ -590,7 +621,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 </div>
             </div>
 
-            {/* ELEMEN TERSEMBUNYI UNTUK GENERATE SLIP */}
+            {/* ELEMEN TERSEMBUNYI UNTUK GENERATE PAYSLIP IMAGE */}
             {selectedSlip && (
                 <div style={{ position: 'absolute', top: '-4000px', left: '-4000px', zIndex: -100 }}>
                     <div ref={slipRef} className="bg-zinc-950 w-150 border border-zinc-800 p-10 space-y-8 text-zinc-100 rounded-3xl font-sans relative overflow-hidden">
@@ -640,7 +671,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 </div>
             )}
 
-            {/* MODAL NOTIFIKASI MINIMALIST DARK */}
+            {/* MODAL NOTIFIKASI DARK */}
             <AnimatePresence>
                 {notif.show && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">

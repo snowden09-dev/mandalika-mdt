@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, ShieldAlert, Send, Clock, FileText, Upload,
-    Calendar, Loader2, Image as ImageIcon, Palmtree
+    Calendar, Loader2, Image as ImageIcon, Palmtree, Trash2
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
-import TacticalTransition from '@/app/dashboard/components/TacticalTransition';
+import TacticalTransition '@/app/dashboard/components/TacticalTransition'; // Sesuaikan path jika perlu
 
 const boxBorder = "border-[2px] border-zinc-800";
 const cardShadow = "shadow-[4px_4px_0px_#ef4444]";
@@ -120,18 +120,19 @@ export default function AbsenPage() {
         setTimeout(() => router.push(path), 3000);
     };
 
-    // 📤 Upload Multi-Foto (Minimal 2, Maksimal 3)
+    // 📤 Upload Foto (Bisa 1 per 1 atau sekaligus, akumulatif maks 3)
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        if (files.length < 2) {
-            toast.error("Minimal harus memilih 2 foto bukti sekaligus!");
+        const currentCount = dutyForm.bukti_foto_urls.length;
+        if (currentCount >= 3) {
+            toast.error("Maksimal sudah mencapai 3 foto! Hapus salah satu jika ingin mengganti.");
             return;
         }
 
-        if (files.length > 3) {
-            toast.error("Maksimal hanya bisa upload 3 foto sekaligus!");
+        if (currentCount + files.length > 3) {
+            toast.error(`Anda hanya dapat menambah ${3 - currentCount} foto lagi (Maksimal 3).`);
             return;
         }
 
@@ -166,7 +167,10 @@ export default function AbsenPage() {
                 uploadedUrls.push(publicUrl);
             }
 
-            setDutyForm(prev => ({ ...prev, bukti_foto_urls: uploadedUrls }));
+            setDutyForm(prev => ({ 
+                ...prev, 
+                bukti_foto_urls: [...prev.bukti_foto_urls, ...uploadedUrls] 
+            }));
             toast.success(`${uploadedUrls.length} Bukti foto berhasil diunggah!`, { id: tId });
         } catch (error: any) {
             console.error("Gagal upload:", error);
@@ -175,6 +179,15 @@ export default function AbsenPage() {
             setUploadingFile(false);
             e.target.value = '';
         }
+    };
+
+    // 🗑️ Hapus Foto dari List Preview
+    const handleRemovePhoto = (indexToRemove: number) => {
+        setDutyForm(prev => ({
+            ...prev,
+            bukti_foto_urls: prev.bukti_foto_urls.filter((_, index) => index !== indexToRemove)
+        }));
+        toast.success("Foto berhasil dihapus dari daftar bukti.");
     };
 
     // 📝 Submit Form
@@ -187,8 +200,14 @@ export default function AbsenPage() {
             if (tipe === 'ON_DUTY') {
                 if (!dutyForm.tanggal) return toast.error("Tanggal wajib diisi!", { id: tId });
                 if (!dutyForm.jam_duty) return toast.error("Jam duty wajib diisi!", { id: tId });
-                if (dutyForm.bukti_foto_urls.length < 2) return toast.error("Minimal 2 bukti foto wajib diunggah!", { id: tId });
-                if (dutyForm.bukti_foto_urls.length > 3) return toast.error("Maksimal bukti foto yang diizinkan adalah 3!", { id: tId });
+                if (dutyForm.bukti_foto_urls.length < 2) {
+                    setIsSubmitting(false);
+                    return toast.error("Minimal harus mengunggah 2 foto bukti sebelum mengirim presensi!", { id: tId });
+                }
+                if (dutyForm.bukti_foto_urls.length > 3) {
+                    setIsSubmitting(false);
+                    return toast.error("Maksimal bukti foto yang diizinkan adalah 3!", { id: tId });
+                }
 
                 let durasi = 0;
                 let startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
@@ -281,7 +300,7 @@ export default function AbsenPage() {
 
     return (
         <div className="min-h-screen bg-[#09090b] text-zinc-100 font-mono p-4 flex flex-col items-center overflow-x-hidden relative pb-20">
-            <TacticalTransition isVisible={isNavigating} />
+            {/* <TacticalTransition isVisible={isNavigating} /> */}
             <Toaster position="top-center" theme="dark" richColors />
 
             {/* 🚀 HEADER */}
@@ -417,34 +436,60 @@ export default function AbsenPage() {
                                     />
                                 </div>
 
-                                {/* UPLOAD FOTO (2-3 FOTO) */}
-                                <div className="space-y-2">
+                                {/* UPLOAD & PREVIEW FOTO */}
+                                <div className="space-y-3">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                        <ImageIcon size={12} className="text-red-500" /> Upload Bukti Foto (2-3)
+                                        <ImageIcon size={12} className="text-red-500" /> Bukti Foto (Minimal 2, Maksimal 3)
                                     </label>
-                                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
-                                        <div className="flex flex-col items-center justify-center pt-3 pb-3 px-4 text-center">
-                                            {uploadingFile ? (
-                                                <Loader2 className="w-6 h-6 text-red-500 animate-spin mb-1" />
-                                            ) : (
-                                                <Upload className="w-6 h-6 text-zinc-500 mb-1" />
-                                            )}
-                                            <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-[260px]">
-                                                {dutyForm.bukti_foto_urls.length > 0 
-                                                    ? `${dutyForm.bukti_foto_urls.length} Foto Siap Dikirim` 
-                                                    : "Klik untuk unggah gambar"}
-                                            </p>
-                                            <p className="text-[8px] text-zinc-600 uppercase mt-0.5">Format: PNG/JPG (Minimal 2, Maksimal 3 File)</p>
+
+                                    {/* Grid Preview Foto */}
+                                    {dutyForm.bukti_foto_urls.length > 0 && (
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {dutyForm.bukti_foto_urls.map((url, index) => (
+                                                <div key={index} className="relative group rounded-xl overflow-hidden border-2 border-zinc-800 bg-[#18181b] aspect-square">
+                                                    <img src={url} alt={`Bukti ${index + 1}`} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemovePhoto(index)}
+                                                        className="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white p-1 rounded-lg border border-zinc-950 shadow transition-all flex items-center justify-center cursor-pointer"
+                                                        title="Hapus foto"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                    <span className="absolute bottom-1 left-1 bg-zinc-950/80 text-[8px] px-1.5 py-0.5 rounded text-zinc-300 font-bold">
+                                                        #{index + 1}
+                                                    </span>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            className="hidden"
-                                            onChange={handleFileUpload}
-                                            disabled={uploadingFile}
-                                        />
-                                    </label>
+                                    )}
+
+                                    {/* Tombol Upload (Hanya muncul jika belum 3 foto) */}
+                                    {dutyForm.bukti_foto_urls.length < 3 && (
+                                        <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-zinc-800 border-dashed rounded-xl cursor-pointer bg-[#18181b] hover:border-red-500 transition-all">
+                                            <div className="flex flex-col items-center justify-center pt-2 pb-2 px-4 text-center">
+                                                {uploadingFile ? (
+                                                    <Loader2 className="w-5 h-5 text-red-500 animate-spin mb-1" />
+                                                ) : (
+                                                    <Upload className="w-5 h-5 text-zinc-500 mb-1" />
+                                                )}
+                                                <p className="text-[10px] font-bold text-zinc-400 uppercase truncate max-w-[260px]">
+                                                    {uploadingFile ? "Mengunggah..." : "Klik untuk tambah foto"}
+                                                </p>
+                                                <p className="text-[8px] text-zinc-600 uppercase mt-0.5">
+                                                    {dutyForm.bukti_foto_urls.length === 0 ? "Belum ada foto (Butuh min. 2)" : `${dutyForm.bukti_foto_urls.length}/3 foto terunggah`}
+                                                </p>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                className="hidden"
+                                                onChange={handleFileUpload}
+                                                disabled={uploadingFile}
+                                            />
+                                        </label>
+                                    )}
                                 </div>
                             </motion.div>
                         ) : (

@@ -153,23 +153,23 @@ export default function SectionAdminPayroll() {
             case "WAKAPOLRI": return 185000;
             case "KAPOLRI": return 190000;
             case "KOMJEN": return 180000;
-            case "IRJEN": return 175000;
-            case "BRIGJEN": return 170000;
+            case "IRJEN": return 278000;
+            case "BRIGJEN": return 261000;
             case "KOMBESPOL":
-            case "KOMBES": return 165000;
-            case "AKBP": return 160000;
-            case "KOMPOL": return 155000;
-            case "AKP": return 150000;
-            case "IPTU": return 145000;
-            case "IPDA": return 140000;
-            case "AIPTU": return 135000;
-            case "AIPDA": return 130000;
-            case "BRIPKA": return 125000;
-            case "BRIGPOL": return 120000;
-            case "BRIPTU": return 115000;
-            case "BRIPDA": return 110000;
+            case "KOMBES": return 244000;
+            case "AKBP": return 227000;
+            case "KOMPOL": return 217000;
+            case "AKP": return 207000;
+            case "IPTU": return 197000;
+            case "IPDA": return 187000;
+            case "AIPTU": return 177000;
+            case "AIPDA": return 167000;
+            case "BRIPKA": return 141000;
+            case "BRIGPOL": return 134000;
+            case "BRIPTU": return 127000;
+            case "BRIPDA": return 120000;
             case "BHARATU": return 105000;
-            case "BHARADA": return 100000;
+            case "BHARADA": return 120000;
             default: return 110000;
         }
     };

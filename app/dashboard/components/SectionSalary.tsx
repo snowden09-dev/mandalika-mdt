@@ -19,7 +19,33 @@ import {
 import { id } from 'date-fns/locale';
 import { supabase } from "@/lib/supabase";
 
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+// 🚀 TYPE DEFINITIONS
+interface RealtimeData {
+    pangkat?: string;
+    divisi?: string;
+    [key: string]: unknown;
+}
+
+interface PengajuanGaji {
+    id: string;
+    user_id_discord: string;
+    nama_panggilan: string;
+    pangkat: string;
+    divisi: string;
+    jumlah_gaji: number;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    status: 'PENDING' | 'PAID' | 'REJECTED';
+    created_at: string;
+    keterangan_admin?: string;
+}
+
+interface UserReport {
+    created_at: string;
+}
+
+const cn = (...classes: Array<string | false | null | undefined>): string =>
+    classes.filter(Boolean).join(' ');
 
 // 🚀 ENGINE MUTLAK WIB (UTC+7)
 const getWIBTime = () => {
@@ -31,19 +57,18 @@ const getWIBTime = () => {
     return new Date(utc + wibOffset);
 };
 
-export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: any }) {
+export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: RealtimeData }) {
     const slipRef = useRef<HTMLDivElement>(null);
-    // 🚀 Acuan kalender kini menggunakan WIB
     const [currentMonth, setCurrentMonth] = useState(getWIBTime());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
-    const [history, setHistory] = useState<any[]>([]);
-    const [userReports, setUserReports] = useState<any[]>([]);
+    const [history, setHistory] = useState<PengajuanGaji[]>([]);
+    const [userReports, setUserReports] = useState<UserReport[]>([]);
     const [isVerifying, setIsVerifying] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 4;
 
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
-    const [selectedSlip, setSelectedSlip] = useState<any>(null);
+    const [selectedSlip, setSelectedSlip] = useState<PengajuanGaji | null>(null);
 
     const [notif, setNotif] = useState<{ show: boolean, title: string, message: string, type: 'ERROR' | 'SUCCESS' | 'INFO' }>({
         show: false, title: '', message: '', type: 'INFO'
@@ -56,7 +81,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         setNotif({ show: true, title, message, type });
     };
 
-    const getGajiByRank = (pangkat: string) => {
+    const getGajiByRank = (pangkat?: string) => {
         const p = pangkat?.toUpperCase().trim() || "";
         switch (p) {
             case "JENDRAL": return 190000;
@@ -90,14 +115,14 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         const discordId = user.user_metadata?.provider_id || user.id;
 
         const { data: historyData } = await supabase.from('pengajuan_gaji').select('*').eq('user_id_discord', discordId).order('created_at', { ascending: false });
-        if (historyData) setHistory(historyData);
+        if (historyData) setHistory(historyData as PengajuanGaji[]);
 
         const { data: reportsData } = await supabase.from('laporan_aktivitas')
             .select('created_at')
             .eq('user_id_discord', discordId)
             .eq('jenis_laporan', 'Penilangan')
             .eq('status', 'APPROVED');
-        if (reportsData) setUserReports(reportsData);
+        if (reportsData) setUserReports(reportsData as UserReport[]);
     };
 
     useEffect(() => { fetchHistoryAndReports(); }, []);
@@ -143,7 +168,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         return rows;
     }, [currentMonth]);
 
-    // 🚀 LOGIKA PERIODE MENGGUNAKAN WIB MUTLAK
     const activePeriod = useMemo(() => {
         const nowWIB = getWIBTime();
         const referenceDate = getDay(nowWIB) === 0 ? nowWIB : subWeeks(nowWIB, 1);
@@ -193,11 +217,9 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const { data: { user } } = await supabase.auth.getUser();
             const discordId = user?.user_metadata?.provider_id || user?.id;
 
-            // 🚀 PARSING TANGGAL PAKSA KE WIB SEBELUM DIKIRIM KE SUPABASE
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
             const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
 
-            // 🚀 BUG FIXED: Hapus .not('status', 'eq', 'REJECTED') agar data rejected ikut menahan claim baru
             const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
                 .eq('user_id_discord', discordId);
@@ -223,12 +245,13 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
 
             showNotif("BERHASIL", "Pengajuan gaji telah dikirim ke Markas Besar!", "SUCCESS");
             setRange({ from: null, to: null }); fetchHistoryAndReports();
-        } catch (err: any) {
-            showNotif("SISTEM ERROR", err.message, "ERROR");
+        } catch (err: unknown) {
+            const errorMsg = err instanceof Error ? err.message : "Terjadi kesalahan sistem.";
+            showNotif("SISTEM ERROR", errorMsg, "ERROR");
         } finally { setIsVerifying(false); }
     };
 
-    const handleDownloadSlip = async (log: any) => {
+    const handleDownloadSlip = async (log: PengajuanGaji) => {
         setDownloadingId(log.id);
         setSelectedSlip(log);
 
@@ -247,7 +270,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     link.click();
 
                     showNotif("UNDUHAN SUKSES", "Payslip resmi berhasil diunduh ke perangkat Anda.", "SUCCESS");
-                } catch (error) {
+                } catch {
                     showNotif("ERROR", "Sistem gagal memproses dan mengekstrak foto slip.", "ERROR");
                 } finally {
                     setDownloadingId(null);
@@ -387,7 +410,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                         <h4 className="text-2xl font-[1000] italic leading-none">${Number(log.jumlah_gaji).toLocaleString()}</h4>
                                         <p className="text-[10px] font-black opacity-40 italic mt-1 uppercase">Period: {format(new Date(log.tanggal_mulai), 'dd MMM')} - {format(new Date(log.tanggal_selesai), 'dd MMM')}</p>
 
-                                        {/* 🚀 BUG FIXED: Indikator warna dan status log telah diperbarui */}
                                         <div className={cn("text-[8px] font-[1000] px-2 py-1 mt-2 inline-block italic border border-black shadow-[2px_2px_0_0_#000]",
                                             log.status === 'PAID' ? 'bg-[#00E676] text-black' :
                                                 log.status === 'REJECTED' ? 'bg-[#FF4D4D] text-white' : 'bg-[#FFD100] text-black')}
@@ -418,11 +440,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 </div>
             </div>
 
-            {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATE SLIP --- */}
+            {/* ELEMEN TERSEMBUNYI UNTUK GENERATE SLIP */}
             {selectedSlip && (
                 <div style={{ position: 'absolute', top: '-4000px', left: '-4000px', zIndex: -100 }}>
                     <div ref={slipRef} className="bg-white w-[600px] border-[10px] border-black p-12 space-y-10 text-slate-950 font-mono">
-                        {/* Header */}
                         <div className="flex justify-between items-start border-b-[8px] border-black pb-8">
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 text-blue-600 mb-2 font-black italic text-sm tracking-[0.3em]"><Shield size={24} /> MPD HQ</div>
@@ -432,7 +453,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{selectedSlip.id.substring(0, 6).toUpperCase()}</div>
                         </div>
 
-                        {/* DETAIL LENGKAP */}
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-6">
                                 <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Lengkap</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{selectedSlip.nama_panggilan}</p></div>
@@ -449,9 +469,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             </div>
                         </div>
 
-                        {/* Payout & QR */}
                         <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676]">
-                            <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(selectedSlip.jumlah_gaji).toLocaleString()}</h3></div>
+                            <div><p className="text-xs font-black uppercase text-[#00E676] opacity-60 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(selectedSlip.jumlah_gaji).toLocaleString()}</h3></div>
                             <div className="bg-white p-2 border-4 border-black">
                                 <QRCode size={85} value={`AUTH:${selectedSlip.id}`} viewBox={`0 0 256 256`} />
                             </div>

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
-import TacticalTransition '@/app/dashboard/components/TacticalTransition'; // Sesuaikan path jika perlu
+import TacticalTransition from '@/app/dashboard/components/TacticalTransition'; // Sesuaikan path jika perlu
 
 const boxBorder = "border-[2px] border-zinc-800";
 const cardShadow = "shadow-[4px_4px_0px_#ef4444]";
@@ -172,9 +172,10 @@ export default function AbsenPage() {
                 bukti_foto_urls: [...prev.bukti_foto_urls, ...uploadedUrls] 
             }));
             toast.success(`${uploadedUrls.length} Bukti foto berhasil diunggah!`, { id: tId });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Gagal upload:", error);
-            toast.error(error.message || "Gagal mengunggah gambar ke storage.", { id: tId });
+            const message = error instanceof Error ? error.message : "Gagal mengunggah gambar ke storage.";
+            toast.error(message, { id: tId });
         } finally {
             setUploadingFile(false);
             e.target.value = '';
@@ -210,8 +211,8 @@ export default function AbsenPage() {
                 }
 
                 let durasi = 0;
-                let startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
-                let startTimeISO = new Date(startMs).toISOString();
+                const startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
+                const startTimeISO = new Date(startMs).toISOString();
                 let endTimeISO = null;
 
                 if (dutyForm.jam_off_duty) {

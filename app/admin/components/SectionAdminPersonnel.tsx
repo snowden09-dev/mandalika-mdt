@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield, Search, Edit, UserMinus,
-    ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock, TrendingUp, Zap
+    ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock, TrendingUp, Zap,
+    Clock, Calendar, AlertTriangle
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Image from 'next/image';
@@ -25,7 +26,8 @@ interface UserProfile {
     pangkat: string;
     divisi: string;
     point_prp: number;
-    total_jam_duty: number;
+    total_jam_duty: number | string;
+    last_login?: string | null;
     is_highadmin: boolean;
     is_admin: boolean;
     image?: string;
@@ -108,6 +110,28 @@ export default function SectionAdminPersonnel() {
         verifyAndFetch(); 
     }, [verifyAndFetch]);
 
+    // 🚀 ENGINE PENGECEKAN INAKTIF > 10 HARI
+    const checkIsInactive = (lastLoginStr?: string | null) => {
+        if (!lastLoginStr) return true; // Tidak ada record = dihitung inaktif
+        const lastLoginDate = new Date(lastLoginStr);
+        if (isNaN(lastLoginDate.getTime())) return true;
+        const diffInMs = Date.now() - lastLoginDate.getTime();
+        const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+        return diffInDays > 10;
+    };
+
+    // FORMAT TANGGAL LAST LOGIN
+    const formatLastLogin = (lastLoginStr?: string | null) => {
+        if (!lastLoginStr) return "Belum Pernah";
+        const date = new Date(lastLoginStr);
+        if (isNaN(date.getTime())) return "Belum Pernah";
+        return date.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+
     const stats = useMemo(() => {
         const total = personnel.length;
         const distribution = personnel.reduce((acc: Record<string, number>, p: UserProfile) => {
@@ -126,7 +150,7 @@ export default function SectionAdminPersonnel() {
     });
 
     // 🚀 ENGINE KALKULASI PROGRESS PANGKAT
-    const getRankProgress = (pangkat: string, currentPrp: number, currentHrs: number) => {
+    const getRankProgress = (pangkat: string, currentPrp: number, currentHrs: number | string) => {
         const p = pangkat?.toUpperCase().trim() || "CASIS";
         const currentIndex = RANKS_DB.findIndex(r => r.name === p);
 
@@ -138,7 +162,7 @@ export default function SectionAdminPersonnel() {
         const nextRank = RANKS_DB[currentIndex + 1];
 
         const prpTersimpan = currentPrp || 0;
-        const hrsTersimpan = currentHrs || 0;
+        const hrsTersimpan = Number(currentHrs || 0);
 
         const gapTotal = nextRank.prp - currentRank.prp;
         let progressPercent = 0;
@@ -221,7 +245,7 @@ export default function SectionAdminPersonnel() {
         setEditForm({
             name: user.name || '', discord_id: user.discord_id || '',
             pangkat: user.pangkat || '', divisi: user.divisi || '',
-            point_prp: user.point_prp || 0, total_jam_duty: user.total_jam_duty || 0,
+            point_prp: user.point_prp || 0, total_jam_duty: Number(user.total_jam_duty || 0),
             is_highadmin: user.is_highadmin || false, is_admin: user.is_admin || false
         });
     };
@@ -330,6 +354,7 @@ export default function SectionAdminPersonnel() {
                     )}
                     {filteredPersonnel.map((p) => {
                         const promoProgress = getRankProgress(p.pangkat, p.point_prp, p.total_jam_duty);
+                        const isInactive = checkIsInactive(p.last_login);
 
                         let rawName = p.name || 'UNKNOWN';
                         if (rawName.includes('|')) {
@@ -351,9 +376,20 @@ export default function SectionAdminPersonnel() {
 
                         return (
                             <div key={p.id || p.discord_id} className={`bg-zinc-900 ${cardBorder} ${cardShadow} rounded-2xl flex flex-col overflow-hidden relative group`}>
+                                {/* BADGE HIGH ADMIN / WARNING LOGO */}
                                 <div className="absolute top-3 right-3 flex flex-col gap-1 items-end z-10">
                                     {p.is_highadmin && <div className="bg-red-500/10 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Crown size={10} /> HIGH ADMIN</div>}
                                     {p.is_admin && !p.is_highadmin && <div className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Shield size={10} /> STAFF</div>}
+                                    
+                                    {/* ⚠️ LOGO WARNING INAKTIF > 10 HARI */}
+                                    {isInactive && (
+                                        <div 
+                                            title="Anggota tidak aktif >10 hari di web"
+                                            className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm animate-pulse"
+                                        >
+                                            <AlertTriangle size={10} /> INAKTIF &gt;10H
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="bg-zinc-950/70 p-4 flex gap-3.5 items-center border-b border-zinc-800/80 relative overflow-hidden">
@@ -396,21 +432,48 @@ export default function SectionAdminPersonnel() {
                                     <p className="text-[8px] font-medium text-right mt-1.5 text-zinc-500 tracking-tight">Target: {promoProgress.reqStr}</p>
                                 </div>
 
-                                <div className="p-4 flex-1">
-                                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 flex items-center justify-between shadow-inner">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="p-2 bg-red-500/10 text-red-500 rounded-lg border border-red-500/20">
-                                                <Zap size={16} />
+                                {/* 🚀 CARDS: TOTAL PRP, JAM DUTY, & LAST LOGIN */}
+                                <div className="p-4 flex-1 space-y-2.5">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Card Total PRP */}
+                                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex items-center gap-2.5 shadow-inner">
+                                            <div className="p-2 bg-red-500/10 text-red-500 rounded-lg border border-red-500/20 shrink-0">
+                                                <Zap size={15} />
                                             </div>
-                                            <div>
+                                            <div className="min-w-0">
                                                 <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 block leading-none mb-1">Total Points</span>
-                                                <span className="font-extrabold text-sm text-zinc-100 leading-none">{p.point_prp || 0} PRP</span>
+                                                <span className="font-extrabold text-xs text-zinc-100 leading-none truncate block">{p.point_prp || 0} PRP</span>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 block leading-none mb-1">Status</span>
-                                            <span className="text-[10px] font-extrabold text-green-500 uppercase tracking-wider">ACTIVE</span>
+
+                                        {/* Card Total Jam Duty */}
+                                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex items-center gap-2.5 shadow-inner">
+                                            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg border border-amber-500/20 shrink-0">
+                                                <Clock size={15} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 block leading-none mb-1">Total Duty</span>
+                                                <span className="font-extrabold text-xs text-zinc-100 leading-none truncate block">{Number(p.total_jam_duty || 0).toFixed(1)} Jam</span>
+                                            </div>
                                         </div>
+                                    </div>
+
+                                    {/* Bar Last Login & Status Inaktif */}
+                                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <Calendar size={13} className="text-zinc-500 shrink-0" />
+                                            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">
+                                                Last Login: <span className="text-zinc-200">{formatLastLogin(p.last_login)}</span>
+                                            </span>
+                                        </div>
+                                        {isInactive ? (
+                                            <div className="flex items-center gap-1 text-amber-400 font-extrabold text-[9px] uppercase tracking-wider" title="Anggota tidak aktif >10 hari di web">
+                                                <AlertTriangle size={12} className="animate-pulse" />
+                                                <span>INAKTIF</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-[9px] font-extrabold text-green-500 uppercase tracking-wider">AKTIF</span>
+                                        )}
                                     </div>
                                 </div>
 
@@ -487,9 +550,15 @@ export default function SectionAdminPersonnel() {
                                                 <ShieldAlert size={14} className="text-red-500" />
                                             </div>
 
-                                            <div>
-                                                <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 mb-1 block">POINT PRP</label>
-                                                <input type="number" value={editForm.point_prp} onChange={e => setEditForm({ ...editForm, point_prp: Number(e.target.value) })} className={cn(inputStyle, "py-2 text-center")} />
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 mb-1 block">POINT PRP</label>
+                                                    <input type="number" value={editForm.point_prp} onChange={e => setEditForm({ ...editForm, point_prp: Number(e.target.value) })} className={cn(inputStyle, "py-2 text-center")} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 mb-1 block">TOTAL JAM DUTY</label>
+                                                    <input type="number" step="0.01" value={editForm.total_jam_duty} onChange={e => setEditForm({ ...editForm, total_jam_duty: Number(e.target.value) })} className={cn(inputStyle, "py-2 text-center")} />
+                                                </div>
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-2.5 pt-1">

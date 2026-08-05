@@ -6,20 +6,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, Image as ImageIcon, Clock,
     AlertOctagon, X, Bomb, Activity, Database, ScanLine,
-    Eye, FileText, Loader2, ShieldCheck, Download
+    FileText, Loader2, ShieldCheck, Download
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay, subDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { toPng } from 'html-to-image';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
-const boxBorder = "border-[3.5px] border-slate-950";
-const hardShadow = "shadow-[6px_6px_0px_#000]";
+const cardBorder = "border border-zinc-800/80";
+const cardShadow = "shadow-xl shadow-black/40";
 
 // Daftar pangkat petinggi yang kebal radar absen
-const EXCLUDED_RANKS = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL', 'AKBP', 'KOMPOL'];
+const EXCLUDED_RANKS = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL', 'AKBP', 'KOMPOL', 'AKP'];
 
 export default function SectionAdminSystem() {
     const router = useRouter();
@@ -137,7 +137,7 @@ export default function SectionAdminSystem() {
         setTimeout(async () => {
             if (reportRef.current) {
                 try {
-                    const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 3, backgroundColor: '#ffffff' });
+                    const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 3, backgroundColor: '#09090b' });
                     setGeneratedImage(dataUrl);
                 } catch (err) {
                     toast.error("Gagal menyusun gambar laporan!");
@@ -221,47 +221,47 @@ export default function SectionAdminSystem() {
         return { type: 'NONE', data: null };
     };
 
-    if (!isAuthorized && loading) return <div className="py-20 text-center animate-pulse font-black">AUTHORIZING RADAR...</div>;
+    if (!isAuthorized && loading) return <div className="py-20 text-center animate-pulse font-mono text-xs uppercase tracking-widest text-zinc-500 bg-zinc-950 min-h-screen">Authorizing Radar...</div>;
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-mono text-slate-950">
-            <Toaster position="top-center" richColors />
+        <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-mono text-zinc-100 bg-zinc-950 min-h-screen p-4 md:p-6">
+            <Toaster position="top-center" richColors theme="dark" />
 
             {/* HEADER & HIGH ADMIN TOOLS */}
-            <div className={`bg-white ${boxBorder} ${hardShadow} p-6 rounded-2xl flex flex-col lg:flex-row gap-6 justify-between items-center`}>
+            <div className={`bg-zinc-900 ${cardBorder} ${cardShadow} p-5 md:p-6 rounded-2xl flex flex-col lg:flex-row gap-6 justify-between items-center`}>
                 <div className="flex items-center gap-4 w-full lg:w-auto">
-                    <div className="p-3 bg-slate-950 text-white rounded-xl shadow-[3px_3px_0px_#A78BFA]"><Activity /></div>
+                    <div className="p-3 bg-red-600/10 border border-red-500/20 text-red-500 rounded-xl"><Activity size={22} /></div>
                     <div>
-                        <h2 className="font-[1000] italic uppercase text-xl md:text-2xl tracking-tighter leading-none">Operational Monitoring</h2>
-                        <p className="text-[10px] font-black uppercase opacity-40 italic mt-1">Mandalika Tactical Command v3.0</p>
+                        <h2 className="font-extrabold uppercase text-lg md:text-xl tracking-tight text-white flex items-center gap-2">Operational Monitoring</h2>
+                        <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mt-1">Mandalika Tactical Command v3.0</p>
                     </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
-                    <div className="flex bg-slate-100 p-1.5 rounded-xl border-2 border-black w-full md:w-auto justify-center">
-                        <button onClick={() => setViewMode('DETAIL')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'DETAIL' ? "bg-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>Rekap Detail</button>
-                        <button onClick={() => setViewMode('ANALYSIS')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase italic transition-all", viewMode === 'ANALYSIS' ? "bg-[#3B82F6] text-white border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>Analisis Singkat</button>
+                    <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800 w-full md:w-auto justify-center">
+                        <button onClick={() => setViewMode('DETAIL')} className={cn("px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer", viewMode === 'DETAIL' ? "bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}>Rekap Detail</button>
+                        <button onClick={() => setViewMode('ANALYSIS')} className={cn("px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer", viewMode === 'ANALYSIS' ? "bg-red-600 text-white border border-red-500 shadow-md shadow-red-600/20" : "text-zinc-500 hover:text-zinc-300")}>Analisis Singkat</button>
                     </div>
 
                     {isHighAdmin && (
-                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t-2 md:border-t-0 border-black/10 md:pl-2 md:border-l-2">
+                        <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-zinc-800/80 md:pl-3 md:border-l">
                             <button
                                 onClick={handleGenerateReport}
-                                className="bg-[#FFD100] text-black border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
+                                className="bg-red-600 hover:bg-red-700 text-white border border-red-500/40 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 cursor-pointer"
                             >
-                                <ScanLine size={16} /> Generate Laporan Alpha
+                                <ScanLine size={15} /> Generate Laporan Alpha
                             </button>
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
-                                className="bg-orange-500 text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
+                                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
-                                <Database size={16} /> Hapus Foto
+                                <Database size={15} /> Hapus Foto
                             </button>
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'PURGE' })}
-                                className="bg-[#FF4D4D] text-white border-2 border-black px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] hover:translate-y-px transition-all flex items-center justify-center gap-2"
+                                className="bg-red-950/60 hover:bg-red-900/60 text-red-400 border border-red-800/60 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
-                                <Bomb size={16} /> Hapus Data
+                                <Bomb size={15} /> Hapus Data
                             </button>
                         </div>
                     )}
@@ -269,24 +269,24 @@ export default function SectionAdminSystem() {
             </div>
 
             {/* TABEL DAN NAVIGASI */}
-            <div className="flex justify-center items-center gap-4">
-                <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="p-3 bg-white border-2 border-black shadow-[4px_4px_0px_#000] rounded-xl active:translate-y-1"><ChevronLeft /></button>
-                <div className="bg-slate-950 text-[#00E676] px-10 py-3 rounded-xl font-black italic uppercase border-2 border-white shadow-[4px_4px_0px_#000] min-w-[300px] text-center tracking-tighter text-sm">
+            <div className="flex justify-center items-center gap-3">
+                <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="p-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 rounded-xl transition-all cursor-pointer"><ChevronLeft size={18} /></button>
+                <div className="bg-zinc-900 text-red-400 border border-zinc-800 px-6 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs shadow-inner min-w-[280px] text-center">
                     {format(weekStart, 'dd MMM', { locale: id })} - {format(weekEnd, 'dd MMM yyyy', { locale: id })}
                 </div>
-                <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="p-3 bg-white border-2 border-black shadow-[4px_4px_0px_#000] rounded-xl active:translate-y-1"><ChevronRight /></button>
+                <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="p-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 rounded-xl transition-all cursor-pointer"><ChevronRight size={18} /></button>
             </div>
 
             {/* MAIN TABLE */}
-            <div className="bg-white border-[4px] border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
+            <div className={`bg-zinc-900 ${cardBorder} ${cardShadow} rounded-2xl overflow-hidden`}>
                 <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse min-w-[1200px]">
                         <thead>
-                            <tr className="bg-slate-950 text-white">
-                                <th className="p-5 border-r-2 border-white/10 font-black uppercase italic text-xs sticky left-0 bg-slate-950 z-10 w-[200px]">Personel</th>
+                            <tr className="bg-zinc-950 border-b border-zinc-800 text-zinc-400">
+                                <th className="p-4 border-r border-zinc-800/80 font-bold uppercase text-[10px] tracking-wider sticky left-0 bg-zinc-950 z-10 w-[200px]">Personel</th>
                                 {daysInWeek.map((day, idx) => (
-                                    <th key={idx} className="p-4 text-center border-r-2 border-white/10 font-black uppercase italic text-[10px]">
-                                        {format(day, 'EEEE', { locale: id })}<br /><span className="text-[#00E676] opacity-80">{format(day, 'dd/MM')}</span>
+                                    <th key={idx} className="p-3 text-center border-r border-zinc-800/80 font-bold uppercase text-[10px] tracking-wider">
+                                        {format(day, 'EEEE', { locale: id })}<br /><span className="text-red-500 font-extrabold">{format(day, 'dd/MM')}</span>
                                     </th>
                                 ))}
                             </tr>
@@ -313,50 +313,48 @@ export default function SectionAdminSystem() {
                                 const cleanName = rawName.toUpperCase();
 
                                 return (
-                                    <tr key={p.discord_id} className="border-b-2 border-slate-100 hover:bg-slate-50 transition-colors">
-                                        <td className="p-4 border-r-2 border-slate-100 font-black sticky left-0 bg-white group-hover:bg-slate-50 z-10 transition-colors">
-                                            <p className="text-xs uppercase leading-none">{cleanName}</p>
-                                            <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase italic opacity-70">{p.pangkat} • #{badgeNumber}</p>
+                                    <tr key={p.discord_id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group">
+                                        <td className="p-4 border-r border-zinc-800/80 font-bold sticky left-0 bg-zinc-900 group-hover:bg-zinc-900/90 z-10 transition-colors">
+                                            <p className="text-xs uppercase leading-tight text-zinc-100">{cleanName}</p>
+                                            <p className="text-[10px] font-semibold text-red-500 uppercase tracking-tight mt-0.5">{p.pangkat} • #{badgeNumber}</p>
                                         </td>
                                         {daysInWeek.map((day, idx) => {
                                             const status = getDayStatus(p.discord_id, day);
                                             return (
-                                                <td key={idx} className="p-3 border-r-2 border-slate-100 min-w-[150px] align-top">
+                                                <td key={idx} className="p-3 border-r border-zinc-800/60 min-w-[150px] align-top">
                                                     {viewMode === 'DETAIL' ? (
                                                         <>
                                                             {status.type === 'DUTY' && (
-                                                                <div className="bg-[#A3E635] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-start relative">
-                                                                    <div className="border-b-2 border-black/20 pb-1 mb-2 flex flex-col items-center">
-                                                                        <div className="font-[1000] text-[11px] uppercase italic flex justify-between w-full text-slate-900">
-                                                                            <span>
-                                                                                {(() => {
-                                                                                    const totalMinutes = status.data.reduce((acc: number, d: any) => acc + (d.durasi_menit || 0), 0);
-                                                                                    return `${Math.floor(totalMinutes / 60)}H ${totalMinutes % 60}M`;
-                                                                                })()}
-                                                                            </span>
-                                                                            <Clock size={14} />
-                                                                        </div>
+                                                                <div className="bg-zinc-950 border border-emerald-500/30 p-3 rounded-xl shadow-inner flex flex-col min-h-[130px] justify-start relative">
+                                                                    <div className="border-b border-emerald-500/20 pb-1.5 mb-2 flex items-center justify-between text-emerald-400 font-bold text-[11px]">
+                                                                        <span>
+                                                                            {(() => {
+                                                                                const totalMinutes = status.data.reduce((acc: number, d: any) => acc + (d.durasi_menit || 0), 0);
+                                                                                return `${Math.floor(totalMinutes / 60)}H ${totalMinutes % 60}M`;
+                                                                            })()}
+                                                                        </span>
+                                                                        <Clock size={13} />
                                                                     </div>
 
                                                                     <div className="flex flex-col gap-2">
                                                                         {status.data.map((duty: any) => (
-                                                                            <div key={duty.id} className="bg-black/10 border border-black/20 text-slate-900 p-2 rounded-lg flex flex-col gap-1.5 group/item relative">
-                                                                                <div className="flex justify-between items-center border-b border-black/10 pb-1 w-full">
-                                                                                    <span className="font-black text-[9px] uppercase tracking-widest">
+                                                                            <div key={duty.id} className="bg-zinc-900/90 border border-zinc-800 text-zinc-300 p-2 rounded-lg flex flex-col gap-1 group/item relative">
+                                                                                <div className="flex justify-between items-center border-b border-zinc-800 pb-1 w-full">
+                                                                                    <span className="font-bold text-[9px] uppercase tracking-wider text-zinc-400">
                                                                                         {duty.start_time ? format(new Date(duty.start_time), 'HH:mm') : '--'} - {duty.end_time ? format(new Date(duty.end_time), 'HH:mm') : '--'}
                                                                                     </span>
                                                                                     <div className="flex items-center gap-1.5">
                                                                                         {duty.bukti_foto && duty.bukti_foto.length > 0 && (
-                                                                                            <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0 })} className="text-blue-700 hover:text-blue-900 transition-colors">
-                                                                                                <ImageIcon size={14} />
+                                                                                            <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0 })} className="text-red-400 hover:text-red-300 transition-colors cursor-pointer">
+                                                                                                <ImageIcon size={13} />
                                                                                             </button>
                                                                                         )}
-                                                                                        <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-red-600 hover:text-red-800 transition-colors opacity-0 group-hover/item:opacity-100">
-                                                                                            <X size={14} />
+                                                                                        <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-zinc-500 hover:text-red-400 transition-colors opacity-0 group-hover/item:opacity-100 cursor-pointer">
+                                                                                            <X size={13} />
                                                                                         </button>
                                                                                     </div>
                                                                                 </div>
-                                                                                <p className="text-[8px] font-bold italic opacity-80 leading-tight whitespace-normal break-words line-clamp-3">
+                                                                                <p className="text-[8px] font-medium text-zinc-400 leading-tight whitespace-normal break-words line-clamp-3 mt-0.5">
                                                                                     {duty.catatan_duty || "Tidak ada laporan"}
                                                                                 </p>
                                                                             </div>
@@ -365,11 +363,11 @@ export default function SectionAdminSystem() {
                                                                 </div>
                                                             )}
                                                             {status.type === 'CUTI' && (
-                                                                <div className="bg-[#FFD100] border-2 border-black p-3 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col min-h-[130px] justify-center items-center text-center relative group/card">
-                                                                    <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded-full border-2 border-black opacity-0 group-hover/card:opacity-100 z-10"><X size={10} /></button>
-                                                                    <p className="text-[10px] font-black uppercase italic">OFF DUTY</p>
-                                                                    <div className="w-full mt-2 bg-yellow-400/30 p-2 rounded border border-black/10">
-                                                                        <p className="text-[9px] font-bold opacity-80 uppercase italic whitespace-normal break-words leading-tight">{status.data.alasan}</p>
+                                                                <div className="bg-zinc-950 border border-amber-500/30 p-3 rounded-xl shadow-inner flex flex-col min-h-[130px] justify-center items-center text-center relative group/card">
+                                                                    <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: status.data.id, table: 'pengajuan_cuti' } })} className="absolute top-2 right-2 text-zinc-500 hover:text-red-400 opacity-0 group-hover/card:opacity-100 transition-opacity cursor-pointer"><X size={13} /></button>
+                                                                    <p className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">OFF DUTY</p>
+                                                                    <div className="w-full mt-2 bg-zinc-900 p-2 rounded border border-zinc-800">
+                                                                        <p className="text-[9px] font-medium text-zinc-400 uppercase whitespace-normal break-words leading-tight">{status.data.alasan}</p>
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -377,11 +375,11 @@ export default function SectionAdminSystem() {
                                                     ) : (
                                                         <div className="flex justify-center items-center h-full">
                                                             {status.type === 'DUTY' ? (
-                                                                <div className="bg-[#A3E635] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">DUTY</div>
+                                                                <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">DUTY</div>
                                                             ) : status.type === 'CUTI' ? (
-                                                                <div className="bg-[#FFD100] text-slate-950 font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic">CUTI</div>
+                                                                <div className="bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">CUTI</div>
                                                             ) : (
-                                                                <div className="bg-[#FF4D4D] text-white font-[1000] text-[10px] py-2 px-4 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] uppercase italic opacity-80">ALPHA</div>
+                                                                <div className="bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">ALPHA</div>
                                                             )}
                                                         </div>
                                                     )}
@@ -399,35 +397,35 @@ export default function SectionAdminSystem() {
             {/* --- 🛑 MODAL KONFIRMASI PURGE / DELETE 🛑 --- */}
             <AnimatePresence>
                 {confirmModal.show && (
-                    <div className="fixed inset-0 z-[500] bg-black/90 p-4 flex items-center justify-center">
-                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className={`bg-white max-w-sm w-full rounded-[30px] p-8 ${boxBorder} shadow-[10px_10px_0px_#FF4D4D] text-slate-950 space-y-6`}>
-                            <div className="flex items-center gap-3 text-red-600">
-                                <AlertOctagon size={32} />
-                                <h3 className="font-[1000] text-xl italic uppercase tracking-tighter">
+                    <div className="fixed inset-0 z-[500] bg-black/80 backdrop-blur-md p-4 flex items-center justify-center">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`bg-zinc-950 max-w-sm w-full rounded-2xl p-6 ${cardBorder} ${cardShadow} text-zinc-100 space-y-5`}>
+                            <div className="flex items-center gap-3 text-red-500">
+                                <AlertOctagon size={26} />
+                                <h3 className="font-extrabold text-lg uppercase tracking-tight">
                                     {confirmModal.type === 'SINGLE' ? 'Hapus Data?' : 'Operasi Bahaya'}
                                 </h3>
                             </div>
 
                             {(confirmModal.type === 'PURGE' || confirmModal.type === 'STORAGE_CLEAN') ? (
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-bold uppercase text-slate-500">
+                                    <p className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">
                                         {confirmModal.type === 'PURGE' ? 'Menghapus seluruh rekap presensi dan cuti SEBELUM minggu ini.' : 'Menghapus SELURUH file bukti foto di storage dan membersihkan memori database.'}
-                                        <br />Masukkan kode otorisasi:
+                                        <br /><span className="text-zinc-500 mt-1 block">Masukkan kode otorisasi:</span>
                                     </p>
                                     <input
                                         value={purgeInput}
                                         onChange={(e) => setPurgeInput(e.target.value)}
                                         placeholder="MANDALIKA"
-                                        className="w-full bg-slate-100 border-2 border-black p-3 rounded-xl font-black text-xs outline-none focus:bg-white shadow-inner"
+                                        className="w-full bg-zinc-900 border border-zinc-800 p-3 rounded-xl font-mono text-xs text-zinc-100 outline-none focus:border-red-500 transition-all"
                                     />
                                 </div>
                             ) : (
-                                <p className="text-xs font-bold uppercase text-slate-500">Hapus laporan/izin ini secara permanen?</p>
+                                <p className="text-xs font-bold uppercase text-zinc-400 tracking-wider">Hapus laporan/izin ini secara permanen?</p>
                             )}
 
-                            <div className="flex gap-3">
-                                <button onClick={() => { setConfirmModal({ show: false, type: 'SINGLE' }); setPurgeInput(""); }} className="flex-1 bg-slate-200 border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all">Batal</button>
-                                <button onClick={confirmModal.type === 'SINGLE' ? executeDeleteSingle : executePurgeOperation} className="flex-1 bg-red-500 text-white border-2 border-black py-3 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all">Eksekusi</button>
+                            <div className="flex gap-3 pt-2">
+                                <button onClick={() => { setConfirmModal({ show: false, type: 'SINGLE' }); setPurgeInput(""); }} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer">Batal</button>
+                                <button onClick={confirmModal.type === 'SINGLE' ? executeDeleteSingle : executePurgeOperation} className="flex-1 bg-red-600 hover:bg-red-700 text-white border border-red-500/40 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer">Eksekusi</button>
                             </div>
                         </motion.div>
                     </div>
@@ -437,30 +435,30 @@ export default function SectionAdminSystem() {
             {/* --- 📸 IMAGE GALLERY PREVIEW --- */}
             <AnimatePresence>
                 {photoGallery && (
-                    <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-4" onClick={() => setPhotoGallery(null)}>
-                        <button className="absolute top-6 right-6 text-white hover:text-red-500 transition-colors z-[610]" onClick={() => setPhotoGallery(null)}>
-                            <X size={36} />
+                    <div className="fixed inset-0 z-[600] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setPhotoGallery(null)}>
+                        <button className="absolute top-6 right-6 text-zinc-400 hover:text-red-500 transition-colors z-[610] cursor-pointer" onClick={() => setPhotoGallery(null)}>
+                            <X size={32} />
                         </button>
 
                         <div className="relative w-full max-w-4xl flex items-center justify-center gap-4" onClick={(e) => e.stopPropagation()}>
                             {photoGallery.photos.length > 1 && (
-                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index - 1 + p.photos.length) % p.photos.length } : null)} className="bg-white/10 hover:bg-white text-white hover:text-black p-3 rounded-full border-2 border-transparent hover:border-black transition-all hidden md:block">
-                                    <ChevronLeft size={32} />
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index - 1 + p.photos.length) % p.photos.length } : null)} className="bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 p-3 rounded-full border border-zinc-800 transition-all hidden md:block cursor-pointer">
+                                    <ChevronLeft size={24} />
                                 </button>
                             )}
 
-                            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} key={photoGallery.index} className={`bg-white p-2 ${boxBorder} rounded-3xl w-full max-w-2xl shadow-[10px_10px_0px_#A3E635]`}>
-                                <img src={photoGallery.photos[photoGallery.index]} className="w-full max-h-[75vh] object-contain rounded-2xl border-4 border-black" alt={`Evidence ${photoGallery.index + 1}`} />
+                            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} key={photoGallery.index} className={`bg-zinc-950 p-3 ${cardBorder} ${cardShadow} rounded-2xl w-full max-w-2xl`}>
+                                <img src={photoGallery.photos[photoGallery.index]} className="w-full max-h-[75vh] object-contain rounded-xl border border-zinc-800" alt={`Evidence ${photoGallery.index + 1}`} />
                                 {photoGallery.photos.length > 1 && (
-                                    <div className="text-center font-black italic uppercase text-xs mt-3 mb-1 text-slate-900">
+                                    <div className="text-center font-bold uppercase text-xs mt-3 mb-1 text-zinc-400 tracking-wider">
                                         Foto {photoGallery.index + 1} dari {photoGallery.photos.length}
                                     </div>
                                 )}
                             </motion.div>
 
                             {photoGallery.photos.length > 1 && (
-                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index + 1) % p.photos.length } : null)} className="bg-white/10 hover:bg-white text-white hover:text-black p-3 rounded-full border-2 border-transparent hover:border-black transition-all hidden md:block">
-                                    <ChevronRight size={32} />
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index + 1) % p.photos.length } : null)} className="bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 p-3 rounded-full border border-zinc-800 transition-all hidden md:block cursor-pointer">
+                                    <ChevronRight size={24} />
                                 </button>
                             )}
                         </div>
@@ -468,8 +466,8 @@ export default function SectionAdminSystem() {
                         {/* Mobile Controls */}
                         {photoGallery.photos.length > 1 && (
                             <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-6 md:hidden z-[610]" onClick={e => e.stopPropagation()}>
-                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index - 1 + p.photos.length) % p.photos.length } : null)} className="bg-white p-3 rounded-full border-4 border-black"><ChevronLeft size={24} /></button>
-                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index + 1) % p.photos.length } : null)} className="bg-white p-3 rounded-full border-4 border-black"><ChevronRight size={24} /></button>
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index - 1 + p.photos.length) % p.photos.length } : null)} className="bg-zinc-900 p-3 rounded-full border border-zinc-800 text-zinc-200"><ChevronLeft size={20} /></button>
+                                <button onClick={() => setPhotoGallery(p => p ? { ...p, index: (p.index + 1) % p.photos.length } : null)} className="bg-zinc-900 p-3 rounded-full border border-zinc-800 text-zinc-200"><ChevronRight size={20} /></button>
                             </div>
                         )}
                     </div>
@@ -479,29 +477,29 @@ export default function SectionAdminSystem() {
             {/* --- 🛑 MODAL PREVIEW SURAT LAPORAN ALPHA 🛑 --- */}
             <AnimatePresence>
                 {isPreviewing && (
-                    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 text-slate-950 backdrop-blur-md">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[35px] p-6 md:p-8 w-full max-w-2xl flex flex-col max-h-[90vh]`}>
-                            <div className="flex justify-between items-start border-b-[4px] border-black pb-4 mb-6 shrink-0">
+                    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md text-zinc-100">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className={`bg-zinc-950 ${cardBorder} ${cardShadow} rounded-2xl p-6 md:p-8 w-full max-w-2xl flex flex-col max-h-[90vh]`}>
+                            <div className="flex justify-between items-start border-b border-zinc-800 pb-4 mb-6 shrink-0">
                                 <div>
-                                    <h3 className="font-[1000] italic uppercase text-xl md:text-2xl flex items-center gap-2"><FileText size={28} /> Surat Peringatan Alpha</h3>
-                                    <p className="text-[10px] font-black uppercase opacity-50 mt-1">Sistem Otomatis Penindakan Internal MPD</p>
+                                    <h3 className="font-extrabold uppercase text-lg md:text-xl flex items-center gap-2 text-zinc-100"><FileText size={22} className="text-red-500" /> Surat Peringatan Alpha</h3>
+                                    <p className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider mt-1">Sistem Otomatis Penindakan Internal MPD</p>
                                 </div>
-                                <button onClick={() => setIsPreviewing(false)} className="hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all border-2 border-black shadow-[2px_2px_0px_#000] active:shadow-none active:translate-y-px"><X /></button>
+                                <button onClick={() => setIsPreviewing(false)} className="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-lg border border-zinc-800 transition-all cursor-pointer"><X size={16} /></button>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 md:p-6 bg-slate-100 border-4 border-dashed border-slate-300 rounded-3xl flex justify-center items-center">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 md:p-6 bg-zinc-900/50 border border-dashed border-zinc-800 rounded-xl flex justify-center items-center">
                                 {generatedImage ? (
-                                    <img src={generatedImage} alt="Laporan Alpha" className="w-full h-auto rounded-xl border-4 border-black shadow-[6px_6px_0px_#000]" />
+                                    <img src={generatedImage} alt="Laporan Alpha" className="w-full h-auto rounded-xl border border-zinc-800 shadow-2xl" />
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center text-center p-10 opacity-50">
-                                        <Loader2 className="animate-spin mb-4" size={40} />
-                                        <p className="font-black italic uppercase">Menyusun Dokumen Resmi...</p>
+                                    <div className="flex flex-col items-center justify-center text-center p-10 text-zinc-500">
+                                        <Loader2 className="animate-spin mb-3 text-red-500" size={36} />
+                                        <p className="font-bold uppercase text-xs tracking-wider">Menyusun Dokumen Resmi...</p>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="pt-6 flex gap-4 shrink-0">
-                                <button onClick={() => setIsPreviewing(false)} className="flex-1 bg-slate-200 border-2 border-black py-3 md:py-4 rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-[4px_4px_0px_#000] active:translate-y-1 active:shadow-none transition-all">Tutup</button>
+                            <div className="pt-6 flex gap-3 shrink-0">
+                                <button onClick={() => setIsPreviewing(false)} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer">Tutup</button>
                                 <button
                                     disabled={!generatedImage}
                                     onClick={() => {
@@ -511,9 +509,9 @@ export default function SectionAdminSystem() {
                                         link.href = generatedImage;
                                         link.click();
                                     }}
-                                    className="flex-1 bg-[#00E676] border-2 border-black py-3 md:py-4 px-2 md:px-4 rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-[4px_4px_0px_#000] flex items-center justify-center gap-2 md:gap-3 active:translate-y-1 active:shadow-none disabled:opacity-50 transition-all"
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white border border-red-500/40 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-red-600/20 cursor-pointer"
                                 >
-                                    <Download size={18} /> Unduh Surat Gambar
+                                    <Download size={16} /> Unduh Surat Gambar
                                 </button>
                             </div>
                         </motion.div>
@@ -523,30 +521,30 @@ export default function SectionAdminSystem() {
 
             {/* --- HIDDEN ENGINE UNTUK GENERATOR GAMBAR (HTML-TO-IMAGE) --- */}
             <div className="fixed top-[-9999px] left-[-9999px] opacity-0 pointer-events-none z-[-1000]">
-                <div ref={reportRef} className="w-[800px] bg-white border-[12px] border-slate-950 font-mono text-slate-950">
-                    <div className="p-12 space-y-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-white">
+                <div ref={reportRef} className="w-[800px] bg-zinc-950 border border-zinc-800 font-mono text-zinc-100">
+                    <div className="p-10 space-y-6 bg-zinc-950">
                         {/* Header Surat */}
-                        <div className="flex justify-between items-center border-b-[8px] border-slate-950 pb-6 bg-white p-4 rounded-2xl border-4 shadow-[8px_8px_0px_#000]">
+                        <div className="flex justify-between items-center border-b border-zinc-800 pb-6 bg-zinc-900 p-6 rounded-2xl border border-zinc-800/80">
                             <div className="flex items-center gap-4">
-                                <div className="bg-slate-950 p-4 rounded-xl text-white"><ShieldCheck size={48} /></div>
+                                <div className="bg-red-600/10 border border-red-500/20 p-4 rounded-xl text-red-500"><ShieldCheck size={40} /></div>
                                 <div>
-                                    <h1 className="text-4xl font-[1000] uppercase italic tracking-tighter leading-none">Laporan Inaktif</h1>
-                                    <p className="font-black text-lg opacity-60 mt-1 uppercase tracking-widest">Mandalika Police Department</p>
+                                    <h1 className="text-3xl font-extrabold uppercase tracking-tight text-white">Laporan Inaktif</h1>
+                                    <p className="font-bold text-xs text-zinc-400 mt-1 uppercase tracking-widest">Mandalika Police Department</p>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="font-[1000] text-2xl italic">{format(weekStart, 'dd/MM')} - {format(weekEnd, 'dd/MM/yyyy')}</p>
-                                <p className="font-black text-sm bg-red-600 text-white px-3 py-1 inline-block mt-2 rounded-lg border-2 border-black">CONFIDENTIAL AUDIT</p>
+                                <p className="font-bold text-xl text-red-400">{format(weekStart, 'dd/MM')} - {format(weekEnd, 'dd/MM/yyyy')}</p>
+                                <p className="font-bold text-[10px] bg-red-950/80 text-red-400 border border-red-800/60 px-3 py-1 inline-block mt-2 rounded-lg tracking-wider">CONFIDENTIAL AUDIT</p>
                             </div>
                         </div>
 
                         {/* List >= 7 Hari */}
-                        <div className="bg-red-50 border-[6px] border-red-600 p-8 rounded-3xl shadow-[8px_8px_0px_#DC2626]">
-                            <div className="flex items-center gap-3 mb-6 border-b-4 border-red-200 pb-4">
-                                <Bomb className="text-red-600" size={32} />
-                                <h2 className="text-3xl font-[1000] text-red-600 uppercase italic">Tindakan Keras (Alpha 1 Minggu Full)</h2>
+                        <div className="bg-red-950/20 border border-red-500/40 p-6 rounded-2xl">
+                            <div className="flex items-center gap-3 mb-5 border-b border-red-500/30 pb-3">
+                                <Bomb className="text-red-500" size={24} />
+                                <h2 className="text-xl font-extrabold text-red-400 uppercase tracking-tight">Tindakan Keras (Alpha 1 Minggu Full)</h2>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 {inactiveStats.inactive7.length > 0 ? (
                                     inactiveStats.inactive7.map((p, i) => {
                                         let rawName = p.name || 'UNKNOWN';
@@ -565,25 +563,25 @@ export default function SectionAdminSystem() {
                                         const cleanName = rawName.toUpperCase();
 
                                         return (
-                                            <div key={i} className="bg-white border-4 border-red-300 p-4 rounded-xl flex items-center justify-between">
-                                                <span className="font-[1000] text-lg uppercase truncate">{cleanName}</span>
-                                                <span className="bg-red-600 text-white px-2 py-1 text-[10px] font-black rounded">{p.pangkat} • #{badgeNumber}</span>
+                                            <div key={i} className="bg-zinc-900 border border-zinc-800 p-3.5 rounded-xl flex items-center justify-between">
+                                                <span className="font-extrabold text-sm text-zinc-100 uppercase truncate">{cleanName}</span>
+                                                <span className="bg-red-600/20 text-red-400 border border-red-500/30 px-2.5 py-1 text-[9px] font-bold rounded-md">{p.pangkat} • #{badgeNumber}</span>
                                             </div>
                                         )
                                     })
                                 ) : (
-                                    <div className="col-span-2 text-center py-4 font-black italic opacity-40 text-red-800">Nihil. Seluruh personel aman.</div>
+                                    <div className="col-span-2 text-center py-4 font-bold text-xs text-zinc-500 uppercase tracking-wider">Nihil. Seluruh personel aman.</div>
                                 )}
                             </div>
                         </div>
 
                         {/* List >= 4 Hari Berturut-turut */}
-                        <div className="bg-yellow-50 border-[6px] border-yellow-500 p-8 rounded-3xl shadow-[8px_8px_0px_#EAB308]">
-                            <div className="flex items-center gap-3 mb-6 border-b-4 border-yellow-200 pb-4">
-                                <AlertOctagon className="text-yellow-600" size={32} />
-                                <h2 className="text-3xl font-[1000] text-yellow-600 uppercase italic">Teguran (Alpha &ge; 4 Hari Beruntun)</h2>
+                        <div className="bg-amber-950/20 border border-amber-500/40 p-6 rounded-2xl">
+                            <div className="flex items-center gap-3 mb-5 border-b border-amber-500/30 pb-3">
+                                <AlertOctagon className="text-amber-500" size={24} />
+                                <h2 className="text-xl font-extrabold text-amber-400 uppercase tracking-tight">Teguran (Alpha &ge; 4 Hari Beruntun)</h2>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 {inactiveStats.inactive4.length > 0 ? (
                                     inactiveStats.inactive4.map((p, i) => {
                                         let rawName = p.name || 'UNKNOWN';
@@ -602,20 +600,20 @@ export default function SectionAdminSystem() {
                                         const cleanName = rawName.toUpperCase();
 
                                         return (
-                                            <div key={i} className="bg-white border-4 border-yellow-300 p-4 rounded-xl flex items-center justify-between">
-                                                <span className="font-[1000] text-lg uppercase truncate">{cleanName}</span>
-                                                <span className="bg-yellow-500 text-slate-900 px-2 py-1 text-[10px] font-black rounded">{p.pangkat} • #{badgeNumber}</span>
+                                            <div key={i} className="bg-zinc-900 border border-zinc-800 p-3.5 rounded-xl flex items-center justify-between">
+                                                <span className="font-extrabold text-sm text-zinc-100 uppercase truncate">{cleanName}</span>
+                                                <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 text-[9px] font-bold rounded-md">{p.pangkat} • #{badgeNumber}</span>
                                             </div>
                                         )
                                     })
                                 ) : (
-                                    <div className="col-span-2 text-center py-4 font-black italic opacity-40 text-yellow-800">Nihil. Seluruh personel aman.</div>
+                                    <div className="col-span-2 text-center py-4 font-bold text-xs text-zinc-500 uppercase tracking-wider">Nihil. Seluruh personel aman.</div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="text-center pt-8 opacity-40 border-t-4 border-black/20">
-                            <p className="font-black text-xs uppercase tracking-[0.5em] italic">System Auto-Generated • Divisi Internal MPD</p>
+                        <div className="text-center pt-6 text-zinc-500 border-t border-zinc-800">
+                            <p className="font-bold text-[10px] uppercase tracking-[0.3em]">System Auto-Generated • Divisi Internal MPD</p>
                         </div>
                     </div>
                 </div>
@@ -623,7 +621,7 @@ export default function SectionAdminSystem() {
 
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
             `}</style>
         </div>
     );

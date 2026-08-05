@@ -190,22 +190,20 @@ export default function AbsenPage() {
                 if (dutyForm.bukti_foto_urls.length < 2) return toast.error("Minimal 2 bukti foto wajib diunggah!", { id: tId });
                 if (dutyForm.bukti_foto_urls.length > 3) return toast.error("Maksimal bukti foto yang diizinkan adalah 3!", { id: tId });
 
-                // Hitung durasi dan cross-midnight check
                 let durasi = 0;
-                let startTimeISO = `${dutyForm.tanggal}T${dutyForm.jam_duty}:00+00`;
+                let startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
+                let startTimeISO = new Date(startMs).toISOString();
                 let endTimeISO = null;
 
                 if (dutyForm.jam_off_duty) {
-                    endTimeISO = `${dutyForm.tanggal}T${dutyForm.jam_off_duty}:00+00`;
-                    
-                    let startMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_duty}:00`).getTime();
                     let endMs = new Date(`${dutyForm.tanggal}T${dutyForm.jam_off_duty}:00`).getTime();
                     
                     if (endMs < startMs) {
-                        endMs += 24 * 60 * 60 * 1000;
+                        endMs += 24 * 60 * 60 * 1000; // Cross-midnight adjustment
                     }
                     
                     durasi = Math.floor((endMs - startMs) / (1000 * 60));
+                    endTimeISO = new Date(endMs).toISOString();
                 }
 
                 const { error: insertError } = await supabase.from('presensi_duty').insert([
@@ -248,7 +246,7 @@ export default function AbsenPage() {
                 }
 
                 toast.success("Presensi Duty berhasil dicatat! Mengalihkan ke halaman utama...", { id: tId });
-                handleNavigation('/dashboard'); // REDIRECT KE HOME
+                handleNavigation('/dashboard');
 
             } else {
                 if (!cutiForm.tanggal_mulai) return toast.error("Tanggal mulai wajib diisi!", { id: tId });
@@ -271,13 +269,13 @@ export default function AbsenPage() {
 
                 if (error) throw error;
                 toast.success("Pengajuan izin/cuti berhasil terkirim! Mengalihkan ke halaman utama...", { id: tId });
-                handleNavigation('/dashboard'); // REDIRECT KE HOME
+                handleNavigation('/dashboard');
             }
 
         } catch (error: any) {
             console.error("Error submit data:", error);
             toast.error(error.message || "Gagal menyimpan data ke sistem.", { id: tId });
-            setIsSubmitting(false); // Enable kembali jika terjadi error
+            setIsSubmitting(false);
         }
     };
 
@@ -357,7 +355,6 @@ export default function AbsenPage() {
 
                     <AnimatePresence mode="wait">
                         {tipe === 'ON_DUTY' ? (
-                            /* ---------------- ON DUTY FORM ---------------- */
                             <motion.div
                                 key="on_duty"
                                 initial={{ opacity: 0, y: 10 }}
@@ -451,7 +448,6 @@ export default function AbsenPage() {
                                 </div>
                             </motion.div>
                         ) : (
-                            /* ---------------- CUTI / IZIN FORM ---------------- */
                             <motion.div
                                 key="izin"
                                 initial={{ opacity: 0, y: 10 }}

@@ -6,18 +6,82 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Shield, MapPin, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter
+    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter
 } from 'lucide-react';
-import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
+import { format, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+const cn = (...classes: (string | undefined | false | null)[]) => classes.filter(Boolean).join(' ');
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 // 🚀 DAFTAR PANGKAT PETINGGI YANG KEBAL POTONGAN
 const PETINGGI_RANKS = ['JENDRAL', 'WAKAPOLRI', 'KAPOLRI', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBES', 'AKBP'];
+
+// Type Definitions
+interface PayrollRequest {
+    id: string;
+    user_id_discord: string;
+    nama_panggilan: string;
+    pangkat: string;
+    divisi: string;
+    status: 'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT';
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    jumlah_gaji: number;
+    bukti_transfer?: string;
+    keterangan_admin?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+interface Duty {
+    user_id_discord: string;
+    start_time: string;
+}
+
+interface Cuti {
+    user_id_discord: string;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    status: string;
+}
+
+interface Laporan {
+    user_id_discord: string;
+    created_at: string;
+}
+
+interface AdminSession {
+    name: string;
+    pangkat: string;
+    divisi: string;
+}
+
+interface Adjustment {
+    amount: number;
+    reason: string;
+}
+
+type SlipData = PayrollRequest & {
+    cleanName: string;
+    badgeNumber: string;
+    hadir: number;
+    cuti: number;
+    alpha: number;
+    total_hari: number;
+    tilangCount: number;
+    isTargetMet: boolean;
+    isSatlantas: boolean;
+    isPetinggi: boolean;
+    baseGaji: number;
+    potonganAlpha: number;
+    potonganCuti: number;
+    totalPotongan: number;
+    adjustment: Adjustment;
+    finalGaji: number;
+};
 
 // 🚀 ENGINE PENYELAMAT TIMEZONE WITA/WIT
 const getLocalSafeDate = (isoString: string) => {
@@ -29,23 +93,22 @@ const getLocalSafeDate = (isoString: string) => {
 
 export default function SectionAdminPayroll() {
     const slipRef = useRef<HTMLDivElement>(null);
-    const [requests, setRequests] = useState<any[]>([]);
-    const [allPersonnel, setAllPersonnel] = useState<any[]>([]);
-    const [duties, setDuties] = useState<any[]>([]);
-    const [cutis, setCutis] = useState<any[]>([]);
-    const [laporans, setLaporans] = useState<any[]>([]);
+    const [requests, setRequests] = useState<PayrollRequest[]>([]);
+    const [duties, setDuties] = useState<Duty[]>([]);
+    const [cutis, setCutis] = useState<Cuti[]>([]);
+    const [laporans, setLaporans] = useState<Laporan[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'PENDING' | 'PAID' | 'REJECTED' | 'NOT_SENT' | 'REKAP'>('PENDING');
-    const [adminSession, setAdminSession] = useState<any>(null);
+    const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6;
     const [selectedPeriod, setSelectedPeriod] = useState<string>('ALL');
 
-    const [manualAdjustments, setManualAdjustments] = useState<Record<string, { amount: number, reason: string }>>({});
+    const [manualAdjustments, setManualAdjustments] = useState<Record<string, Adjustment>>({});
     const [adjInputs, setAdjInputs] = useState<Record<string, { amount: string, reason: string }>>({});
 
-    const [currentSlipData, setCurrentSlipData] = useState<any>(null);
+    const [currentSlipData, setCurrentSlipData] = useState<SlipData | null>(null);
     const [capturedImg, setCapturedImg] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTransmitting, setIsTransmitting] = useState(false);
@@ -57,9 +120,6 @@ export default function SectionAdminPayroll() {
         setLoading(true);
         const { data: reqData } = await supabase.from('pengajuan_gaji').select('*').order('created_at', { ascending: false });
         if (reqData) setRequests(reqData);
-
-        const { data: userData } = await supabase.from('users').select('discord_id, name, pangkat');
-        if (userData) setAllPersonnel(userData);
 
         const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time');
         if (dutyData) setDuties(dutyData);
@@ -267,7 +327,7 @@ export default function SectionAdminPayroll() {
         return { weeklyPaid, totalPending, forecast };
     }, [requests, augmentedRequests]);
 
-    const handleOpenAndCapture = async (req: any) => {
+    const handleOpenAndCapture = async (req: SlipData) => {
         setCurrentSlipData(req);
         setIsGenerating(true);
         setCapturedImg(null);
@@ -282,7 +342,7 @@ export default function SectionAdminPayroll() {
                 const dataUrl = await toPng(slipRef.current, { cacheBust: true, pixelRatio: 3, backgroundColor: '#ffffff' });
                 setCapturedImg(dataUrl);
                 toast.success("Payslip Berhasil Dicetak!", { id: tId });
-            } catch (err) {
+            } catch {
                 toast.error("Sistem gagal mengambil foto slip.", { id: tId });
                 setCurrentSlipData(null);
             } finally { setIsGenerating(false); }
@@ -323,12 +383,20 @@ export default function SectionAdminPayroll() {
                 setCapturedImg(null); setCurrentSlipData(null); fetchData();
             } else { throw new Error("Discord Webhook Menolak Permintaan"); }
 
-        } catch (err: any) { toast.error(err.message, { id: tId }); } finally { setIsTransmitting(false); }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Gagal mengirim payslip.";
+            toast.error(errorMessage, { id: tId });
+        } finally { setIsTransmitting(false); }
     };
 
     const handleAction = async (id: string, status: string) => {
         const tId = toast.loading(`Updating status...`);
         const reqToApprove = augmentedRequests.find(r => r.id === id);
+
+        if (!reqToApprove) {
+            toast.error("Data pengajuan tidak ditemukan!", { id: tId });
+            return;
+        }
 
         const rawName = adminSession?.name || 'ADMIN';
         const rawRank = adminSession?.pangkat || '';
@@ -366,11 +434,11 @@ export default function SectionAdminPayroll() {
             fetchData();
             setDeleteModal({ show: false, type: 'ALL' });
             setConfirmInput("");
-        } catch (e) { toast.error("Gagal menghapus data!"); }
+        } catch { toast.error("Gagal menghapus data!"); }
     };
 
     // 🚀 ENGINE MEMBERSIHKAN NAMA ADMIN DI SLIP GAJI
-    const getAdminName = (notes: string) => {
+    const getAdminName = (notes?: string) => {
         if (!notes) return 'HIGH COMMAND';
         let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');
         const alphIndex = str.indexOf('- ALPH:');
@@ -449,7 +517,7 @@ export default function SectionAdminPayroll() {
 
                     <div className="flex flex-1 w-full lg:w-auto bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
                         {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED', 'REKAP'].map((t) => (
-                            <button key={t} onClick={() => setActiveTab(t as any)} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap flex items-center gap-2", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>
+                            <button key={t} onClick={() => setActiveTab(t as 'PENDING' | 'NOT_SENT' | 'PAID' | 'REJECTED' | 'REKAP')} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap flex items-center gap-2", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>
                                 {t === 'REKAP' && <FileSpreadsheet size={14} />}
                                 {t.replace('_', ' ')}
                             </button>

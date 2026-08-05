@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
-import { ShieldCheck, Users, FileText, Server, Loader2, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Users, FileText, Server, Loader2, ArrowLeft, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // IMPORT KOMPONEN
@@ -11,13 +11,14 @@ import SectionAdminPersonnel from './components/SectionAdminPersonnel';
 import SectionAdminSystem from './components/SectionAdminSystem';
 import SectionAdminLaporan from './components/SectionAdminLaporan';
 import SectionAdminConfig from './components/SectionAdminConfig';
+import SectionAdminPayroll from './components/SectionAdminPayroll'; // 👈 IMPORTED
 
 const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
 
 export default function AdminHQPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'LAPORAN' | 'SYSTEM'>('PERSONEL');
+    const [activeTab, setActiveTab] = useState<'PERSONEL' | 'PAYROLL' | 'LAPORAN' | 'SYSTEM'>('PERSONEL');
     const [personelSubTab, setPersonelSubTab] = useState<'DATA_ANGGOTA' | 'REKAP_ABSEN'>('DATA_ANGGOTA');
 
     useEffect(() => {
@@ -43,9 +44,10 @@ export default function AdminHQPage() {
         </div>
     );
 
-    type MainTabId = 'PERSONEL' | 'LAPORAN' | 'SYSTEM';
+    type MainTabId = 'PERSONEL' | 'PAYROLL' | 'LAPORAN' | 'SYSTEM';
     const mainTabs: { id: MainTabId; icon: React.ReactNode; label: string }[] = [
         { id: 'PERSONEL', icon: <Users size={16} />, label: 'Personel' },
+        { id: 'PAYROLL', icon: <Wallet size={16} />, label: 'Payroll' },
         { id: 'LAPORAN', icon: <FileText size={16} />, label: 'Laporan' },
         { id: 'SYSTEM', icon: <Server size={16} />, label: 'System' }
     ];
@@ -137,10 +139,13 @@ export default function AdminHQPage() {
                             </div>
                         )}
 
-                        {/* 2. LAPORAN */}
+                        {/* 2. PAYROLL */}
+                        {activeTab === 'PAYROLL' && <SectionAdminPayroll />}
+
+                        {/* 3. LAPORAN */}
                         {activeTab === 'LAPORAN' && <SectionAdminLaporan />}
 
-                        {/* 3. SYSTEM */}
+                        {/* 4. SYSTEM */}
                         {activeTab === 'SYSTEM' && <SectionAdminConfig />}
 
                     </motion.div>

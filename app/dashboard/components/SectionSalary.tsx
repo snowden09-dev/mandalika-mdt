@@ -30,6 +30,35 @@ interface PayrollProps {
 
 const inputStyle = "w-full bg-[#18181b] border-2 border-zinc-800 focus:border-red-500 rounded-xl p-3.5 text-xs font-bold outline-none text-zinc-100 placeholder-zinc-600 transition-all uppercase tracking-wider cursor-pointer";
 
+// 🚀 ENGINE VALIDATOR PANGKAT & GAJI OTOMATIS
+const getGajiByRank = (pangkat: string) => {
+    const p = pangkat?.toUpperCase().trim() || "";
+    switch (p) {
+        case "JENDRAL": return 190000;
+        case "WAKAPOLRI": return 185000;
+        case "KAPOLRI": return 190000;
+        case "KOMJEN": return 180000;
+        case "IRJEN": return 175000;
+        case "BRIGJEN": return 170000;
+        case "KOMBESPOL":
+        case "KOMBES": return 165000;
+        case "AKBP": return 160000;
+        case "KOMPOL": return 155000;
+        case "AKP": return 150000;
+        case "IPTU": return 145000;
+        case "IPDA": return 140000;
+        case "AIPTU": return 135000;
+        case "AIPDA": return 130000;
+        case "BRIPKA": return 125000;
+        case "BRIGPOL": return 120000;
+        case "BRIPTU": return 115000;
+        case "BRIPDA": return 110000;
+        case "BHARATU": return 105000;
+        case "BHARADA": return 100000;
+        default: return 110000;
+    }
+};
+
 export default function SectionPayroll({ currentLogs, currentPage, setCurrentPage, totalPages, discordId, onRefresh }: PayrollProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [userProfile, setUserProfile] = useState<{ pangkat: string; gaji_pokok: number } | null>(null);
@@ -44,40 +73,44 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
         tanggal_selesai: defaultEnd
     });
 
-    // Ambil data pangkat & gaji user dari database
+    // Ambil data pangkat user dari database & hitung gaji otomatis
     useEffect(() => {
         async function fetchUserProfile() {
             if (!discordId) return;
             try {
                 const { data, error } = await supabase
                     .from('users')
-                    .select('pangkat, gaji_pokok')
+                    .select('pangkat')
                     .eq('discord_id', discordId)
                     .maybeSingle();
 
                 if (error) throw error;
 
-                if (data) {
-                    setUserProfile({
-                        pangkat: data.pangkat || 'Anggota',
-                        gaji_pokok: data.gaji_pokok || 0
-                    });
-                }
+                const pangkatUser = data?.pangkat || 'BRIPDA';
+                setUserProfile({
+                    pangkat: pangkatUser,
+                    gaji_pokok: getGajiByRank(pangkatUser)
+                });
             } catch (err) {
                 console.error("Gagal memuat profil gaji:", err);
+                // Fallback aman jika gagal fetch
+                setUserProfile({ pangkat: 'BRIPDA', gaji_pokok: 110000 });
             }
         }
         fetchUserProfile();
     }, [discordId]);
 
-    // Handler Pengajuan Gaji Mingguan dengan Validasi Ketat
+    // 📤 Handler Pengajuan Gaji Mingguan
     const handleSubmitClaim = async (e: React.FormEvent) => {
         e.preventDefault();
+        
         if (!discordId) {
-            return toast.error("Identitas Discord tidak ditemukan. Silakan login ulang.");
+            toast.error("Identitas Discord tidak ditemukan. Silakan login ulang.");
+            return;
         }
         if (!form.tanggal_mulai || !form.tanggal_selesai) {
-            return toast.error("Rentang periode tanggal wajib dipilih!");
+            toast.error("Rentang periode tanggal wajib dipilih!");
+            return;
         }
 
         const startDate = parseISO(form.tanggal_mulai);
@@ -88,17 +121,20 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
         const endDay = getDay(endDate);     // 0 = Minggu
 
         if (startDay !== 1 || endDay !== 0) {
-            return toast.error("Periode wajib dipilih dari hari SENIN sampai MINGGU!");
+            toast.error("Periode wajib dipilih dari hari SENIN sampai MINGGU!");
+            return;
         }
 
         // 2. Validasi Maksimal 2 Minggu ke Belakang (14 hari)
         const diffDays = differenceInDays(new Date(), startDate);
         if (diffDays > 14) {
-            return toast.error("Maksimal pengajuan gaji adalah 2 minggu ke belakang!");
+            toast.error("Maksimal pengajuan gaji adalah 2 minggu ke belakang!");
+            return;
         }
 
         if (startDate > new Date()) {
-            return toast.error("Tanggal mulai tidak boleh di masa depan!");
+            toast.error("Tanggal mulai tidak boleh di masa depan!");
+            return;
         }
 
         setIsSubmitting(true);
@@ -117,24 +153,28 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
             if (checkError) throw checkError;
 
             if (existing) {
+                toast.error("Gagal: Anda sudah pernah mengajukan klaim untuk rentang periode minggu ini!", { id: tId });
                 setIsSubmitting(false);
-                return toast.error("Gagal: Anda sudah pernah mengajukan klaim untuk rentang periode minggu ini!", { id: tId });
+                return;
             }
 
-            // Insert pengajuan baru dengan status PENDING ke tabel database admin
+            // Tentukan nominal gaji akhir berdasarkan pangkat terbaru
+            const finalGaji = userProfile?.gaji_pokok || getGajiByRank(userProfile?.pangkat || '');
+
+            // Insert pengajuan baru ke database admin (tabel 'gaji')
             const { error: insertError } = await supabase.from('gaji').insert([
                 {
                     user_id_discord: discordId,
                     tanggal_mulai: form.tanggal_mulai,
                     tanggal_selesai: form.tanggal_selesai,
                     status: 'PENDING',
-                    jumlah_gaji: userProfile?.gaji_pokok || 0 
+                    jumlah_gaji: finalGaji 
                 }
             ]);
 
             if (insertError) throw insertError;
 
-            toast.success("Pengajuan gaji mingguan berhasil dikirim! Menunggu verifikasi pimpinan.", { id: tId });
+            toast.success("Pengajuan gaji mingguan berhasil dikirim ke Admin Panel!", { id: tId });
             setForm({ tanggal_mulai: defaultStart, tanggal_selesai: defaultEnd });
             if (onRefresh) onRefresh();
 
@@ -152,7 +192,7 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
             animate={{ opacity: 1, y: 0 }} 
             className="flex flex-col gap-6 w-full max-w-5xl mx-auto pb-20 text-white"
         >
-            {/* INFORMASI GAJI BERDASARKAN PANGKAT */}
+            {/* --- INFORMASI GAJI BERDASARKAN PANGKAT --- */}
             <div className="bg-[#18181b] border-2 border-zinc-800 rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-md">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-red-600/10 border border-red-500/20 rounded-xl text-red-500">
@@ -173,7 +213,7 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
                 </div>
             </div>
 
-            {/* FORM PENGAJUAN GAJI */}
+            {/* --- FORM PENGAJUAN GAJI --- */}
             <div className="bg-[#121214] border-2 border-zinc-800 rounded-[28px] p-6 md:p-10 shadow-[4px_4px_0px_#ef4444] relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-rose-500 to-amber-500"></div>
                 <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -196,7 +236,7 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
                     <AlertCircle size={20} className="shrink-0 mt-0.5" />
                     <div>
                         <span className="block font-black uppercase mb-0.5">Catatan Penting Periode:</span>
-                        Pilih periode kalender wajib dari hari **Senin** sampai hari **Minggu**. Jika rentang bukan Senin–Minggu atau melewati batas maksimal 2 minggu ke belakang, sistem akan menolak pengajuan secara otomatis.
+                        Pilih periode kalender wajib dari hari **Senin** sampai hari **Minggu**. Nominal gaji akan otomatis disesuaikan dengan pangkat Anda saat tombol ajukan ditekan.
                     </div>
                 </div>
 
@@ -240,7 +280,7 @@ export default function SectionPayroll({ currentLogs, currentPage, setCurrentPag
                 </form>
             </div>
 
-            {/* RIWAYAT PENGAJUAN GAJI */}
+            {/* --- RIWAYAT PENGAJUAN GAJI --- */}
             <div className="bg-[#121214] border-2 border-zinc-800 rounded-[28px] flex flex-col overflow-hidden shadow-[4px_4px_0px_#27272a]">
                 <div className="border-b-2 border-zinc-800 bg-[#18181b] p-5 md:px-6 flex justify-between items-center">
                     <div className="flex items-center gap-3">

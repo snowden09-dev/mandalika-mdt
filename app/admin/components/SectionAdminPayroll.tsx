@@ -67,7 +67,7 @@ interface Duty {
     user_id_discord: string;
     start_time: string;
     end_time?: string;
-    duration?: number; // jam atau menit
+    duration?: number;
 }
 
 interface UserRecord {
@@ -77,7 +77,7 @@ interface UserRecord {
     jabatan?: string;
     pangkat?: string;
     divisi?: string;
-    total_duty?: number;
+    total_jam_duty?: string | number;
 }
 
 interface Cuti {
@@ -128,7 +128,6 @@ type SlipData = PayrollRequest & {
     finalGaji: number;
 };
 
-// 🚀 ENGINE PENYELAMAT TIMEZONE WITA/WIT
 const getLocalSafeDate = (isoString: string) => {
     if (!isoString) return new Date();
     const d = new Date(isoString);
@@ -162,7 +161,6 @@ export default function SectionAdminPayroll() {
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
     const [confirmInput, setConfirmInput] = useState("");
 
-    // State Tampilan Aturan Bonus
     const [showRules, setShowRules] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -181,7 +179,7 @@ export default function SectionAdminPayroll() {
         const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, duration');
         if (dutyData) setDuties(dutyData);
 
-        const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_duty');
+        const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_jam_duty');
         if (userData) setUsers(userData);
 
         const { data: cutiData } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_mulai, tanggal_selesai, status');
@@ -205,7 +203,6 @@ export default function SectionAdminPayroll() {
 
     useEffect(() => { setCurrentPage(1); }, [activeTab, selectedPeriod]);
 
-    // 🚀 ENGINE VALIDATOR PANGKAT
     const getGajiByRank = (pangkat: string) => {
         const p = pangkat?.toUpperCase().trim() || "";
         switch (p) {
@@ -244,7 +241,6 @@ export default function SectionAdminPayroll() {
         return Array.from(periods).sort().reverse();
     }, [requests]);
 
-    // 🚀 ENGINE SUPER KALKULASI & AUTO-DETECT ROLE / DUTY
     const augmentedRequests = useMemo(() => {
         const kadivIds = BONUS_RULES.kadivRoles.map(r => r.id);
         const wakadivIds = BONUS_RULES.wakadivRoles.map(r => r.id);
@@ -285,28 +281,8 @@ export default function SectionAdminPayroll() {
                 bonusJabatanLabel = 'Bonus Wakadiv';
             }
 
-            // 3. AUTO DETECT JAM DUTY DARI DATABASE
-            let totalDutyMinutes = 0;
-            const userDutiesInPeriod = duties.filter(d => {
-                if (d.user_id_discord !== discordId) return false;
-                const dDate = startOfDay(getLocalSafeDate(d.start_time));
-                return dDate >= start && dDate <= end;
-            });
-
-            userDutiesInPeriod.forEach(d => {
-                if (d.duration && d.duration > 0) {
-                    totalDutyMinutes += d.duration > 24 ? d.duration : d.duration * 60;
-                } else if (d.end_time) {
-                    const diffMs = new Date(d.end_time).getTime() - new Date(d.start_time).getTime();
-                    if (diffMs > 0) totalDutyMinutes += diffMs / (1000 * 60);
-                } else {
-                    totalDutyMinutes += 60; // Default 1 jam per sesi jika log open
-                }
-            });
-
-            const dbTotalDuty = userObj?.total_duty || 0;
-            const calculatedHours = Math.round((totalDutyMinutes / 60) * 10) / 10;
-            const totalDutyHours = calculatedHours > 0 ? calculatedHours : dbTotalDuty;
+            // 3. JAM DUTY DANGSUNG DARI DATABASE USERS (total_jam_duty)
+            const totalDutyHours = parseFloat(String(userObj?.total_jam_duty || "0")) || 0;
             const is100HoursDuty = totalDutyHours >= 100;
 
             // 4. PARSING NAMA DAN BADGE
@@ -380,13 +356,12 @@ export default function SectionAdminPayroll() {
             const weeksCount = daysInPeriod.length >= 13 ? 2 : 1;
             let baseGajiPokok = getGajiByRank(req.pangkat) * weeksCount;
 
-            // 🚀 SYARAT 100 JAM DUTY = 2x LIPAT GAJI POKOK
             if (is100HoursDuty) {
                 baseGajiPokok *= 2;
             }
 
             const divisiUser = (req.divisi || "").toUpperCase();
-            let earnedBonus = bonusJabatan; // Auto Bonus Kadiv/Wakadiv
+            let earnedBonus = bonusJabatan;
 
             if (isTargetMet) {
                 if (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) earnedBonus += 35000;
@@ -563,7 +538,6 @@ export default function SectionAdminPayroll() {
         } catch { toast.error("Gagal menghapus data!"); }
     };
 
-    // 🚀 ENGINE MEMBERSIHKAN NAMA ADMIN DI SLIP GAJI
     const getAdminName = (notes?: string) => {
         if (!notes) return 'HIGH COMMAND';
         let str = notes.replace('AUTH BY ', '').replace('REJECTED BY ', '');

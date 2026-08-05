@@ -6,18 +6,45 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter
+    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, Target, UserX, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 
 const cn = (...classes: (string | undefined | false | null)[]) => classes.filter(Boolean).join(' ');
-const boxBorder = "border-[3.5px] border-slate-950";
-const hardShadow = "shadow-[6px_6px_0px_#000]";
 
 // 🚀 DAFTAR PANGKAT PETINGGI YANG KEBAL POTONGAN
 const PETINGGI_RANKS = ['JENDRAL', 'WAKAPOLRI', 'KAPOLRI', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBES', 'AKBP'];
+
+// 📋 DATA ATURAN BONUS GAJI & ROLE ID
+const BONUS_RULES = {
+    divisiMingguan: [
+        { label: "ALL ANGGOTA DIVISI (ABSEN BOLONG)", value: "$35.000", amount: 35000 },
+        { label: "ALL ANGGOTA DIVISI (ABSEN RAJIN)", value: "$50.000", amount: 50000 },
+        { label: "ALL KADIV", value: "$70.000", amount: 70000 },
+        { label: "ALL WAKADIV", value: "$60.000", amount: 60000 },
+    ],
+    administrasi: [
+        { label: "1 JAM ADMINISTRASI", value: "$30.000", amount: 30000 },
+        { label: "SYARAT ADMINISTRASI", value: "WAJIB ABSEN & DIBERIKAN OLEH SETUM", highlight: true },
+        { label: "100 JAM DUTY", value: "2x LIPAT GAJI POKOK", highlight: true },
+    ],
+    kadivRoles: [
+        { divisi: "Sabhara", id: "1423067332389109801" },
+        { divisi: "Satlantas", id: "1428104594252238998" },
+        { divisi: "Setum", id: "1518415347558907992" },
+        { divisi: "Propam", id: "1458651434500358194" },
+        { divisi: "Brimob", id: "1445077121318785075" },
+    ],
+    wakadivRoles: [
+        { divisi: "Sabhara", id: "1423068619860082888" },
+        { divisi: "Satlantas", id: "1428104859717996665" },
+        { divisi: "Setum", id: "1518415643022725201" },
+        { divisi: "Propam", id: "1466377320909635666" },
+        { divisi: "Brimob", id: "1456339100457238598" },
+    ]
+};
 
 // Type Definitions
 interface PayrollRequest {
@@ -115,6 +142,17 @@ export default function SectionAdminPayroll() {
 
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, type: 'SINGLE' | 'ALL', id?: string }>({ show: false, type: 'ALL' });
     const [confirmInput, setConfirmInput] = useState("");
+
+    // State tambahan untuk Tampilan Aturan Bonus
+    const [showRules, setShowRules] = useState(false);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    const handleCopy = (id: string) => {
+        navigator.clipboard.writeText(id);
+        setCopiedId(id);
+        toast.success("Role ID berhasil disalin!");
+        setTimeout(() => setCopiedId(null), 2000);
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -339,7 +377,7 @@ export default function SectionAdminPayroll() {
                 setIsGenerating(false); return;
             }
             try {
-                const dataUrl = await toPng(slipRef.current, { cacheBust: true, pixelRatio: 3, backgroundColor: '#ffffff' });
+                const dataUrl = await toPng(slipRef.current, { cacheBust: true, pixelRatio: 3, backgroundColor: '#09090b' });
                 setCapturedImg(dataUrl);
                 toast.success("Payslip Berhasil Dicetak!", { id: tId });
             } catch {
@@ -369,7 +407,7 @@ export default function SectionAdminPayroll() {
                 embeds: [{
                     title: "🏛️ MANDALIKA POLICE - OFFICIAL PAYSLIP",
                     description: `Payslip resmi telah diterbitkan dan divalidasi oleh HQ Finance.`,
-                    color: 0,
+                    color: 0xef4444,
                     footer: { text: "Mandalika Automated Payroll System" },
                     timestamp: new Date().toISOString()
                 }]
@@ -445,7 +483,6 @@ export default function SectionAdminPayroll() {
         if (alphIndex !== -1) str = str.substring(0, alphIndex);
         str = str.trim();
 
-        // Parse jika admin name masih mengandung | atau #
         if (str.includes('|')) {
             str = str.split('|').pop()?.trim() || str;
         }
@@ -463,68 +500,231 @@ export default function SectionAdminPayroll() {
     const PaginationControls = () => {
         if (totalPages <= 1) return null;
         return (
-            <div className="flex justify-between items-center bg-slate-950 text-white p-4 rounded-xl border-4 border-black mt-6 shadow-[6px_6px_0px_#FFD100]">
-                <span className="text-[10px] font-black uppercase italic tracking-widest text-[#FFD100]">Page {currentPage} of {totalPages}</span>
-                <div className="flex gap-2">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="bg-white text-black p-2 rounded-lg active:scale-95 disabled:opacity-30 disabled:active:scale-100 transition-transform"><ChevronLeft size={16} strokeWidth={3} /></button>
-                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="bg-white text-black p-2 rounded-lg active:scale-95 disabled:opacity-30 disabled:active:scale-100 transition-transform"><ChevronRight size={16} strokeWidth={3} /></button>
+            <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-3.5 rounded-xl mt-6">
+                <span className="text-xs font-medium text-zinc-400">
+                    Halaman <span className="text-zinc-100 font-bold">{currentPage}</span> dari <span className="text-zinc-100 font-bold">{totalPages}</span>
+                </span>
+                <div className="flex gap-1.5">
+                    <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => p - 1)}
+                        className="p-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 disabled:opacity-30 disabled:hover:bg-zinc-800/80 transition-all border border-zinc-700/50"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    <button
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => p + 1)}
+                        className="p-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 disabled:opacity-30 disabled:hover:bg-zinc-800/80 transition-all border border-zinc-700/50"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
                 </div>
             </div>
         );
     };
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6 font-mono pb-20 text-slate-950">
-            <Toaster position="top-center" />
+        <div className="w-full max-w-7xl mx-auto space-y-6 font-sans text-zinc-100 pb-20">
+            <Toaster position="top-center" theme="dark" />
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-                <div className={`col-span-2 md:col-span-1 bg-[#3B82F6] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl text-white`}>
-                    <p className="text-[10px] font-black uppercase opacity-80">System Forecast (Based on Previous Data)</p>
-                    <h3 className="text-3xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.forecast.toLocaleString()}</h3>
+            {/* --- TOP STATS METRICS (DARK MINIMALIST) --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-5 rounded-2xl relative overflow-hidden backdrop-blur-md">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-red-600"></div>
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">System Forecast</p>
+                    <h3 className="text-2xl md:text-3xl font-bold mt-2 text-zinc-100 tracking-tight">
+                        ${financialStats.forecast.toLocaleString()}
+                    </h3>
+                    <p className="text-[10px] text-zinc-500 mt-1">Estimasi berdasarkan data periode sebelumnya</p>
                 </div>
-                <div className={`bg-[#FFD100] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl`}>
-                    <p className="text-[10px] font-black uppercase opacity-60">Pending Needs</p>
-                    <h3 className="text-2xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.totalPending.toLocaleString()}</h3>
+
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-5 rounded-2xl relative overflow-hidden backdrop-blur-md">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Pending Needs</p>
+                    <h3 className="text-2xl md:text-3xl font-bold mt-2 text-zinc-100 tracking-tight">
+                        ${financialStats.totalPending.toLocaleString()}
+                    </h3>
+                    <p className="text-[10px] text-zinc-500 mt-1">Total pencairan dalam antrian persetujuan</p>
                 </div>
-                <div className={`bg-[#00E676] p-5 md:p-6 ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-3xl`}>
-                    <p className="text-[10px] font-black uppercase opacity-60">Weekly Paid</p>
-                    <h3 className="text-2xl md:text-4xl font-[1000] italic mt-1 leading-none truncate">${financialStats.weeklyPaid.toLocaleString()}</h3>
+
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-5 rounded-2xl relative overflow-hidden backdrop-blur-md">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Weekly Paid</p>
+                    <h3 className="text-2xl md:text-3xl font-bold mt-2 text-emerald-400 tracking-tight">
+                        ${financialStats.weeklyPaid.toLocaleString()}
+                    </h3>
+                    <p className="text-[10px] text-zinc-500 mt-1">Total gaji terbayar minggu ini</p>
                 </div>
             </div>
 
-            <div className={`bg-white ${boxBorder} ${hardShadow} p-4 md:p-6 rounded-xl md:rounded-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10 mb-6`}>
-                <div className="flex justify-between items-center w-full lg:w-auto">
-                    <h2 className="font-[1000] text-xl md:text-2xl italic uppercase tracking-tighter text-slate-950">Payroll Command</h2>
+            {/* --- PANEL ATURAN & LIST BONUS GAJI --- */}
+            <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl overflow-hidden backdrop-blur-md transition-all">
+                <button
+                    onClick={() => setShowRules(!showRules)}
+                    className="w-full p-4 flex justify-between items-center bg-zinc-900/90 hover:bg-zinc-800/60 transition-colors text-left"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-red-500/10 text-red-500 rounded-xl border border-red-500/20">
+                            <Gift size={18} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-zinc-100 tracking-tight">Aturan & List Bonus Gaji HQ</h3>
+                            <p className="text-[11px] text-zinc-400">Ketentuan bonus mingguan, administrasi, dan Role ID Kadiv / Wakadiv</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-medium text-red-400">
+                        <span>{showRules ? "Sembunyikan" : "Lihat Detail"}</span>
+                        {showRules ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </div>
+                </button>
+
+                <AnimatePresence>
+                    {showRules && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="border-t border-zinc-800/80 p-5 space-y-6 bg-zinc-950/40"
+                        >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* BONUS DIVISI MINGGUAN */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
+                                        <Shield size={14} /> Bonus Divisi Mingguan
+                                    </div>
+                                    <div className="bg-zinc-900 border border-zinc-800/80 rounded-xl divide-y divide-zinc-800/60">
+                                        {BONUS_RULES.divisiMingguan.map((rule, idx) => (
+                                            <div key={idx} className="p-3 flex justify-between items-center text-xs">
+                                                <span className="text-zinc-300 font-medium">{rule.label}</span>
+                                                <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">{rule.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* BONUS ADMINISTRASI */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
+                                        <Info size={14} /> Bonus Administrasi & Duty
+                                    </div>
+                                    <div className="bg-zinc-900 border border-zinc-800/80 rounded-xl divide-y divide-zinc-800/60">
+                                        {BONUS_RULES.administrasi.map((rule, idx) => (
+                                            <div key={idx} className="p-3 flex justify-between items-center text-xs">
+                                                <span className="text-zinc-300 font-medium">{rule.label}</span>
+                                                <span className={cn(
+                                                    "font-bold px-2.5 py-1 rounded-lg text-[11px]",
+                                                    rule.highlight
+                                                        ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                                                        : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                                )}>
+                                                    {rule.value}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ROLE ID DISCORD (KADIV & WAKADIV) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-zinc-800/60">
+                                {/* KADIV ROLES */}
+                                <div className="space-y-2">
+                                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Role ID Discord - Kadiv</span>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {BONUS_RULES.kadivRoles.map((item) => (
+                                            <div key={item.id} className="flex justify-between items-center bg-zinc-900 border border-zinc-800/80 px-3 py-2 rounded-xl text-xs">
+                                                <span className="text-zinc-200 font-medium">Kadiv {item.divisi}</span>
+                                                <button
+                                                    onClick={() => handleCopy(item.id)}
+                                                    className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-400 hover:text-red-400 transition-colors bg-zinc-950 px-2 py-1 rounded-lg border border-zinc-800"
+                                                >
+                                                    {copiedId === item.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                                    <span>{item.id}</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* WAKADIV ROLES */}
+                                <div className="space-y-2">
+                                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Role ID Discord - Wakadiv</span>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {BONUS_RULES.wakadivRoles.map((item) => (
+                                            <div key={item.id} className="flex justify-between items-center bg-zinc-900 border border-zinc-800/80 px-3 py-2 rounded-xl text-xs">
+                                                <span className="text-zinc-200 font-medium">Wakadiv {item.divisi}</span>
+                                                <button
+                                                    onClick={() => handleCopy(item.id)}
+                                                    className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-400 hover:text-red-400 transition-colors bg-zinc-950 px-2 py-1 rounded-lg border border-zinc-800"
+                                                >
+                                                    {copiedId === item.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                                    <span>{item.id}</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* --- BARIS CONTROL & NAVIGASI TAB --- */}
+            <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 backdrop-blur-md">
+                <div className="flex items-center justify-between w-full lg:w-auto">
+                    <h2 className="text-base font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                        Payroll Command Center
+                    </h2>
                 </div>
 
                 <div className="flex w-full lg:w-auto flex-col lg:flex-row items-center gap-3">
                     {activeTab === 'REKAP' && (
-                        <div className="flex items-center gap-2 bg-slate-100 p-2 border-2 border-black rounded-xl w-full lg:w-auto">
-                            <Filter size={16} className="text-slate-500" />
+                        <div className="flex items-center gap-2 bg-zinc-950 px-3 py-2 border border-zinc-800 rounded-xl w-full lg:w-auto text-xs">
+                            <Filter size={14} className="text-zinc-500" />
                             <select
                                 value={selectedPeriod}
                                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                                className="bg-transparent font-black text-[10px] uppercase outline-none w-full cursor-pointer"
+                                className="bg-transparent font-medium text-zinc-300 outline-none w-full cursor-pointer"
                             >
-                                <option value="ALL">SEMUA PERIODE</option>
+                                <option value="ALL" className="bg-zinc-900">Semua Periode</option>
                                 {availablePeriods.map(p => {
                                     const [s, e] = p.split('|');
-                                    return <option key={p} value={p}>{format(new Date(s), 'dd MMM')} - {format(new Date(e), 'dd MMM yyyy')}</option>
+                                    return <option key={p} value={p} className="bg-zinc-900">{format(new Date(s), 'dd MMM')} - {format(new Date(e), 'dd MMM yyyy')}</option>
                                 })}
                             </select>
                         </div>
                     )}
 
-                    <div className="flex flex-1 w-full lg:w-auto bg-slate-100 p-1.5 rounded-xl border-2 border-black gap-1 overflow-x-auto custom-scrollbar">
+                    <div className="flex flex-1 w-full lg:w-auto bg-zinc-950 p-1.5 rounded-xl border border-zinc-800/80 gap-1 overflow-x-auto hide-scrollbar">
                         {['PENDING', 'NOT_SENT', 'PAID', 'REJECTED', 'REKAP'].map((t) => (
-                            <button key={t} onClick={() => setActiveTab(t as 'PENDING' | 'NOT_SENT' | 'PAID' | 'REJECTED' | 'REKAP')} className={cn("px-3 md:px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase italic whitespace-nowrap flex items-center gap-2", activeTab === t ? "bg-[#00E676] border-2 border-black shadow-[2px_2px_0px_#000]" : "opacity-40 hover:bg-black/5")}>
+                            <button
+                                key={t}
+                                onClick={() => setActiveTab(t as 'PENDING' | 'NOT_SENT' | 'PAID' | 'REJECTED' | 'REKAP')}
+                                className={cn(
+                                    "px-3.5 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex items-center gap-2",
+                                    activeTab === t
+                                        ? "bg-red-600 text-white shadow-md shadow-red-900/30"
+                                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                                )}
+                            >
                                 {t === 'REKAP' && <FileSpreadsheet size={14} />}
                                 {t.replace('_', ' ')}
                             </button>
                         ))}
                     </div>
+
                     {activeTab !== 'PENDING' && (
-                        <button onClick={() => setDeleteModal({ show: true, type: 'ALL' })} className="bg-red-500 text-white p-2.5 rounded-xl border-2 border-black w-full lg:w-auto flex justify-center hover:scale-105 transition-all shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none"><Trash2 size={20} /></button>
+                        <button
+                            onClick={() => setDeleteModal({ show: true, type: 'ALL' })}
+                            className="bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white p-2.5 rounded-xl border border-red-500/20 transition-all flex items-center justify-center shrink-0"
+                            title="Purge Data"
+                        >
+                            <Trash2 size={16} />
+                        </button>
                     )}
                 </div>
             </div>
@@ -532,40 +732,42 @@ export default function SectionAdminPayroll() {
             {/* TABEL REKAP */}
             {!loading && activeTab === 'REKAP' && (
                 <>
-                    <div className="bg-white border-4 border-black rounded-[30px] shadow-[10px_10px_0px_#000] overflow-hidden">
+                    <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl overflow-hidden backdrop-blur-md">
                         <div className="overflow-x-auto custom-scrollbar">
-                            <table className="w-full text-left border-collapse min-w-250">
+                            <table className="w-full text-left border-collapse min-w-[600px]">
                                 <thead>
-                                    <tr className="bg-slate-950 text-white">
-                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-xs">Nama Personel</th>
-                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px]">Periode Gaji</th>
-                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center">Rekap (H/C/A)</th>
-                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-right">Total Gaji</th>
-                                        <th className="p-4 border-r-2 border-white/10 font-black uppercase italic text-[10px] text-center">Aksi</th>
+                                    <tr className="bg-zinc-950 border-b border-zinc-800/80 text-zinc-400 text-[11px] font-semibold uppercase tracking-wider">
+                                        <th className="p-4">Nama Personel</th>
+                                        <th className="p-4">Periode Gaji</th>
+                                        <th className="p-4 text-center">Rekap (H/C/A)</th>
+                                        <th className="p-4 text-right">Total Gaji</th>
+                                        <th className="p-4 text-center">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-zinc-800/60 text-xs">
                                     {paginatedData.length === 0 ? (
-                                        <tr><td colSpan={5} className="p-10 text-center font-black italic opacity-40 uppercase">Belum ada data gaji yang telah dibayarkan di halaman ini.</td></tr>
+                                        <tr><td colSpan={5} className="p-10 text-center text-zinc-500">Belum ada data gaji yang telah dibayarkan di halaman ini.</td></tr>
                                     ) : (
-                                        paginatedData.map((req, idx) => (
-                                            <tr key={req.id} className={cn("border-b-2 border-slate-100 hover:bg-slate-50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
-                                                <td className="p-4 border-r-2 border-slate-100">
-                                                    <p className="text-xs font-[1000] uppercase italic leading-none">{req.cleanName}</p>
-                                                    <p className="text-[9px] text-[#3B82F6] font-bold mt-1 uppercase">{req.pangkat} • #{req.badgeNumber}</p>
+                                        paginatedData.map((req) => (
+                                            <tr key={req.id} className="hover:bg-zinc-800/30 transition-colors">
+                                                <td className="p-4">
+                                                    <p className="font-bold text-zinc-100">{req.cleanName}</p>
+                                                    <p className="text-[10px] text-red-400 font-mono mt-0.5">{req.pangkat} • #{req.badgeNumber}</p>
                                                 </td>
-                                                <td className="p-4 border-r-2 border-slate-100 text-[10px] font-bold uppercase italic opacity-80">
+                                                <td className="p-4 text-zinc-400 font-medium">
                                                     {format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM/yy')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM/yy')}
                                                 </td>
-                                                <td className="p-4 border-r-2 border-slate-100 text-center text-[10px] font-black tracking-widest">
-                                                    <span className="text-green-500">{req.hadir}</span> / <span className="text-yellow-500">{req.cuti}</span> / <span className="text-red-500">{req.alpha}</span>
+                                                <td className="p-4 text-center font-mono">
+                                                    <span className="text-emerald-400">{req.hadir}</span> / <span className="text-amber-400">{req.cuti}</span> / <span className="text-red-400">{req.alpha}</span>
                                                 </td>
-                                                <td className="p-4 border-r-2 border-slate-100 text-right font-[1000] text-[#00E676] text-sm italic">
+                                                <td className="p-4 text-right font-bold text-emerald-400">
                                                     ${Number(req.jumlah_gaji).toLocaleString()}
                                                 </td>
-                                                <td className="p-4 text-center flex justify-center gap-2">
-                                                    <button onClick={() => handleOpenAndCapture(req)} className="text-blue-500 bg-blue-50 hover:bg-blue-100 p-2 rounded-xl border-2 border-blue-500 active:scale-95 transition-all"><Eye size={16} /></button>
-                                                    <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-[#FF4D4D] bg-red-50 hover:bg-red-100 p-2 rounded-xl border-2 border-[#FF4D4D] active:scale-95 transition-all"><Trash2 size={16} /></button>
+                                                <td className="p-4 text-center">
+                                                    <div className="flex justify-center gap-1.5">
+                                                        <button onClick={() => handleOpenAndCapture(req)} className="text-zinc-300 bg-zinc-800 hover:bg-zinc-700 p-2 rounded-lg transition-colors"><Eye size={14} /></button>
+                                                        <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-red-400 bg-red-500/10 hover:bg-red-500 hover:text-white p-2 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -578,143 +780,150 @@ export default function SectionAdminPayroll() {
                 </>
             )}
 
-            {/* KARTU KLAIM */}
+            {/* KARTU PENGANJUAN (GRID VIEW) */}
             {!loading && activeTab !== 'REKAP' && (
                 paginatedData.length === 0 ? (
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`bg-white ${boxBorder} ${hardShadow} rounded-[30px] p-10 md:p-20 flex flex-col items-center justify-center text-center mt-8`}>
-                        <div className="bg-slate-100 p-5 md:p-6 border-[3.5px] border-slate-900 rounded-3xl mb-4 shadow-[6px_6px_0_0_#000]">
-                            <Database size={56} className="text-slate-400" />
+                    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+                        <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-2xl mb-3 text-zinc-500">
+                            <Database size={40} />
                         </div>
-                        <h3 className="text-2xl md:text-4xl font-[1000] italic uppercase tracking-tighter text-slate-900">NIHIL DATA</h3>
-                        <p className="text-xs font-black uppercase opacity-50 mt-2 max-w-sm">Saat ini tidak ada laporan di antrian <span className="text-blue-500">{activeTab.replace('_', ' ')}</span>.</p>
+                        <h3 className="text-lg font-bold text-zinc-200">Tidak Ada Data</h3>
+                        <p className="text-xs text-zinc-500 mt-1">Saat ini tidak ada laporan di antrian <span className="text-red-400">{activeTab.replace('_', ' ')}</span>.</p>
                     </motion.div>
                 ) : (
                     <>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                             {paginatedData.map((req) => (
-                                <div key={req.id} className={`bg-white ${boxBorder} ${hardShadow} rounded-[20px] md:rounded-[25px] overflow-hidden flex flex-col group relative`}>
-                                    <div className="bg-slate-950 text-white p-4 md:p-5 flex justify-between items-start border-b-4 border-black">
+                                <div key={req.id} className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl overflow-hidden flex flex-col justify-between backdrop-blur-md hover:border-zinc-700 transition-all">
+                                    {/* CARD HEADER */}
+                                    <div className="bg-zinc-950/80 border-b border-zinc-800/80 p-4 flex justify-between items-start">
                                         <div>
-                                            <h4 className="font-black uppercase italic leading-none truncate text-sm md:text-lg">{req.cleanName}</h4>
-                                            <p className="text-[9px] font-bold text-[#A3E635] mt-1 uppercase italic">{req.pangkat} • #{req.badgeNumber} • {req.divisi || 'UNIT'}</p>
+                                            <h4 className="font-bold text-zinc-100 text-sm">{req.cleanName}</h4>
+                                            <p className="text-[11px] text-red-400 font-mono mt-0.5">{req.pangkat} • #{req.badgeNumber} • {req.divisi || 'UNIT'}</p>
                                         </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <div className="bg-slate-800 p-1.5 rounded-lg border-2 border-slate-700 text-[9px] font-black uppercase text-center shrink-0">
-                                                <p className="text-slate-400">Periode</p>
-                                                <p>{format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM')}</p>
-                                            </div>
-                                            <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="bg-[#FF4D4D] text-black p-2 rounded-lg border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 hover:scale-105 transition-all">
-                                                <Trash2 size={16} />
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-lg text-zinc-400 font-mono">
+                                                {format(getLocalSafeDate(req.tanggal_mulai), 'dd/MM')} - {format(getLocalSafeDate(req.tanggal_selesai), 'dd/MM')}
+                                            </span>
+                                            <button onClick={() => setDeleteModal({ show: true, type: 'SINGLE', id: req.id })} className="text-zinc-500 hover:text-red-400 p-1.5 rounded-lg transition-colors">
+                                                <Trash2 size={14} />
                                             </button>
                                         </div>
                                     </div>
 
-                                    <div className="p-4 md:p-6 flex-1 flex flex-col space-y-4">
+                                    {/* CARD BODY */}
+                                    <div className="p-4 space-y-4 flex-1">
                                         <div className={cn("grid gap-3", req.isSatlantas ? "grid-cols-2" : "grid-cols-1")}>
-                                            <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden">
-                                                <p className="text-[8px] font-black uppercase opacity-50 mb-1">Kehadiran ({req.total_hari} Hari)</p>
-                                                <div className="flex gap-2 text-[10px] font-black">
-                                                    <span className="text-green-600 bg-green-100 px-2 rounded border border-green-300">H: {req.hadir}</span>
-                                                    <span className="text-yellow-600 bg-yellow-100 px-2 rounded border border-yellow-300">C: {req.cuti}</span>
-                                                    <span className={req.alpha > 0 ? "text-white bg-red-500 px-2 rounded border-2 border-black" : "text-red-500 bg-red-100 px-2 rounded border border-red-300"}>A: {req.alpha}</span>
+                                            <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
+                                                <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Kehadiran ({req.total_hari} Hari)</p>
+                                                <div className="flex gap-2 text-xs font-mono font-bold">
+                                                    <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">H: {req.hadir}</span>
+                                                    <span className="text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">C: {req.cuti}</span>
+                                                    <span className={cn("px-2 py-0.5 rounded border", req.alpha > 0 ? "text-red-400 bg-red-500/10 border-red-500/20" : "text-zinc-400 bg-zinc-800/50 border-zinc-700/50")}>A: {req.alpha}</span>
                                                 </div>
-                                                {req.alpha > 0 && <UserX size={40} className="absolute -right-2 -bottom-2 opacity-10 text-red-500" />}
                                             </div>
 
                                             {req.isSatlantas && (
-                                                <div className="bg-slate-50 border-2 border-black rounded-xl p-3 relative overflow-hidden flex flex-col justify-center">
-                                                    <p className="text-[8px] font-black uppercase opacity-50 mb-1">Target Ops</p>
+                                                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
+                                                    <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Target Ops Tilang</p>
                                                     <div className="flex items-center gap-2">
-                                                        <span className={cn("text-xs font-[1000] italic px-2 py-0.5 border border-black rounded shadow-[2px_2px_0px_#000]", req.isTargetMet ? "bg-[#00E676] text-black" : "bg-[#FFD100] text-black")}>
+                                                        <span className={cn("text-xs font-bold font-mono px-2 py-0.5 rounded border", req.isTargetMet ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20")}>
                                                             {req.tilangCount}/15
                                                         </span>
-                                                        <span className="text-[8px] font-black uppercase italic">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
+                                                        <span className="text-[10px] text-zinc-400">{req.isTargetMet ? 'Terpenuhi' : 'Belum'}</span>
                                                     </div>
-                                                    <Target size={40} className="absolute -right-2 -bottom-2 opacity-10" />
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="border-t-2 border-dashed border-slate-300 pt-3 space-y-1">
-                                            <div className="flex justify-between text-[10px] font-black uppercase opacity-60">
+                                        {/* BREAKDOWN RINCIAN GAJI */}
+                                        <div className="border-t border-zinc-800/60 pt-3 space-y-1 text-xs">
+                                            <div className="flex justify-between text-zinc-400">
                                                 <span>Gaji Awal {req.isTargetMet ? '(Incl. Bonus Target)' : '(Pokok)'}</span>
-                                                <span>${req.baseGaji.toLocaleString()}</span>
+                                                <span className="font-mono text-zinc-200">${req.baseGaji.toLocaleString()}</span>
                                             </div>
 
-                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Alpha (5% x {req.alpha})</span><span>- ${req.potonganAlpha.toLocaleString()}</span></div>}
-                                            {req.potonganCuti > 0 && <div className="flex justify-between text-[10px] font-black uppercase text-red-500"><span>Potongan Cuti/Izin (2% x {req.cuti})</span><span>- ${req.potonganCuti.toLocaleString()}</span></div>}
-                                            {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-[10px] font-black uppercase text-green-600"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
+                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-red-400"><span>Potongan Alpha (5% x {req.alpha})</span><span className="font-mono">- ${req.potonganAlpha.toLocaleString()}</span></div>}
+                                            {req.potonganCuti > 0 && <div className="flex justify-between text-amber-400"><span>Potongan Cuti (2% x {req.cuti})</span><span className="font-mono">- ${req.potonganCuti.toLocaleString()}</span></div>}
+                                            {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-emerald-400"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
 
                                             {req.adjustment?.amount !== 0 && (
-                                                <div className={cn("flex justify-between text-[10px] font-black uppercase", req.adjustment?.amount > 0 ? "text-blue-600" : "text-red-600")}>
-                                                    <span className="truncate max-w-50">Adj: {req.adjustment?.reason}</span>
+                                                <div className={cn("flex justify-between font-mono", req.adjustment?.amount > 0 ? "text-emerald-400" : "text-red-400")}>
+                                                    <span className="truncate max-w-[200px]">Adj: {req.adjustment?.reason}</span>
                                                     <span>{req.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(req.adjustment?.amount || 0).toLocaleString()}</span>
                                                 </div>
                                             )}
                                         </div>
 
+                                        {/* ATUR ADJUSTMENT MANUAL PRESET */}
                                         {activeTab === 'PENDING' && (
-                                            <div className="flex flex-col gap-2 justify-center border-t-2 border-black pt-3">
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 35000, reason: 'Bonus Tambahan' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#3B82F6]">
-                                                        <PlusCircle size={12} /> + $35k (Manual)
-                                                    </button>
-                                                    <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 50000, reason: 'Bonus Ekstra' } })} className="flex-1 bg-slate-950 text-white py-2 rounded-lg text-[8px] font-black uppercase italic border-2 border-black active:scale-95 flex items-center justify-center gap-1 shadow-[2px_2px_0px_#00E676]">
-                                                        <PlusCircle size={12} /> + $50k (Manual)
-                                                    </button>
+                                            <div className="border-t border-zinc-800/60 pt-3 space-y-2">
+                                                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">Quick Presets Bonus / Adj</span>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                                    {BONUS_RULES.divisiMingguan.map((b, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: b.amount, reason: `Bonus ${b.label}` } })}
+                                                            className="bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 py-1 px-1.5 rounded-lg transition-colors truncate text-center"
+                                                            title={b.label}
+                                                        >
+                                                            +${b.amount / 1000}k
+                                                        </button>
+                                                    ))}
                                                 </div>
 
-                                                <div className="flex gap-2 items-center">
-                                                    <Settings2 size={16} className="text-slate-400 shrink-0" />
+                                                <div className="flex gap-2 items-center pt-1">
+                                                    <Settings2 size={14} className="text-zinc-500 shrink-0" />
                                                     <input
                                                         type="number"
                                                         placeholder="Nominal (- utk Denda)"
                                                         value={adjInputs[req.id]?.amount || ''}
                                                         onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], amount: e.target.value } })}
-                                                        className="border-2 border-black px-2 py-1.5 text-[10px] w-24 rounded outline-none focus:bg-slate-100"
+                                                        className="bg-zinc-950 border border-zinc-800 px-2 py-1 text-xs w-28 rounded-lg outline-none text-zinc-200 focus:border-red-500"
                                                     />
                                                     <input
                                                         type="text"
                                                         placeholder="Keterangan..."
                                                         value={adjInputs[req.id]?.reason || ''}
                                                         onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], reason: e.target.value } })}
-                                                        className="border-2 border-black px-2 py-1.5 text-[10px] flex-1 rounded outline-none focus:bg-slate-100"
+                                                        className="bg-zinc-950 border border-zinc-800 px-2 py-1 text-xs flex-1 rounded-lg outline-none text-zinc-200 focus:border-red-500"
                                                     />
                                                     <button
                                                         onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: Number(adjInputs[req.id]?.amount || 0), reason: adjInputs[req.id]?.reason || 'Penyesuaian Sistem' } })}
-                                                        className="bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] border-2 border-black font-black shadow-[2px_2px_0_0_#000] active:translate-y-1 active:shadow-none"
+                                                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors"
                                                     >Apply</button>
                                                 </div>
 
                                                 {req.adjustment?.amount !== 0 && (
-                                                    <div className="flex justify-between items-center bg-yellow-100 border border-yellow-400 p-1.5 rounded mt-1">
-                                                        <span className="text-[9px] font-black italic uppercase text-yellow-800">Aktif: {req.adjustment?.reason}</span>
-                                                        <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} className="bg-red-500 text-white rounded p-1"><X size={10} /></button>
+                                                    <div className="flex justify-between items-center bg-zinc-950 border border-zinc-800 p-2 rounded-lg mt-1">
+                                                        <span className="text-[11px] text-amber-400">Aktif: {req.adjustment?.reason} (${req.adjustment?.amount})</span>
+                                                        <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} className="text-zinc-500 hover:text-red-400 p-0.5"><X size={12} /></button>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
+                                    </div>
 
-                                        <div className="mt-auto flex items-end justify-between bg-slate-100 p-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_#000]">
-                                            <div>
-                                                <p className="text-[9px] font-black uppercase opacity-60 italic leading-none mb-1">Final Payout</p>
-                                                <p className="text-2xl font-[1000] italic text-[#00E676] leading-none text-shadow-sm tracking-tighter">${req.finalGaji.toLocaleString()}</p>
-                                            </div>
+                                    {/* CARD FOOTER (TOTAL & AKSI) */}
+                                    <div className="bg-zinc-950/80 border-t border-zinc-800/80 p-4 flex justify-between items-center">
+                                        <div>
+                                            <p className="text-[10px] text-zinc-500 uppercase font-semibold">Total Final Payout</p>
+                                            <p className="text-xl font-bold text-emerald-400 font-mono tracking-tight">${req.finalGaji.toLocaleString()}</p>
+                                        </div>
 
-                                            <div className="flex gap-2">
-                                                {activeTab === 'PENDING' ? (
-                                                    <>
-                                                        <button onClick={() => handleAction(req.id, 'REJECTED')} className="bg-[#FF4D4D] border-2 border-black px-3 py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Deny</button>
-                                                        <button onClick={() => handleAction(req.id, 'PAID')} className="bg-[#00E676] border-2 border-black px-3 py-2 rounded-xl font-black text-[10px] uppercase shadow-[3px_3px_0px_#000] active:translate-y-1 text-slate-950">Approve</button>
-                                                    </>
-                                                ) : activeTab === 'NOT_SENT' ? (
-                                                    <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="bg-blue-500 text-white border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1 disabled:opacity-50">
-                                                        {isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />} Preview Slip
-                                                    </button>
-                                                ) : (
-                                                    <button onClick={() => handleOpenAndCapture(req)} className="bg-slate-300 text-slate-950 border-2 border-black px-4 py-2 rounded-xl font-black text-[10px] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#000] active:translate-y-1"><Eye size={14} /> Arsip Slip</button>
-                                                )}
-                                            </div>
+                                        <div className="flex gap-2">
+                                            {activeTab === 'PENDING' ? (
+                                                <>
+                                                    <button onClick={() => handleAction(req.id, 'REJECTED')} className="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl font-medium text-xs transition-colors">Tolak</button>
+                                                    <button onClick={() => handleAction(req.id, 'PAID')} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-xs transition-colors">Setujui</button>
+                                                </>
+                                            ) : activeTab === 'NOT_SENT' ? (
+                                                <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                                                    {isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />} Preview Slip
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => handleOpenAndCapture(req)} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl font-medium text-xs flex items-center gap-1.5 transition-colors border border-zinc-700/50"><Eye size={14} /> Arsip Slip</button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -728,13 +937,13 @@ export default function SectionAdminPayroll() {
             {/* MODAL HAPUS DATA */}
             <AnimatePresence>
                 {deleteModal.show && (
-                    <div className="fixed inset-0 z-300 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, opacity: 0, rotate: -2 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white border-4 border-black shadow-[8px_8px_0px_#FF4D4D] p-6 max-w-sm w-full rounded-2xl">
-                            <div className="flex items-center gap-3 text-[#FF4D4D] mb-4">
-                                <AlertOctagon size={32} strokeWidth={3} />
-                                <h3 className="text-xl font-[1000] italic uppercase">Peringatan!</h3>
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-zinc-900 border border-zinc-800 p-6 max-w-sm w-full rounded-2xl shadow-2xl">
+                            <div className="flex items-center gap-3 text-red-500 mb-4">
+                                <AlertOctagon size={28} />
+                                <h3 className="text-base font-bold text-zinc-100">Konfirmasi Penghapusan</h3>
                             </div>
-                            <p className="text-xs font-bold uppercase mb-4 opacity-70 leading-relaxed text-black">
+                            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
                                 {deleteModal.type === 'ALL'
                                     ? "Anda akan menghapus SEMUA data gaji yang sudah diproses dari server. Ketik 'BERSIHKAN' untuk melanjutkan."
                                     : "Anda yakin ingin menghapus log slip gaji ini secara permanen dari server?"}
@@ -746,13 +955,13 @@ export default function SectionAdminPayroll() {
                                     value={confirmInput}
                                     onChange={(e) => setConfirmInput(e.target.value)}
                                     placeholder="Ketik BERSIHKAN"
-                                    className="w-full border-2 border-black p-3 mb-4 rounded-xl font-bold uppercase outline-none focus:bg-slate-100 text-black placeholder-slate-400"
+                                    className="w-full bg-zinc-950 border border-zinc-800 p-2.5 mb-4 rounded-xl font-bold uppercase outline-none text-zinc-100 placeholder-zinc-600 focus:border-red-500 text-xs"
                                 />
                             )}
 
-                            <div className="flex gap-2 mt-6">
-                                <button onClick={() => setDeleteModal({ show: false, type: 'ALL' })} className="flex-1 bg-slate-200 text-black border-2 border-black p-3 rounded-xl font-black uppercase text-xs active:translate-y-1 shadow-[2px_2px_0px_#000] transition-transform">Batal</button>
-                                <button onClick={executeDelete} className="flex-1 bg-[#FF4D4D] text-white border-2 border-black p-3 rounded-xl font-black uppercase text-xs active:translate-y-1 shadow-[2px_2px_0px_#000] transition-transform">Hapus</button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setDeleteModal({ show: false, type: 'ALL' })} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-2.5 rounded-xl text-xs font-medium transition-colors">Batal</button>
+                                <button onClick={executeDelete} className="flex-1 bg-red-600 hover:bg-red-500 text-white p-2.5 rounded-xl text-xs font-medium transition-colors">Hapus</button>
                             </div>
                         </motion.div>
                     </div>
@@ -762,118 +971,118 @@ export default function SectionAdminPayroll() {
             {/* MODAL PREVIEW & KIRIM PAYSLIP */}
             <AnimatePresence>
                 {currentSlipData && (
-                    <div className="fixed inset-0 z-200 bg-black/95 p-4 flex items-center justify-center overflow-y-auto backdrop-blur-md text-slate-950">
-                        <div className="max-w-2xl w-full flex flex-col items-center gap-6 my-10 relative">
-                            <div className="bg-white p-3 border-[6px] border-slate-950 rounded-[35px] shadow-[15px_15px_0px_#3B82F6] relative">
+                    <div className="fixed inset-0 z-50 bg-black/90 p-4 flex items-center justify-center overflow-y-auto backdrop-blur-md">
+                        <div className="max-w-xl w-full flex flex-col items-center gap-5 my-8">
+                            <div className="bg-zinc-900 border border-zinc-800 p-2 rounded-2xl shadow-2xl overflow-hidden w-full">
                                 {capturedImg ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src={capturedImg} alt="Official Slip" className="w-full h-auto rounded-[25px] border-4 border-slate-950" />
+                                    <img src={capturedImg} alt="Official Slip" className="w-full h-auto rounded-xl border border-zinc-800" />
                                 ) : (
-                                    <div className="w-75 md:w-125 h-100 md:h-150 flex flex-col items-center justify-center gap-4 bg-slate-100 rounded-[25px]">
-                                        <Loader2 className="animate-spin text-blue-600" size={40} />
-                                        <p className="font-black italic uppercase text-xs text-black text-center">Menyusun Slip Gaji Resmi...</p>
+                                    <div className="w-full h-96 flex flex-col items-center justify-center gap-3 bg-zinc-950 rounded-xl">
+                                        <Loader2 className="animate-spin text-red-500" size={32} />
+                                        <p className="font-medium text-xs text-zinc-400">Menyusun Slip Gaji Resmi...</p>
                                     </div>
                                 )}
                             </div>
-                            <div className="flex flex-col gap-3 w-full max-w-sm">
+                            <div className="flex flex-col gap-2 w-full max-w-xs">
                                 {activeTab === 'NOT_SENT' && (
-                                    <button disabled={!capturedImg || isTransmitting} onClick={handleTransmit} className="w-full bg-[#00E676] text-black py-5 rounded-2xl font-[1000] uppercase italic text-sm shadow-[6px_6px_0px_#000] border-[3.5px] border-black flex items-center justify-center gap-4 active:translate-y-1 transition-all disabled:opacity-50">
-                                        <Send size={20} strokeWidth={3} /> {isTransmitting ? "MENGIRIM..." : "KIRIM KE DISCORD"}
+                                    <button disabled={!capturedImg || isTransmitting} onClick={handleTransmit} className="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-medium text-xs shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                                        <Send size={16} /> {isTransmitting ? "MENGIRIM..." : "KIRIM KE DISCORD"}
                                     </button>
                                 )}
-                                <button onClick={() => { setCurrentSlipData(null); setCapturedImg(null); }} className="bg-white border-4 border-black text-black py-3 rounded-xl font-black uppercase italic shadow-[4px_4px_0px_#000] active:translate-y-1 transition-all">Tutup Arsip</button>
+                                <button onClick={() => { setCurrentSlipData(null); setCapturedImg(null); }} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-2.5 rounded-xl font-medium text-xs border border-zinc-700/50 transition-colors">Tutup Modal</button>
                             </div>
                         </div>
                     </div>
                 )}
             </AnimatePresence>
 
-            {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATOR GAMBAR HTML-TO-IMAGE --- */}
+            {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATOR GAMBAR SLIP GAJI (CLEAN DARK DESIGN) --- */}
             {currentSlipData && (
-                <div className="fixed -top-2499.75 -left-2499.75 opacity-0 pointer-events-none z-[-1000]">
-                    <div ref={slipRef} className="bg-white w-162.5 border-12 border-black p-12 space-y-10 text-slate-950 font-mono relative">
-                        <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none z-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src="/logo-polisi-blackwhite.png" alt="Watermark" className="w-100 h-100 object-contain grayscale" />
-                        </div>
-                        <div className="flex justify-between items-start border-b-8 border-black pb-8 relative z-10">
+                <div className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none z-[-1000]">
+                    <div ref={slipRef} className="bg-zinc-950 w-[600px] border-2 border-zinc-800 p-10 space-y-8 text-zinc-100 font-sans relative">
+                        <div className="flex justify-between items-start border-b border-zinc-800 pb-6 relative z-10">
                             <div className="flex gap-4 items-center">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src="/logo-polisi-blackwhite.png" alt="Logo MPD" className="w-16 h-16 object-contain" />
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-blue-600 mb-1 font-black italic text-sm tracking-[0.3em]">MPD HQ FINANCE</div>
-                                    <h2 className="text-4xl font-[1000] italic tracking-tighter leading-none text-slate-950">OFFICIAL PAYSLIP</h2>
+                                <img src="/logo-polisi-blackwhite.png" alt="Logo MPD" className="w-14 h-14 object-contain" />
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2 text-red-500 font-bold text-xs tracking-widest uppercase">MANDALIKA POLICE HQ</div>
+                                    <h2 className="text-2xl font-black italic tracking-tight text-zinc-100">OFFICIAL PAYSLIP</h2>
                                 </div>
                             </div>
-                            <div className="bg-black text-white px-5 py-3 rounded-xl font-black italic text-xs">#MPD-{currentSlipData.id.substring(0, 6).toUpperCase()}</div>
+                            <div className="bg-zinc-900 border border-zinc-800 text-red-400 px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold">
+                                #MPD-{currentSlipData.id.substring(0, 6).toUpperCase()}
+                            </div>
                         </div>
 
-                        {/* 🚀 LAYOUT PAYSLIP HEADER BARU: PISAH BADGE & DIVISI */}
-                        <div className="grid grid-cols-2 gap-10 relative z-10">
-                            <div className="space-y-4">
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Nama Personel</p><p className="font-black text-xl uppercase italic border-b-4 border-black/5">{currentSlipData.cleanName}</p></div>
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Pangkat / Badge</p><p className="font-black text-xl uppercase italic text-blue-600 border-b-4 border-black/5">{currentSlipData.pangkat} / #{currentSlipData.badgeNumber}</p></div>
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Divisi</p><p className="font-black text-lg uppercase italic border-b-4 border-black/5">{currentSlipData.divisi || 'UNIT'}</p></div>
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Periode Gaji</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(getLocalSafeDate(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(getLocalSafeDate(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
+                        <div className="grid grid-cols-2 gap-8 relative z-10 text-xs">
+                            <div className="space-y-3">
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Nama Personel</p><p className="font-bold text-sm text-zinc-100">{currentSlipData.cleanName}</p></div>
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Pangkat / Badge</p><p className="font-bold text-sm text-red-400 font-mono">{currentSlipData.pangkat} / #{currentSlipData.badgeNumber}</p></div>
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Divisi</p><p className="font-bold text-zinc-200">{currentSlipData.divisi || 'UNIT'}</p></div>
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Periode Gaji</p><p className="font-medium text-zinc-300">{format(getLocalSafeDate(currentSlipData.tanggal_mulai), 'dd MMM')} - {format(getLocalSafeDate(currentSlipData.tanggal_selesai), 'dd MMM yyyy')}</p></div>
                             </div>
-                            <div className="space-y-6">
-                                <div><p className="text-[10px] font-black uppercase opacity-40 italic">Tanggal Pencairan</p><p className="font-black text-sm uppercase italic border-b-4 border-black/5">{format(new Date(currentSlipData.updated_at || currentSlipData.created_at), 'dd MMMM yyyy', { locale: localeId })}</p></div>
-                                <div className="bg-slate-50 border-4 border-dashed border-black p-4 rounded-xl text-center">
-                                    <p className="text-[9px] font-black uppercase opacity-30 leading-none mb-1 text-slate-900">Approved By</p>
-                                    <p className="text-[11px] font-black uppercase leading-none text-blue-600">
+                            <div className="space-y-4">
+                                <div><p className="text-[10px] uppercase text-zinc-500 font-semibold">Tanggal Pencairan</p><p className="font-medium text-zinc-300">{format(new Date(currentSlipData.updated_at || currentSlipData.created_at), 'dd MMMM yyyy', { locale: localeId })}</p></div>
+                                <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
+                                    <p className="text-[9px] uppercase text-zinc-500 font-semibold mb-0.5">Approved By</p>
+                                    <p className="text-xs font-bold text-red-400">
                                         {getAdminName(currentSlipData.keterangan_admin)}
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="border-4 border-black p-6 rounded-2xl relative z-10 bg-white">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-4">Rincian Kompensasi</h4>
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center text-sm font-bold uppercase italic">
-                                    <span className="opacity-60">Gaji Awal / Pokok</span>
-                                    <span>${currentSlipData.baseGaji.toLocaleString()}</span>
+                        <div className="border border-zinc-800 p-5 rounded-xl bg-zinc-900/40 relative z-10 text-xs space-y-2">
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-800 pb-2 mb-3">Rincian Kompensasi</h4>
+                            <div className="flex justify-between items-center">
+                                <span className="text-zinc-400">Gaji Awal / Pokok</span>
+                                <span className="font-mono text-zinc-200">${currentSlipData.baseGaji.toLocaleString()}</span>
+                            </div>
+
+                            {currentSlipData.potonganAlpha > 0 && (
+                                <div className="flex justify-between items-center text-red-400">
+                                    <span>Potongan Alpha (5%)</span>
+                                    <span className="font-mono">- ${currentSlipData.potonganAlpha.toLocaleString()}</span>
                                 </div>
+                            )}
+                            {currentSlipData.potonganCuti > 0 && (
+                                <div className="flex justify-between items-center text-amber-400">
+                                    <span>Potongan Cuti (2%)</span>
+                                    <span className="font-mono">- ${currentSlipData.potonganCuti.toLocaleString()}</span>
+                                </div>
+                            )}
 
-                                {currentSlipData.potonganAlpha > 0 && (
-                                    <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
-                                        <span>Potongan Alpha (5%)</span>
-                                        <span>- ${currentSlipData.potonganAlpha.toLocaleString()}</span>
-                                    </div>
-                                )}
-                                {currentSlipData.potonganCuti > 0 && (
-                                    <div className="flex justify-between items-center text-sm font-bold uppercase italic text-red-500">
-                                        <span>Potongan Cuti/Izin (2%)</span>
-                                        <span>- ${currentSlipData.potonganCuti.toLocaleString()}</span>
-                                    </div>
-                                )}
+                            {currentSlipData.adjustment?.amount !== 0 && (
+                                <div className={cn("flex justify-between items-center font-mono", currentSlipData.adjustment?.amount > 0 ? "text-emerald-400" : "text-red-400")}>
+                                    <span>{currentSlipData.adjustment?.amount > 0 ? 'Bonus' : 'Denda'}: {currentSlipData.adjustment?.reason}</span>
+                                    <span>{currentSlipData.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(currentSlipData.adjustment?.amount || 0).toLocaleString()}</span>
+                                </div>
+                            )}
+                        </div>
 
-                                {currentSlipData.adjustment?.amount !== 0 && (
-                                    <div className={cn("flex justify-between items-center text-sm font-bold uppercase italic", currentSlipData.adjustment?.amount > 0 ? "text-blue-600" : "text-red-500")}>
-                                        <span>{currentSlipData.adjustment?.amount > 0 ? 'Bonus' : 'Denda'}: {currentSlipData.adjustment?.reason}</span>
-                                        <span>{currentSlipData.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(currentSlipData.adjustment?.amount || 0).toLocaleString()}</span>
-                                    </div>
-                                )}
+                        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex justify-between items-center relative z-10">
+                            <div>
+                                <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest mb-1">Total Net Payout</p>
+                                <h3 className="text-4xl font-black text-emerald-400 font-mono tracking-tight">${Number(currentSlipData.jumlah_gaji).toLocaleString()}</h3>
+                            </div>
+                            <div className="bg-white p-1.5 rounded-lg">
+                                <QRCode size={70} value={`AUTH:${currentSlipData.id}|${currentSlipData.cleanName}`} viewBox={`0 0 256 256`} />
                             </div>
                         </div>
 
-                        <div className="bg-slate-950 p-8 rounded-[35px] flex justify-between items-center shadow-[10px_10px_0px_#00E676] relative z-10">
-                            <div><p className="text-xs font-black uppercase text-white/40 italic tracking-[0.4em] mb-1">Total Net Payout</p><h3 className="text-6xl font-[1000] text-[#00E676] italic tracking-tighter leading-none">${Number(currentSlipData.jumlah_gaji).toLocaleString()}</h3></div>
-                            <div className="bg-white p-2 border-4 border-black">
-                                <QRCode size={85} value={`AUTH:${currentSlipData.id}|${currentSlipData.cleanName}`} viewBox={`0 0 256 256`} />
-                            </div>
-                        </div>
-
-                        <div className="flex justify-center pt-2 relative z-10">
-                            <p className="text-[10px] font-black uppercase tracking-[0.5em] bg-black text-white px-4 py-1 rounded">Mandalika Police Department</p>
+                        <div className="text-center pt-2 relative z-10">
+                            <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold">Mandalika Police Department • Internal Affairs Console</p>
                         </div>
                     </div>
                 </div>
             )}
 
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { height: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+                .hide-scrollbar::-webkit-scrollbar { display: none; }
+                .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
         </div>
     );

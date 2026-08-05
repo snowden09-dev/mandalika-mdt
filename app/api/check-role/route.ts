@@ -19,9 +19,9 @@ export async function POST(req: Request) {
 
         if (!res.ok) return NextResponse.json({ isPolice: false });
         const member = await res.json();
-        const roles = member.roles;
+        const roles: string[] = member.roles || [];
 
-        // DAFTAR PANGKAT (Tertinggi ke Terendah)
+        // 1. DAFTAR PANGKAT (Tertinggi ke Terendah)
         const RANK_HIERARCHY = [
             { name: "JENDRAL", id: "1393368961940324462" }, { name: "KOMJEN", id: "1393369949988327624" },
             { name: "IRJEN", id: "1393371303779500154" }, { name: "BRIGJEN", id: "1393373068709335121" },
@@ -38,23 +38,69 @@ export async function POST(req: Request) {
 
         let detectedPangkat = "RECRUIT";
         for (const rank of RANK_HIERARCHY) {
-            if (roles.includes(rank.id)) { detectedPangkat = rank.name; break; }
+            if (roles.includes(rank.id)) { 
+                detectedPangkat = rank.name; 
+                break; 
+            }
         }
 
-        // 🚀 LOGIKA DIVISI DIPERBAIKI
-        // Petinggi dihapus dari sini agar tidak menabrak Divisi utama (seperti Satlantas)
+        // 2. DAFTAR ROLE KADIV & WAKADIV
+        const KADIV_ROLES = [
+            { divisi: "SABHARA", id: "1423067332389109801" },
+            { divisi: "SATLANTAS", id: "1428104594252238998" },
+            { divisi: "PROPAM", id: "1458651434500358194" },
+            { divisi: "BRIMOB", id: "1445077121318785075" },
+            { divisi: "SETUM", id: "1518415347558907992" },
+        ];
+
+        const WAKADIV_ROLES = [
+            { divisi: "SABHARA", id: "1423068619860082888" },
+            { divisi: "SATLANTAS", id: "1428104859717996665" },
+            { divisi: "PROPAM", id: "1466377320909635666" },
+            { divisi: "BRIMOB", id: "1456339100457238598" },
+            { divisi: "SETUM", id: "1518415643022725201" },
+        ];
+
+        // 3. DAFTAR ROLE DIVISI UTAMA (ANGGOTA)
         const DIVISI_ID = {
             PROPAM: "1458009275472281672",
             BRIMOB: "1417238500025040987",
             SATLANTAS: "1427725693126574121",
             SABHARA: "1423062503646298262",
-            SETUM : "1518414822318800987"
+            SETUM: "1518414822318800987"
         };
 
-        // Default diatur ke NON DIVISI
+        let detectedJabatan = "ANGGOTA";
         let detectedDivisi = "NON DIVISI";
-        for (const [name, id] of Object.entries(DIVISI_ID)) {
-            if (roles.includes(id)) { detectedDivisi = name; break; }
+
+        // Cek Petinggi KADIV terlebih dahulu
+        for (const item of KADIV_ROLES) {
+            if (roles.includes(item.id)) {
+                detectedJabatan = "KADIV";
+                detectedDivisi = item.divisi;
+                break;
+            }
+        }
+
+        // Jika bukan Kadiv, cek WAKADIV
+        if (detectedJabatan === "ANGGOTA") {
+            for (const item of WAKADIV_ROLES) {
+                if (roles.includes(item.id)) {
+                    detectedJabatan = "WAKADIV";
+                    detectedDivisi = item.divisi;
+                    break;
+                }
+            }
+        }
+
+        // Jika bukan KADIV/WAKADIV, cek Divisi biasa
+        if (detectedDivisi === "NON DIVISI") {
+            for (const [name, id] of Object.entries(DIVISI_ID)) {
+                if (roles.includes(id)) { 
+                    detectedDivisi = name; 
+                    break; 
+                }
+            }
         }
 
         const isPolice = roles.includes("1393366590942085220");
@@ -68,11 +114,19 @@ export async function POST(req: Request) {
                 roles: roles,
                 divisi: detectedDivisi,
                 pangkat: detectedPangkat,
+                jabatan: detectedJabatan, // Field baru untuk menyimpan KADIV / WAKADIV / ANGGOTA
                 last_login: new Date().toISOString(),
             }, { onConflict: 'discord_id' });
         }
 
-        return NextResponse.json({ isPolice, divisi: detectedDivisi, pangkat: detectedPangkat, discord_id: userId });
+        return NextResponse.json({ 
+            isPolice, 
+            divisi: detectedDivisi, 
+            pangkat: detectedPangkat, 
+            jabatan: detectedJabatan,
+            discord_id: userId 
+        });
+
     } catch (err) {
         return NextResponse.json({ error: "Fail" }, { status: 500 });
     }

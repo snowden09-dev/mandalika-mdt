@@ -5,15 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Receipt, Wallet, Zap, User, Send, Download,
+    Receipt, Wallet, Send, Download,
     ChevronLeft, ChevronRight, ShieldCheck, Activity,
     AlertTriangle, FileText, Lock, Fingerprint, X,
-    AlertOctagon, Info, CheckCircle, Shield, MapPin, Loader2, Target
+    AlertOctagon, Info, CheckCircle, Shield, MapPin, Loader2
 } from 'lucide-react';
 import {
     format, startOfMonth, endOfMonth, startOfWeek,
     endOfWeek, addDays, isSameDay, isWithinInterval,
-    addMonths, subMonths, startOfDay, endOfDay, isBefore, parseISO,
+    addMonths, subMonths, startOfDay, endOfDay, parseISO,
     getDay, differenceInDays, subWeeks
 } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -174,8 +174,13 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     }, []);
 
     const handleDateClick = (day: Date) => {
-        if (!range.from || (range.from && range.to)) setRange({ from: day, to: null });
-        else day < range.from ? setRange({ from: day, to: range.from }) : setRange({ from: range.from, to: day });
+        if (!range.from || (range.from && range.to)) {
+            setRange({ from: day, to: null });
+        } else if (day < range.from) {
+            setRange({ from: day, to: range.from });
+        } else {
+            setRange({ from: range.from, to: day });
+        }
     };
 
     const handleGenerateSalary = async () => {
@@ -283,7 +288,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-12 gap-6 pb-32 font-sans text-zinc-100">
             {/* HERO BENTO */}
-            <div className="md:col-span-8 bg-gradient-to-br from-zinc-900 via-zinc-900 to-red-950/40 p-6 md:p-8 rounded-2xl border border-zinc-800 relative overflow-hidden shadow-xl shadow-red-950/10 flex flex-col justify-between min-h-[180px]">
+            <div className="md:col-span-8 bg-linear-to-br from-zinc-900 via-zinc-900 to-red-950/40 p-6 md:p-8 rounded-2xl border border-zinc-800 relative overflow-hidden shadow-xl shadow-red-950/10 flex flex-col justify-between min-h-45">
                 <div className="absolute -right-12 -top-12 w-48 h-48 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
                 <Activity className="absolute right-6 top-6 w-36 h-36 text-red-500/5 pointer-events-none" />
 
@@ -334,7 +339,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: `${Math.min((targetProgress / TARGET_TILANG) * 100, 100)}%` }}
-                                        className={`h-full rounded-full ${isTargetMet ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-red-500/60'}`}
+                                        className={`h-full rounded-full ${isTargetMet ? 'bg-linear-to-r from-red-600 to-red-400' : 'bg-red-500/60'}`}
                                     />
                                 </div>
                                 {!isTargetMet && <p className="text-[10px] text-red-400/80 mt-1 italic">*Penuhi target dalam rentang tanggal yg dipilih untuk buka bonus.</p>}
@@ -440,7 +445,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                     <ShieldCheck size={20} className="text-red-500" />
                 </div>
 
-                <div className="p-6 flex-1 space-y-3 min-h-[380px]">
+                <div className="p-6 flex-1 space-y-3 min-h-95">
                     <AnimatePresence mode='wait'>
                         <motion.div key={currentPage} className="space-y-3">
                             {currentLogs.length === 0 ? (
@@ -497,8 +502,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             {/* ELEMEN TERSEMBUNYI UNTUK GENERATE SLIP */}
             {selectedSlip && (
                 <div style={{ position: 'absolute', top: '-4000px', left: '-4000px', zIndex: -100 }}>
-                    <div ref={slipRef} className="bg-zinc-950 w-[600px] border border-zinc-800 p-10 space-y-8 text-zinc-100 rounded-3xl font-sans relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-600 to-red-400" />
+                    <div ref={slipRef} className="bg-zinc-950 w-150 border border-zinc-800 p-10 space-y-8 text-zinc-100 rounded-3xl font-sans relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-red-600 to-red-400" />
                         
                         <div className="flex justify-between items-start border-b border-zinc-800 pb-6">
                             <div className="space-y-1">
@@ -527,7 +532,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             </div>
                         </div>
 
-                        <div className="bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-900 border border-red-500/20 p-6 rounded-2xl flex justify-between items-center shadow-lg">
+                        <div className="bg-linear-to-r from-red-950/40 via-zinc-900 to-zinc-900 border border-red-500/20 p-6 rounded-2xl flex justify-between items-center shadow-lg">
                             <div>
                                 <p className="text-xs font-semibold uppercase text-red-400 tracking-wider mb-1">Total Net Payout</p>
                                 <h3 className="text-4xl font-extrabold text-white tracking-tight">${Number(selectedSlip.jumlah_gaji).toLocaleString()}</h3>
@@ -547,7 +552,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             {/* MODAL NOTIFIKASI MINIMALIST DARK */}
             <AnimatePresence>
                 {notif.show && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
                         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100">
                             <div className={cn(
                                 "p-4 border-b border-zinc-800 flex items-center justify-between",

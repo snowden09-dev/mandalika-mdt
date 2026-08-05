@@ -10,7 +10,8 @@ import {
 import { format, subMonths, addMonths, isSameDay, isWithinInterval, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import QRCode from 'react-qr-code';
-import { cn } from "@/lib/utils"; // Atau helper clsx/tailwind-merge milikmu
+
+const cn = (...classes: Array<string | undefined | null | false>) => classes.filter(Boolean).join(' ');
 
 interface PayrollLog {
     id: string;

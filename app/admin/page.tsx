@@ -140,7 +140,7 @@ export default function AdminHQPage() {
                         )}
 
                         {/* 2. PAYROLL */}
-                        {activeTab === 'PAYROLL' && <SectionAdminPayroll nickname="" realtimeData={{}} />}
+                        {activeTab === 'PAYROLL' && <SectionAdminPayroll />}
 
                         {/* 3. LAPORAN */}
                         {activeTab === 'LAPORAN' && <SectionAdminLaporan />}

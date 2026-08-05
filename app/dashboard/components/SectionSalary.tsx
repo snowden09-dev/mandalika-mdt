@@ -19,21 +19,33 @@ import {
 import { id } from 'date-fns/locale';
 import { supabase } from "@/lib/supabase";
 
-// 🚀 TYPE DEFINITIONS
-interface RealtimeData {
-    id?: string;
-    discord_id?: string;
-    user_id_discord?: string;
-    pangkat?: string;
-    divisi?: string;
-    name?: string;
-    nama_panggilan?: string;
+// 🚀 SCHEMATIC INTERFACE TABEL users SUPABASE
+export interface UserData {
+    idx?: number;
+    id: string;
+    name: string;
+    email?: string | null;
+    image?: string | null;
+    roles?: string[];
+    unit?: string | null;
+    last_login?: string;
+    point_prp?: number;
+    total_jam_duty?: string;
+    pangkat: string;
+    divisi: string;
+    discord_id: string;
+    is_highadmin?: boolean;
+    is_admin?: boolean;
+    total_tilang?: number;
+    bypass_token?: string | null;
     [key: string]: unknown;
 }
 
+// 🚀 SCHEMATIC INTERFACE TABEL pengajuan_gaji SUPABASE
 interface PengajuanGaji {
     idx?: number;
     id: string;
+    created_at: string;
     user_id_discord: string;
     nama_panggilan: string;
     pangkat: string;
@@ -42,7 +54,6 @@ interface PengajuanGaji {
     tanggal_mulai: string;
     tanggal_selesai: string;
     status: 'PENDING' | 'PAID' | 'REJECTED';
-    created_at: string;
     keterangan_admin?: string;
     bukti_transfer?: string;
 }
@@ -60,7 +71,7 @@ const getWIBTime = () => {
     const localTime = d.getTime();
     const localOffset = d.getTimezoneOffset() * 60000;
     const utc = localTime + localOffset;
-    const wibOffset = 7 * 3600000; // +7 Jam (WIB)
+    const wibOffset = 7 * 3600000;
     return new Date(utc + wibOffset);
 };
 
@@ -74,10 +85,14 @@ const safeParseDate = (dateStr: string): Date => {
     }
 };
 
-export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: RealtimeData }) {
+export default function SectionSalary({ nickname, realtimeData }: { nickname: string, realtimeData: UserData }) {
     const slipRef = useRef<HTMLDivElement>(null);
     const [currentMonth, setCurrentMonth] = useState(getWIBTime());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
+    
+    // State data user ter-sync dari tabel users
+    const [dbUser, setDbUser] = useState<UserData | null>(realtimeData || null);
+    
     const [history, setHistory] = useState<PengajuanGaji[]>([]);
     const [userReports, setUserReports] = useState<UserReport[]>([]);
     const [isVerifying, setIsVerifying] = useState(false);
@@ -95,7 +110,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         setNotif({ show: true, title, message, type });
     };
 
-    // 💡 PERBAIKAN: Flexibel Matching untuk Pangkat (Fuzzy/Includes Check)
+    // 💡 FUZZY MATCHING PANGKAT
     const getGajiByRank = (pangkatRaw?: string) => {
         if (!pangkatRaw) return 90000;
         const p = String(pangkatRaw).toUpperCase().trim();
@@ -121,50 +136,67 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         if (p.includes("RECRUIT")) return 90000;
         if (p.includes("SISWA")) return 80000;
 
-        return 90000; // Default
+        return 90000;
     };
 
-    const userPangkat = realtimeData?.pangkat || (realtimeData as Record<string, unknown>)?.Pangkat as string || "";
-    const baseSalary = useMemo(() => getGajiByRank(userPangkat), [userPangkat]);
+    // prioritize state dbUser, fallback ke props realtimeData
+    const activePangkat = dbUser?.pangkat || realtimeData?.pangkat || "RECRUIT";
+    const activeDivisi = dbUser?.divisi || realtimeData?.divisi || "NON DIVISI";
+    const activeName = dbUser?.name || nickname || realtimeData?.name || "Unknown";
+    const activeDiscordId = dbUser?.discord_id || dbUser?.id || realtimeData?.discord_id || realtimeData?.id;
 
-    const fetchHistoryAndReports = async () => {
+    const baseSalary = useMemo(() => getGajiByRank(activePangkat), [activePangkat]);
+
+    // 💡 FETCH USER DATA DIRECTLY FROM `users` TABLE & HISTORY `pengajuan_gaji`
+    const fetchUserDataAndHistory = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            const discordId = user?.user_metadata?.provider_id || 
-                              user?.user_metadata?.sub || 
-                              user?.id || 
-                              realtimeData?.user_id_discord || 
-                              realtimeData?.discord_id || 
-                              realtimeData?.id;
+            const targetDiscordId = user?.user_metadata?.provider_id || 
+                                    user?.user_metadata?.sub || 
+                                    user?.id || 
+                                    activeDiscordId;
 
-            if (!discordId) return;
+            if (!targetDiscordId) return;
 
+            // 1. Get exact user info from table `users`
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('discord_id', String(targetDiscordId))
+                .maybeSingle();
+
+            if (userData && !userError) {
+                setDbUser(userData as UserData);
+            }
+
+            // 2. Fetch history pengajuan_gaji
             const { data: historyData } = await supabase
                 .from('pengajuan_gaji')
                 .select('*')
-                .eq('user_id_discord', String(discordId))
+                .eq('user_id_discord', String(targetDiscordId))
                 .order('created_at', { ascending: false });
 
             if (historyData) setHistory(historyData as PengajuanGaji[]);
 
+            // 3. Fetch laporan_aktivitas tilang
             const { data: reportsData } = await supabase
                 .from('laporan_aktivitas')
                 .select('created_at')
-                .eq('user_id_discord', String(discordId))
+                .eq('user_id_discord', String(targetDiscordId))
                 .eq('jenis_laporan', 'Penilangan')
                 .eq('status', 'APPROVED');
 
             if (reportsData) setUserReports(reportsData as UserReport[]);
         } catch (e) {
-            console.error("Fetch history error:", e);
+            console.error("Error syncing user data:", e);
         }
     };
 
     useEffect(() => { 
-        fetchHistoryAndReports(); 
+        fetchUserDataAndHistory(); 
     }, [realtimeData]);
 
-    const divisiUser = (realtimeData?.divisi || "").toUpperCase();
+    const divisiUser = activeDivisi.toUpperCase();
     const isSatlantas = divisiUser.includes('SATLANTAS');
 
     const bonusPotential = (divisiUser.includes('SATLANTAS') || divisiUser.includes('SABHARA')) ? 35000 :
@@ -256,16 +288,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            // 💡 PERBAIKAN: Resolusi Discord ID dengan Fallback Lengkap
-            const { data: { user } } = await supabase.auth.getUser();
-            const discordId = user?.user_metadata?.provider_id || 
-                              user?.user_metadata?.sub || 
-                              user?.id || 
-                              realtimeData?.user_id_discord || 
-                              realtimeData?.discord_id || 
-                              realtimeData?.id;
-
-            if (!discordId) {
+            if (!activeDiscordId) {
                 showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi Discord ID akun Anda.", "ERROR");
                 setIsVerifying(false); return;
             }
@@ -273,15 +296,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
             const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
 
-            const { data: existing, error: checkError } = await supabase.from('pengajuan_gaji')
+            const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
-                .eq('user_id_discord', String(discordId));
+                .eq('user_id_discord', String(activeDiscordId));
 
-            if (checkError) {
-                console.error("Check existing error:", checkError);
-            }
-
-            // Safe parsing tanggal overlap
             const isOverlap = existing?.some(c => {
                 const existingStart = safeParseDate(c.tanggal_mulai);
                 const existingEnd = safeParseDate(c.tanggal_selesai);
@@ -293,12 +311,12 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
-            // 💡 PERBAIKAN: Insert Payload & Error Logging Detail
+            // 💡 INSERT PAYLOAD DISESUAIKAN DENGAN TABLE USERS & PENGAJUAN_GAJI
             const payload = {
-                user_id_discord: String(discordId),
-                nama_panggilan: nickname || realtimeData?.nama_panggilan || realtimeData?.name || "Unknown",
-                pangkat: userPangkat || "RECRUIT",
-                divisi: realtimeData?.divisi || "NON DIVISI",
+                user_id_discord: String(activeDiscordId),
+                nama_panggilan: activeName,
+                pangkat: activePangkat,
+                divisi: activeDivisi,
                 jumlah_gaji: Number(finalSalary),
                 tanggal_mulai: startStr,
                 tanggal_selesai: endStr,
@@ -308,20 +326,18 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             const { error: insertError } = await supabase.from('pengajuan_gaji').insert([payload]);
 
             if (insertError) {
-                console.error("Supabase Insert Detail Error:", insertError);
-                const detailMsg = insertError.message || insertError.details || insertError.hint || "Gagal menyimpan pengajuan ke database.";
-                showNotif("GAGAL PENGAJUAN", detailMsg, "ERROR");
+                console.error("Supabase Insert Error Detail:", insertError);
+                showNotif("GAGAL PENGAJUAN", insertError.message || "Gagal menyimpan pengajuan ke database.", "ERROR");
                 setIsVerifying(false);
                 return;
             }
 
             showNotif("BERHASIL", "Pengajuan gaji telah dikirim ke Markas Besar!", "SUCCESS");
             setRange({ from: null, to: null }); 
-            fetchHistoryAndReports();
+            fetchUserDataAndHistory();
         } catch (err: unknown) {
             console.error("System Catch Error:", err);
-            const errorMsg = err instanceof Error ? err.message : 
-                (typeof err === 'object' && err !== null && 'message' in err) ? String((err as Record<string, unknown>).message) : "Terjadi kesalahan sistem.";
+            const errorMsg = err instanceof Error ? err.message : "Terjadi kesalahan sistem.";
             showNotif("SISTEM ERROR", errorMsg, "ERROR");
         } finally { 
             setIsVerifying(false); 
@@ -377,7 +393,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <p className="text-xs font-medium tracking-widest text-red-400 uppercase">Finance System Ready</p>
                         </div>
                         <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white uppercase">PAYROLL</h1>
-                        <p className="text-sm text-zinc-400 mt-1">Officer: <span className="text-zinc-200 font-semibold">{nickname}</span></p>
+                        <p className="text-sm text-zinc-400 mt-1">Officer: <span className="text-zinc-200 font-semibold">{activeName}</span></p>
                     </div>
                 </div>
             </div>
@@ -390,7 +406,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                             <Wallet size={20} />
                         </div>
                         <span className="text-[10px] font-semibold tracking-wider bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-1 rounded-full uppercase">
-                            {userPangkat || 'RECRUIT'}
+                            {activePangkat}
                         </span>
                     </div>
                     <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">Base Salary {selectedWeeksCount > 1 ? '(x2 Weeks)' : ''}</p>

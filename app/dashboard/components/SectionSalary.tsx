@@ -21,8 +21,11 @@ import { supabase } from "@/lib/supabase";
 
 // 🚀 TYPE DEFINITIONS
 interface RealtimeData {
+    id?: string;
+    discord_id?: string;
     pangkat?: string;
     divisi?: string;
+    name?: string;
     [key: string]: unknown;
 }
 
@@ -78,6 +81,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
         setNotif({ show: true, title, message, type });
     };
 
+    // 💡 PENAMBAHAN: Ditambahkan pangkat RECRUIT & SISWA ke dalam daftar
     const getGajiByRank = (pangkat?: string) => {
         const p = pangkat?.toUpperCase().trim() || "";
         switch (p) {
@@ -85,7 +89,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             case "KOMJEN": return 180000;
             case "IRJEN": return 175000;
             case "BRIGJEN": return 170000;
-            case "KOMBESPOL": return 165000;
+            case "KOMBESPOL":
             case "KOMBES": return 165000;
             case "AKBP": return 160000;
             case "KOMPOL": return 155000;
@@ -100,29 +104,42 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
             case "BRIPDA": return 110000;
             case "BHARATU": return 105000;
             case "BHARADA": return 100000;
-            default: return 110000;
+            case "RECRUIT": return 90000;  // 👈 Ditambahkan
+            case "SISWA": return 80000;    // 👈 Ditambahkan
+            default: return 90000;
         }
     };
 
     const baseSalary = useMemo(() => getGajiByRank(realtimeData?.pangkat), [realtimeData?.pangkat]);
 
+    // 💡 PERBAIKAN: Fallback ke realtimeData.discord_id / realtimeData.id jika Supabase Auth null
     const fetchHistoryAndReports = async () => {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const discordId = user.user_metadata?.provider_id || user.id;
+        const discordId = user?.user_metadata?.provider_id || user?.id || realtimeData?.discord_id || realtimeData?.id;
 
-        const { data: historyData } = await supabase.from('pengajuan_gaji').select('*').eq('user_id_discord', discordId).order('created_at', { ascending: false });
+        if (!discordId) return;
+
+        const { data: historyData } = await supabase
+            .from('pengajuan_gaji')
+            .select('*')
+            .eq('user_id_discord', discordId)
+            .order('created_at', { ascending: false });
+
         if (historyData) setHistory(historyData as PengajuanGaji[]);
 
-        const { data: reportsData } = await supabase.from('laporan_aktivitas')
+        const { data: reportsData } = await supabase
+            .from('laporan_aktivitas')
             .select('created_at')
             .eq('user_id_discord', discordId)
             .eq('jenis_laporan', 'Penilangan')
             .eq('status', 'APPROVED');
+
         if (reportsData) setUserReports(reportsData as UserReport[]);
     };
 
-    useEffect(() => { fetchHistoryAndReports(); }, []);
+    useEffect(() => { 
+        fetchHistoryAndReports(); 
+    }, [realtimeData]);
 
     const divisiUser = realtimeData?.divisi?.toUpperCase() || "";
     const isSatlantas = divisiUser.includes('SATLANTAS');
@@ -216,8 +233,14 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
+            // 💡 PERBAIKAN: Dapatkan Discord ID dari realtimeData jika Supabase user null
             const { data: { user } } = await supabase.auth.getUser();
-            const discordId = user?.user_metadata?.provider_id || user?.id;
+            const discordId = user?.user_metadata?.provider_id || user?.id || realtimeData?.discord_id || realtimeData?.id;
+
+            if (!discordId) {
+                showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi Discord ID akun Anda.", "ERROR");
+                setIsVerifying(false); return;
+            }
 
             const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
             const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
@@ -232,25 +255,34 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname: st
                 setIsVerifying(false); return;
             }
 
+            // 💡 PERBAIKAN: Penanganan error Supabase secara eksplisit
             const { error } = await supabase.from('pengajuan_gaji').insert([{
-                user_id_discord: discordId,
-                nama_panggilan: nickname,
+                user_id_discord: String(discordId),
+                nama_panggilan: nickname || realtimeData?.name || "Unknown",
                 pangkat: realtimeData?.pangkat || "RECRUIT",
-                divisi: realtimeData?.divisi || "SABHARA",
+                divisi: realtimeData?.divisi || "NON DIVISI",
                 jumlah_gaji: finalSalary,
                 tanggal_mulai: startStr,
                 tanggal_selesai: endStr,
                 status: 'PENDING'
             }]);
 
-            if (error) throw error;
+            if (error) {
+                showNotif("GAGAL PENGAJUAN", error.message || "Gagal menyimpan pengajuan ke database.", "ERROR");
+                setIsVerifying(false);
+                return;
+            }
 
             showNotif("BERHASIL", "Pengajuan gaji telah dikirim ke Markas Besar!", "SUCCESS");
-            setRange({ from: null, to: null }); fetchHistoryAndReports();
+            setRange({ from: null, to: null }); 
+            fetchHistoryAndReports();
         } catch (err: unknown) {
-            const errorMsg = err instanceof Error ? err.message : "Terjadi kesalahan sistem.";
+            const errorMsg = err instanceof Error ? err.message : 
+                (typeof err === 'object' && err !== null && 'message' in err) ? String((err as Record<string, unknown>).message) : "Terjadi kesalahan sistem.";
             showNotif("SISTEM ERROR", errorMsg, "ERROR");
-        } finally { setIsVerifying(false); }
+        } finally { 
+            setIsVerifying(false); 
+        }
     };
 
     const handleDownloadSlip = async (log: PengajuanGaji) => {

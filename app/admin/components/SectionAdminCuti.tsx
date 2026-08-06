@@ -233,7 +233,7 @@ export default function SectionAdminCuti() {
                                 : 'text-zinc-500 hover:text-zinc-300'
                         }`}
                     >
-                        <Crown ''} 'PETINGGI' 'text-red-400' : ? className="{viewMode" size="{14}"/> <span>Petinggi</span>
+                        <Crown size={14} className={viewMode === 'PETINGGI' ? 'text-red-400' : 'text-zinc-400'} /> <span>Petinggi</span>
                     </button>
                 </div>
             </div>

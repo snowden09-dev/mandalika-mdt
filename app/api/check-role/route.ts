@@ -73,23 +73,17 @@ export async function POST(req: Request) {
         let detectedJabatan = "ANGGOTA";
         let detectedDivisi = "NON DIVISI";
 
-        // Cek Petinggi KADIV terlebih dahulu
-        for (const item of KADIV_ROLES) {
-            if (roles.includes(item.id)) {
-                detectedJabatan = "KADIV";
-                detectedDivisi = item.divisi;
-                break;
-            }
-        }
-
-        // Jika bukan Kadiv, cek WAKADIV
-        if (detectedJabatan === "ANGGOTA") {
-            for (const item of WAKADIV_ROLES) {
-                if (roles.includes(item.id)) {
-                    detectedJabatan = "WAKADIV";
-                    detectedDivisi = item.divisi;
-                    break;
-                }
+        // Cek Petinggi KADIV (Pastikan mencocokkan dengan role yang benar-benar ada di array roles user)
+        const activeKadiv = KADIV_ROLES.find(item => roles.includes(item.id));
+        if (activeKadiv) {
+            detectedJabatan = "KADIV";
+            detectedDivisi = activeKadiv.divisi;
+        } else {
+            // Jika bukan Kadiv, cek WAKADIV
+            const activeWakadiv = WAKADIV_ROLES.find(item => roles.includes(item.id));
+            if (activeWakadiv) {
+                detectedJabatan = "WAKADIV";
+                detectedDivisi = activeWakadiv.divisi;
             }
         }
 
@@ -114,7 +108,7 @@ export async function POST(req: Request) {
                 roles: roles,
                 divisi: detectedDivisi,
                 pangkat: detectedPangkat,
-                jabatan: detectedJabatan, // Field baru untuk menyimpan KADIV / WAKADIV / ANGGOTA
+                jabatan: detectedJabatan,
                 last_login: new Date().toISOString(),
             }, { onConflict: 'discord_id' });
         }

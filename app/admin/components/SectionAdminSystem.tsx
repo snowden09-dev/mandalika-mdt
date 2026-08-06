@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, Image as ImageIcon, Clock,
     AlertOctagon, X, Bomb, Activity, Database, ScanLine,
-    FileText, Loader2, ShieldCheck, Download
+    FileText, Loader2, ShieldCheck, Download, Trash2
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";
@@ -20,6 +20,18 @@ const cardShadow = "shadow-xl shadow-black/40";
 
 // Daftar pangkat petinggi yang kebal radar absen
 const EXCLUDED_RANKS = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL', 'AKBP', 'KOMPOL', 'AKP'];
+
+// Helper untuk ekstrak path storage dari public URL Supabase
+const extractStoragePath = (url: string) => {
+    try {
+        if (url && url.includes('bukti-absen/')) {
+            return url.split('bukti-absen/')[1];
+        }
+        return null;
+    } catch {
+        return null;
+    }
+};
 
 export default function SectionAdminSystem() {
     const router = useRouter();
@@ -41,7 +53,8 @@ export default function SectionAdminSystem() {
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
     // --- MODAL STATES ---
-    const [photoGallery, setPhotoGallery] = useState<{ photos: string[], index: number } | null>(null);
+    const [photoGallery, setPhotoGallery] = useState<{ photos: string[], index: number, dutyId?: string } | null>(null);
+    const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
     const [confirmModal, setConfirmModal] = useState<{ show: boolean, type: 'SINGLE' | 'PURGE' | 'STORAGE_CLEAN', data?: any }>({ show: false, type: 'SINGLE' });
     const [purgeInput, setPurgeInput] = useState("");
 
@@ -187,16 +200,90 @@ export default function SectionAdminSystem() {
         }
     };
 
+    // 🗑️ HAPUS SATUAN BARIS DATA (Sertakan Hapus Foto Storage)
     const executeDeleteSingle = async () => {
         const tId = toast.loading("Menghapus data spesifik...");
-        const { data, error } = await supabase.from(confirmModal.data.table).delete().eq('id', confirmModal.data.id).select();
+        try {
+            // Jika data presensi duty yang dihapus, bersihkan foto-fotonya di Storage dulu
+            if (confirmModal.data?.table === 'presensi_duty' && confirmModal.data?.id) {
+                const { data: dutyItem } = await supabase
+                    .from('presensi_duty')
+                    .select('bukti_foto')
+                    .eq('id', confirmModal.data.id)
+                    .maybeSingle();
 
-        if (error) { toast.error("Gagal: " + error.message, { id: tId }); }
-        else if (!data || data.length === 0) { toast.error("Gagal: RLS Database Memblokir Hapus Data!", { id: tId }); }
-        else { toast.success("DATA TERHAPUS", { id: tId }); }
+                if (dutyItem?.bukti_foto && Array.isArray(dutyItem.bukti_foto)) {
+                    const paths = dutyItem.bukti_foto
+                        .map((url: string) => extractStoragePath(url))
+                        .filter(Boolean) as string[];
+
+                    if (paths.length > 0) {
+                        await supabase.storage.from('bukti-absen').remove(paths);
+                    }
+                }
+            }
+
+            const { data, error } = await supabase.from(confirmModal.data.table).delete().eq('id', confirmModal.data.id).select();
+
+            if (error) { 
+                toast.error("Gagal: " + error.message, { id: tId }); 
+            } else if (!data || data.length === 0) { 
+                toast.error("Gagal: RLS Database Memblokir Hapus Data!", { id: tId }); 
+            } else { 
+                toast.success("DATA TERHAPUS DARI DATABASE & STORAGE", { id: tId }); 
+            }
+        } catch (err: any) {
+            toast.error("Terjadi kesalahan: " + err.message, { id: tId });
+        }
 
         setConfirmModal({ show: false, type: 'SINGLE' });
         verifyAndFetch();
+    };
+
+    // 🗑️ HAPUS FOTO SPESIFIK LANGSUNG DARI MODAL GALLERY
+    const handleDeletePhotoFromGallery = async () => {
+        if (!photoGallery || !photoGallery.dutyId) return;
+        
+        const currentPhotoUrl = photoGallery.photos[photoGallery.index];
+        setIsDeletingPhoto(true);
+        const tId = toast.loading("Menghapus foto dari storage & database...");
+
+        try {
+            // 1. Hapus file dari Supabase Storage
+            const filePath = extractStoragePath(currentPhotoUrl);
+            if (filePath) {
+                const { error: storageErr } = await supabase.storage.from('bukti-absen').remove([filePath]);
+                if (storageErr) console.warn("Peringatan Storage:", storageErr);
+            }
+
+            // 2. Update array foto di Supabase Database
+            const updatedPhotos = photoGallery.photos.filter((_, i) => i !== photoGallery.index);
+            
+            const { error: dbErr } = await supabase
+                .from('presensi_duty')
+                .update({ bukti_foto: updatedPhotos.length > 0 ? updatedPhotos : null })
+                .eq('id', photoGallery.dutyId);
+
+            if (dbErr) throw dbErr;
+
+            toast.success("Foto berhasil dihapus!", { id: tId });
+
+            // 3. Update state lokal
+            if (updatedPhotos.length === 0) {
+                setPhotoGallery(null);
+            } else {
+                setPhotoGallery({
+                    ...photoGallery,
+                    photos: updatedPhotos,
+                    index: Math.min(photoGallery.index, updatedPhotos.length - 1)
+                });
+            }
+            verifyAndFetch();
+        } catch (err: any) {
+            toast.error("Gagal menghapus foto: " + err.message, { id: tId });
+        } finally {
+            setIsDeletingPhoto(false);
+        }
     };
 
     const getDayStatus = (discordId: string, date: Date) => {
@@ -255,13 +342,13 @@ export default function SectionAdminSystem() {
                                 onClick={() => setConfirmModal({ show: true, type: 'STORAGE_CLEAN' })}
                                 className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
-                                <Database size={15} /> Hapus Foto
+                                <Database size={15} /> Bersihkan Storage
                             </button>
                             <button
                                 onClick={() => setConfirmModal({ show: true, type: 'PURGE' })}
                                 className="bg-red-950/60 hover:bg-red-900/60 text-red-400 border border-red-800/60 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
-                                <Bomb size={15} /> Hapus Data
+                                <Bomb size={15} /> Purge Data Lama
                             </button>
                         </div>
                     )}
@@ -277,15 +364,17 @@ export default function SectionAdminSystem() {
                 <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="p-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 rounded-xl transition-all cursor-pointer"><ChevronRight size={18} /></button>
             </div>
 
-            {/* MAIN TABLE */}
+            {/* MAIN TABLE WITH STICKY HEADER & STICKY FIRST COLUMN */}
             <div className={`bg-zinc-900 ${cardBorder} ${cardShadow} rounded-2xl overflow-hidden`}>
-                <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left border-collapse min-w-[1200px]">
-                        <thead>
-                            <tr className="bg-zinc-950 border-b border-zinc-800 text-zinc-400">
-                                <th className="p-4 border-r border-zinc-800/80 font-bold uppercase text-[10px] tracking-wider sticky left-0 bg-zinc-950 z-10 w-[200px]">Personel</th>
+                <div className="overflow-auto max-h-[70vh] custom-scrollbar relative">
+                    <table className="w-full text-left border-collapse min-w-[1200px] relative">
+                        <thead className="sticky top-0 z-20 bg-zinc-950 shadow-md">
+                            <tr className="border-b border-zinc-800 text-zinc-400">
+                                <th className="p-4 border-r border-zinc-800/80 font-bold uppercase text-[10px] tracking-wider sticky top-0 left-0 z-30 bg-zinc-950 w-[200px] shadow-[2px_0px_5px_rgba(0,0,0,0.5)]">
+                                    Personel
+                                </th>
                                 {daysInWeek.map((day, idx) => (
-                                    <th key={idx} className="p-3 text-center border-r border-zinc-800/80 font-bold uppercase text-[10px] tracking-wider">
+                                    <th key={idx} className="p-3 text-center border-r border-zinc-800/80 font-bold uppercase text-[10px] tracking-wider bg-zinc-950 sticky top-0 z-20">
                                         {format(day, 'EEEE', { locale: id })}<br /><span className="text-red-500 font-extrabold">{format(day, 'dd/MM')}</span>
                                     </th>
                                 ))}
@@ -314,7 +403,7 @@ export default function SectionAdminSystem() {
 
                                 return (
                                     <tr key={p.discord_id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group">
-                                        <td className="p-4 border-r border-zinc-800/80 font-bold sticky left-0 bg-zinc-900 group-hover:bg-zinc-900/90 z-10 transition-colors">
+                                        <td className="p-4 border-r border-zinc-800/80 font-bold sticky left-0 bg-zinc-900 group-hover:bg-zinc-900/95 z-10 transition-colors shadow-[2px_0px_5px_rgba(0,0,0,0.3)]">
                                             <p className="text-xs uppercase leading-tight text-zinc-100">{cleanName}</p>
                                             <p className="text-[10px] font-semibold text-red-500 uppercase tracking-tight mt-0.5">{p.pangkat} • #{badgeNumber}</p>
                                         </td>
@@ -345,11 +434,11 @@ export default function SectionAdminSystem() {
                                                                                     </span>
                                                                                     <div className="flex items-center gap-1.5">
                                                                                         {duty.bukti_foto && duty.bukti_foto.length > 0 && (
-                                                                                            <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0 })} className="text-red-400 hover:text-red-300 transition-colors cursor-pointer">
+                                                                                            <button onClick={() => setPhotoGallery({ photos: duty.bukti_foto, index: 0, dutyId: duty.id })} className="text-red-400 hover:text-red-300 transition-colors cursor-pointer" title="Lihat Foto Bukti">
                                                                                                 <ImageIcon size={13} />
                                                                                             </button>
                                                                                         )}
-                                                                                        <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-zinc-500 hover:text-red-400 transition-colors opacity-0 group-hover/item:opacity-100 cursor-pointer">
+                                                                                        <button onClick={() => setConfirmModal({ show: true, type: 'SINGLE', data: { id: duty.id, table: 'presensi_duty' } })} className="text-zinc-500 hover:text-red-400 transition-colors opacity-0 group-hover/item:opacity-100 cursor-pointer" title="Hapus Laporan Duty Ini">
                                                                                             <X size={13} />
                                                                                         </button>
                                                                                     </div>
@@ -420,7 +509,7 @@ export default function SectionAdminSystem() {
                                     />
                                 </div>
                             ) : (
-                                <p className="text-xs font-bold uppercase text-zinc-400 tracking-wider">Hapus laporan/izin ini secara permanen?</p>
+                                <p className="text-xs font-bold uppercase text-zinc-400 tracking-wider">Hapus laporan/izin ini secara permanen? (Foto di storage juga akan dibersihkan)</p>
                             )}
 
                             <div className="flex gap-3 pt-2">
@@ -432,7 +521,7 @@ export default function SectionAdminSystem() {
                 )}
             </AnimatePresence>
 
-            {/* --- 📸 IMAGE GALLERY PREVIEW --- */}
+            {/* --- 📸 IMAGE GALLERY PREVIEW WITH INDIVIDUAL DELETE --- */}
             <AnimatePresence>
                 {photoGallery && (
                     <div className="fixed inset-0 z-[600] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setPhotoGallery(null)}>
@@ -447,13 +536,26 @@ export default function SectionAdminSystem() {
                                 </button>
                             )}
 
-                            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} key={photoGallery.index} className={`bg-zinc-950 p-3 ${cardBorder} ${cardShadow} rounded-2xl w-full max-w-2xl`}>
-                                <img src={photoGallery.photos[photoGallery.index]} className="w-full max-h-[75vh] object-contain rounded-xl border border-zinc-800" alt={`Evidence ${photoGallery.index + 1}`} />
-                                {photoGallery.photos.length > 1 && (
-                                    <div className="text-center font-bold uppercase text-xs mt-3 mb-1 text-zinc-400 tracking-wider">
+                            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} key={photoGallery.index} className={`bg-zinc-950 p-3 ${cardBorder} ${cardShadow} rounded-2xl w-full max-w-2xl relative flex flex-col items-center`}>
+                                <img src={photoGallery.photos[photoGallery.index]} className="w-full max-h-[70vh] object-contain rounded-xl border border-zinc-800" alt={`Evidence ${photoGallery.index + 1}`} />
+                                
+                                <div className="w-full flex items-center justify-between mt-3 px-2">
+                                    <span className="font-bold uppercase text-xs text-zinc-400 tracking-wider">
                                         Foto {photoGallery.index + 1} dari {photoGallery.photos.length}
-                                    </div>
-                                )}
+                                    </span>
+
+                                    {/* TOMBOL HAPUS FOTO INDIVIDUAL */}
+                                    {photoGallery.dutyId && (
+                                        <button
+                                            disabled={isDeletingPhoto}
+                                            onClick={handleDeletePhotoFromGallery}
+                                            className="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                        >
+                                            {isDeletingPhoto ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                            <span>Hapus Foto Ini</span>
+                                        </button>
+                                    )}
+                                </div>
                             </motion.div>
 
                             {photoGallery.photos.length > 1 && (

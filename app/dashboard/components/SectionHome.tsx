@@ -110,11 +110,12 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         const syncFreshData = async () => {
             try {
-                fetch('/api/check-role', {
+                // Tunda render sampai API check-role selesai menyinkronkan data terbaru dari Discord
+                await fetch('/api/check-role', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: discordId })
-                }).catch(() => {});
+                });
 
                 const { data, error } = await supabase
                     .from('users')
@@ -224,13 +225,18 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
     const isPetinggi = userRoleIds.includes(PETINGGI_ROLE_ID);
 
+    // Validasi ganda dengan data divisi database agar tidak nyangkut ke Sabhara
     const kadivInfo = useMemo(() => {
-        return KADIV_ROLES.find(r => userRoleIds.includes(r.id));
-    }, [userRoleIds]);
+        return KADIV_ROLES.find(r => 
+            userRoleIds.includes(r.id) && userData.divisi?.toUpperCase() === r.divisi
+        );
+    }, [userRoleIds, userData.divisi]);
 
     const wakadivInfo = useMemo(() => {
-        return WAKADIV_ROLES.find(r => userRoleIds.includes(r.id));
-    }, [userRoleIds]);
+        return WAKADIV_ROLES.find(r => 
+            userRoleIds.includes(r.id) && userData.divisi?.toUpperCase() === r.divisi
+        );
+    }, [userRoleIds, userData.divisi]);
 
     const progress = useMemo(() => {
         const currentPRP = Number(userData.point_prp) || 0;

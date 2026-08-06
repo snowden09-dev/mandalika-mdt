@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Settings2, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check, Clock, Award
+    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check, Clock, Award
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, isWithinInterval, startOfDay, eachDayOfInterval } from "date-fns";
+import { format, startOfWeek, endOfWeek, isWithinInterval, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { toast, Toaster } from 'sonner';
 
@@ -119,7 +119,6 @@ type SlipData = PayrollRequest & {
     bonusJabatanLabel: string;
     tilangCount: number;
     isTargetMet: boolean;
-    isSatlantas: boolean;
     isPetinggi: boolean;
     baseGaji: number;
     potonganAlpha: number;
@@ -175,13 +174,24 @@ export default function SectionAdminPayroll() {
     const [confirmInput, setConfirmInput] = useState("");
 
     const [showRules, setShowRules] = useState(false);
-    const [copiedId, setCopiedId] = useState<string | null>(null);
 
-    const handleCopy = (id: string) => {
-        navigator.clipboard.writeText(id);
-        setCopiedId(id);
-        toast.success("Role ID berhasil disalin!");
-        setTimeout(() => setCopiedId(null), 2000);
+    // ✅ FUNGSI HANDLE MULTIPLE BONUS
+    const handleAddAdjustment = (reqId: string, amount: number, reason: string) => {
+        setManualAdjustments(prev => {
+            const existing = prev[reqId] || { amount: 0, reason: '' };
+            const newAmount = existing.amount + amount;
+            
+            // Gabungkan alasan jika sebelumnya sudah ada
+            let newReason = reason;
+            if (existing.reason && existing.reason.trim() !== '') {
+                newReason = `${existing.reason} + ${reason}`;
+            }
+
+            return {
+                ...prev,
+                [reqId]: { amount: newAmount, reason: newReason }
+            };
+        });
     };
 
     const fetchData = async () => {
@@ -189,7 +199,6 @@ export default function SectionAdminPayroll() {
         const { data: reqData } = await supabase.from('pengajuan_gaji').select('*').order('created_at', { ascending: false });
         if (reqData) setRequests(reqData);
 
-        // FIX: Ambil durasi_menit & status dari presensi_duty
         const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, durasi_menit, status');
         if (dutyData) setDuties(dutyData);
 
@@ -295,7 +304,7 @@ export default function SectionAdminPayroll() {
                 bonusJabatanLabel = 'Bonus Wakadiv';
             }
 
-            // 3. KALKULASI JAM DUTY PRESISI DARI presensi_duty KEMUDIAN FALLBACK KE users.total_jam_duty
+            // 3. KALKULASI JAM DUTY PRESISI DARI presensi_duty
             const startStr = getWIBDateStr(start);
             const endStr = getWIBDateStr(end);
 
@@ -333,7 +342,7 @@ export default function SectionAdminPayroll() {
 
             const cleanName = rawName.toUpperCase();
 
-            // 5. KALKULASI HADIR, CUTI, ALFA DENGAN TIMEZONE WIB
+            // 5. KALKULASI HADIR, CUTI, ALFA
             let hadirCount = 0;
             let cutiCount = 0;
 
@@ -360,7 +369,6 @@ export default function SectionAdminPayroll() {
             const alphaCount = Math.max(0, daysInPeriod.length - hadirCount - cutiCount);
             const tilangData = laporans.filter(l => l.user_id_discord === discordId && new Date(l.created_at) >= start && new Date(l.created_at) <= end);
             const isTargetMet = tilangData.length >= 15;
-            const isSatlantas = (req.divisi || "").toUpperCase().includes('SATLANTAS');
             const pangkatUser = (req.pangkat || "").toUpperCase();
             const isPetinggi = PETINGGI_RANKS.some(rank => pangkatUser.includes(rank));
 
@@ -381,7 +389,7 @@ export default function SectionAdminPayroll() {
                     ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                     total_hari: daysInPeriod.length, tilangCount: tilangData.length,
                     totalDutyHours, is100HoursDuty, isKadiv, isWakadiv, bonusJabatan, bonusJabatanLabel,
-                    isTargetMet, isSatlantas, isPetinggi, cleanName, badgeNumber,
+                    isTargetMet, isPetinggi, cleanName, badgeNumber,
                     baseGaji: extractLegacy('BASE') || req.jumlah_gaji,
                     potonganAlpha: extractLegacy('ALPH'),
                     potonganCuti: extractLegacy('CUTI'),
@@ -419,7 +427,7 @@ export default function SectionAdminPayroll() {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
                 totalDutyHours, is100HoursDuty, isKadiv, isWakadiv, bonusJabatan, bonusJabatanLabel,
-                isTargetMet, isSatlantas, isPetinggi, cleanName, badgeNumber,
+                isTargetMet, isPetinggi, cleanName, badgeNumber,
                 baseGaji: baseGajiSubmit,
                 potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
             };
@@ -670,7 +678,7 @@ export default function SectionAdminPayroll() {
                         </div>
                         <div>
                             <h3 className="text-sm font-bold text-zinc-100 tracking-tight">Aturan & List Bonus Gaji HQ</h3>
-                            <p className="text-[11px] text-zinc-400">Ketentuan bonus mingguan, administrasi, dan Role ID Kadiv / Wakadiv</p>
+                            <p className="text-[11px] text-zinc-400">Ketentuan bonus mingguan dan administrasi</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs font-medium text-red-400">
@@ -721,47 +729,6 @@ export default function SectionAdminPayroll() {
                                                 )}>
                                                     {rule.value}
                                                 </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ROLE ID DISCORD (KADIV & WAKADIV) */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-zinc-800/60">
-                                {/* KADIV ROLES */}
-                                <div className="space-y-2">
-                                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Role ID Discord - Kadiv</span>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {BONUS_RULES.kadivRoles.map((item) => (
-                                            <div key={item.id} className="flex justify-between items-center bg-zinc-900 border border-zinc-800/80 px-3 py-2 rounded-xl text-xs">
-                                                <span className="text-zinc-200 font-medium">Kadiv {item.divisi}</span>
-                                                <button
-                                                    onClick={() => handleCopy(item.id)}
-                                                    className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-400 hover:text-red-400 transition-colors bg-zinc-950 px-2 py-1 rounded-lg border border-zinc-800"
-                                                >
-                                                    {copiedId === item.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                                                    <span>{item.id}</span>
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* WAKADIV ROLES */}
-                                <div className="space-y-2">
-                                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Role ID Discord - Wakadiv</span>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {BONUS_RULES.wakadivRoles.map((item) => (
-                                            <div key={item.id} className="flex justify-between items-center bg-zinc-900 border border-zinc-800/80 px-3 py-2 rounded-xl text-xs">
-                                                <span className="text-zinc-200 font-medium">Wakadiv {item.divisi}</span>
-                                                <button
-                                                    onClick={() => handleCopy(item.id)}
-                                                    className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-400 hover:text-red-400 transition-colors bg-zinc-950 px-2 py-1 rounded-lg border border-zinc-800"
-                                                >
-                                                    {copiedId === item.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                                                    <span>{item.id}</span>
-                                                </button>
                                             </div>
                                         ))}
                                     </div>
@@ -952,15 +919,6 @@ export default function SectionAdminPayroll() {
                                             </div>
                                         </div>
 
-                                        {req.isSatlantas && (
-                                            <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-2.5 flex items-center justify-between">
-                                                <span className="text-[11px] text-zinc-400">Target Ops Tilang Satlantas</span>
-                                                <span className={cn("text-xs font-bold font-mono px-2 py-0.5 rounded border", req.isTargetMet ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20")}>
-                                                    {req.tilangCount}/15 {req.isTargetMet ? '✓ Terpenuhi' : 'Belum'}
-                                                </span>
-                                            </div>
-                                        )}
-
                                         {/* BREAKDOWN RINCIAN GAJI */}
                                         <div className="border-t border-zinc-800/60 pt-3 space-y-1 text-xs">
                                             <div className="flex justify-between text-zinc-400">
@@ -980,58 +938,84 @@ export default function SectionAdminPayroll() {
                                             {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-emerald-400"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
 
                                             {req.adjustment?.amount !== 0 && (
-                                                <div className={cn("flex justify-between font-mono", req.adjustment?.amount > 0 ? "text-emerald-400" : "text-red-400")}>
+                                                <div className={cn("flex justify-between font-mono pt-1 border-t border-zinc-800/40 mt-1", req.adjustment?.amount > 0 ? "text-emerald-400" : "text-red-400")}>
                                                     <span className="truncate max-w-[200px]">Adj: {req.adjustment?.reason}</span>
-                                                    <span>{req.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(req.adjustment?.amount || 0).toLocaleString()}</span>
+                                                    <span>{req.adjustment?.amount > 0 ? '+' : ''} ${req.adjustment?.amount.toLocaleString()}</span>
                                                 </div>
                                             )}
                                         </div>
 
-                                        {/* ATUR ADJUSTMENT MANUAL PRESET */}
+                                        {/* ATUR ADJUSTMENT MANUAL PRESET & CUSTOM */}
                                         {activeTab === 'PENDING' && (
-                                            <div className="border-t border-zinc-800/60 pt-3 space-y-2">
-                                                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">Quick Presets Bonus / Adj</span>
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                                                    {BONUS_RULES.divisiMingguan.map((b, i) => (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: b.amount, reason: `Bonus ${b.label}` } })}
-                                                            className="bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 py-1 px-1.5 rounded-lg transition-colors truncate text-center"
-                                                            title={b.label}
-                                                        >
-                                                            +${b.amount / 1000}k
-                                                        </button>
-                                                    ))}
-                                                </div>
-
-                                                <div className="flex gap-2 items-center pt-1">
-                                                    <Settings2 size={14} className="text-zinc-500 shrink-0" />
-                                                    <input
-                                                        type="number"
-                                                        placeholder="Nominal (- utk Denda)"
-                                                        value={adjInputs[req.id]?.amount || ''}
-                                                        onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], amount: e.target.value } })}
-                                                        className="bg-zinc-950 border border-zinc-800 px-2 py-1 text-xs w-28 rounded-lg outline-none text-zinc-200 focus:border-red-500"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Keterangan..."
-                                                        value={adjInputs[req.id]?.reason || ''}
-                                                        onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], reason: e.target.value } })}
-                                                        className="bg-zinc-950 border border-zinc-800 px-2 py-1 text-xs flex-1 rounded-lg outline-none text-zinc-200 focus:border-red-500"
-                                                    />
-                                                    <button
-                                                        onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: Number(adjInputs[req.id]?.amount || 0), reason: adjInputs[req.id]?.reason || 'Penyesuaian Sistem' } })}
-                                                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors"
-                                                    >Apply</button>
-                                                </div>
-
-                                                {req.adjustment?.amount !== 0 && (
-                                                    <div className="flex justify-between items-center bg-zinc-950 border border-zinc-800 p-2 rounded-lg mt-1">
-                                                        <span className="text-[11px] text-amber-400">Aktif: {req.adjustment?.reason} (${req.adjustment?.amount})</span>
-                                                        <button onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} className="text-zinc-500 hover:text-red-400 p-0.5"><X size={12} /></button>
+                                            <div className="border-t border-zinc-800/60 pt-3 space-y-3">
+                                                <div>
+                                                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Quick Presets Bonus / Adj</span>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                                        {BONUS_RULES.divisiMingguan.map((b, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => handleAddAdjustment(req.id, b.amount, `Bonus ${b.label}`)}
+                                                                className="bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 py-1.5 px-1.5 rounded-lg transition-colors truncate text-center shadow-sm"
+                                                                title={b.label}
+                                                            >
+                                                                +${b.amount / 1000}k
+                                                            </button>
+                                                        ))}
                                                     </div>
-                                                )}
+                                                </div>
+
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex gap-2 items-center">
+                                                        <div className="flex flex-1 bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden focus-within:border-zinc-600 transition-colors shadow-inner">
+                                                            <div className="px-2.5 py-2 bg-zinc-900 border-r border-zinc-800 flex items-center justify-center">
+                                                                <span className="text-xs text-zinc-400 font-bold">$</span>
+                                                            </div>
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Nominal (- utk Denda)"
+                                                                value={adjInputs[req.id]?.amount || ''}
+                                                                onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], amount: e.target.value } })}
+                                                                className="bg-transparent px-2 py-2 text-xs w-28 outline-none text-zinc-200"
+                                                            />
+                                                            <div className="w-px bg-zinc-800"></div>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Keterangan tambahan..."
+                                                                value={adjInputs[req.id]?.reason || ''}
+                                                                onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], reason: e.target.value } })}
+                                                                className="bg-transparent px-2 py-2 text-xs flex-1 outline-none text-zinc-200"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                const amt = Number(adjInputs[req.id]?.amount || 0);
+                                                                const rsn = adjInputs[req.id]?.reason || 'Penyesuaian Sistem';
+                                                                if (amt !== 0) {
+                                                                    handleAddAdjustment(req.id, amt, rsn);
+                                                                    setAdjInputs({ ...adjInputs, [req.id]: { amount: '', reason: '' } });
+                                                                }
+                                                            }}
+                                                            className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+                                                        >
+                                                            <PlusCircle size={14} /> Add
+                                                        </button>
+                                                    </div>
+
+                                                    {req.adjustment?.amount !== 0 && (
+                                                        <div className="flex justify-between items-center bg-zinc-950 border border-zinc-800 p-2.5 rounded-xl shadow-sm mt-1">
+                                                            <span className="text-[11px] text-amber-400 font-medium break-words pr-2">
+                                                                Total Adj: {req.adjustment?.reason} (${req.adjustment?.amount.toLocaleString()})
+                                                            </span>
+                                                            <button 
+                                                                onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} 
+                                                                className="text-zinc-500 hover:text-red-400 bg-zinc-900 hover:bg-zinc-800 p-1.5 rounded-lg transition-colors border border-zinc-800 shrink-0"
+                                                                title="Reset Penyesuaian"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1047,7 +1031,7 @@ export default function SectionAdminPayroll() {
                                             {activeTab === 'PENDING' ? (
                                                 <>
                                                     <button onClick={() => handleAction(req.id, 'REJECTED')} className="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl font-medium text-xs transition-colors">Tolak</button>
-                                                    <button onClick={() => handleAction(req.id, 'PAID')} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-xs transition-colors">Setujui</button>
+                                                    <button onClick={() => handleAction(req.id, 'PAID')} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-xs transition-colors shadow-lg shadow-emerald-900/20">Setujui</button>
                                                 </>
                                             ) : activeTab === 'NOT_SENT' ? (
                                                 <button disabled={isGenerating} onClick={() => handleOpenAndCapture(req)} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50">
@@ -1196,7 +1180,7 @@ export default function SectionAdminPayroll() {
                             {currentSlipData.adjustment?.amount !== 0 && (
                                 <div className={cn("flex justify-between items-center font-mono", currentSlipData.adjustment?.amount > 0 ? "text-emerald-400" : "text-red-400")}>
                                     <span>{currentSlipData.adjustment?.amount > 0 ? 'Bonus' : 'Denda'}: {currentSlipData.adjustment?.reason}</span>
-                                    <span>{currentSlipData.adjustment?.amount > 0 ? '+' : '-'} ${Math.abs(currentSlipData.adjustment?.amount || 0).toLocaleString()}</span>
+                                    <span>{currentSlipData.adjustment?.amount > 0 ? '+' : ''} ${currentSlipData.adjustment?.amount.toLocaleString()}</span>
                                 </div>
                             )}
                         </div>

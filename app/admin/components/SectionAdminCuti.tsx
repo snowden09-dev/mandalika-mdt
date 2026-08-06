@@ -15,7 +15,7 @@ interface CutiLog {
     id: string;
     nama_panggilan: string;
     pangkat: string;
-    divisi?: string; // Ditambahkan untuk mengambil data divisi
+    divisi?: string;
     jenis_izin: string;
     alasan: string;
     tanggal_mulai: string;
@@ -37,7 +37,6 @@ export default function SectionAdminCuti() {
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
     
-    // State untuk nama admin
     const [adminName, setAdminName] = useState<string>("Unknown Admin");
     
     const [viewMode, setViewMode] = useState<'ANGGOTA' | 'PETINGGI'>('ANGGOTA');
@@ -160,18 +159,22 @@ export default function SectionAdminCuti() {
                 const formattedMulai = formatTanggalDiscord(currentLog.tanggal_mulai);
                 const formattedSelesai = formatTanggalDiscord(currentLog.tanggal_selesai);
 
-                // Kirim Webhook Discord (Format Baru)
-                const webhookUrl = "[https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA](https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA)"; 
+                // Kirim Webhook Discord (URL dibersihkan dari markdown)
+                const webhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA"; 
                 
                 const discordPayload = {
                     content: `**SURAT IZIN**\n\n\`\`\`Nama: ${cleanName}\nBadge : ${badgeNumber}\nRank : ${currentLog.pangkat || '-'}\nDivision : ${currentLog.divisi || 'UNIT'}\nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai}\nAlasan tidak duty : ${currentLog.alasan || '-'}\nApproved by : ${adminName}\`\`\`\n\n<@&1449382385090166844>\n<@&1518414822318800987>`
                 };
 
-                await fetch(webhookUrl, {
+                const response = await fetch(webhookUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(discordPayload)
                 });
+
+                if (!response.ok) {
+                    console.error("Gagal mengirim webhook Discord:", await response.text());
+                }
 
             } catch (err) {
                 console.error("Error saat memproses rekap/webhook:", err);
@@ -189,7 +192,7 @@ export default function SectionAdminCuti() {
     if (!isAuthorized && loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-                <Loader2 className="animate-spin mb-3 text-red-600" size="{32}"/>
+                <Loader2 className="animate-spin mb-3 text-red-600" size={32} />
                 <p className="font-bold uppercase tracking-widest text-xs text-zinc-400">Authenticating Clearance...</p>
             </div>
         );
@@ -198,36 +201,37 @@ export default function SectionAdminCuti() {
     if (!isAuthorized) return null;
 
     return (
-        <div className="w-full max-w-6xl mx-auto space-y-6 font-mono pb-24 text-zinc-100 px-4">
+        <div className="w-full max-w-6xl mx-auto space-y-6 font-mono pb-24 text-zinc-100 px-3 md:px-4 overflow-x-hidden">
             
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl shadow-black/40">
+            {/* HEADER PANEL */}
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl shadow-black/40">
                 <div className="flex items-center gap-3.5">
                     <div className="p-3 bg-red-950/40 border border-red-900/40 rounded-xl text-red-500 shrink-0">
-                        <CalendarDays size="{24}"/>
+                        <CalendarDays size={24} />
                     </div>
                     <div>
-                        <h2 className="font-bold text-xl uppercase tracking-wider text-zinc-100 flex items-center gap-2">
+                        <h2 className="font-bold text-base md:text-xl uppercase tracking-wider text-zinc-100 flex items-center gap-2 flex-wrap">
                             Leave Management
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950/80 border border-red-800/50 text-red-400 font-mono">ADMIN</span>
                         </h2>
-                        <p className="text-xs text-zinc-500 font-medium">Verifikasi dan kelola pengajuan cuti personil</p>
+                        <p className="text-[11px] md:text-xs text-zinc-500 font-medium">Verifikasi dan kelola pengajuan cuti personil</p>
                     </div>
                 </div>
 
                 <div className="flex bg-zinc-950 p-1.5 rounded-xl border border-zinc-800/80 gap-1.5 w-full md:w-auto">
                     <button
                         onClick={() => setViewMode('ANGGOTA')}
-                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             viewMode === 'ANGGOTA'
                                 ? 'bg-zinc-800 text-white border border-zinc-700 shadow-sm'
                                 : 'text-zinc-500 hover:text-zinc-300'
                         }`}
                     >
-                        <User size="{14}"/> <span>Anggota</span>
+                        <User size={14} /> <span>Anggota</span>
                     </button>
                     <button
                         onClick={() => setViewMode('PETINGGI')}
-                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             viewMode === 'PETINGGI'
                                 ? 'bg-red-950/80 text-red-300 border border-red-800/60 shadow-sm'
                                 : 'text-zinc-500 hover:text-zinc-300'
@@ -238,7 +242,8 @@ export default function SectionAdminCuti() {
                 </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            {/* STATUS FILTER TABS */}
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {(['PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => {
                     const isActive = statusFilter === s;
                     let activeColorClass = "";
@@ -250,7 +255,7 @@ export default function SectionAdminCuti() {
                         <button
                             key={s}
                             onClick={() => setStatusFilter(s)}
-                            className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                            className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
                                 isActive
                                     ? `${activeColorClass} shadow-lg shadow-black/20`
                                     : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
@@ -262,14 +267,15 @@ export default function SectionAdminCuti() {
                 })}
             </div>
 
+            {/* LIST CONTENT */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-                    <Loader2 className="animate-spin mb-3 text-red-600" size="{32}"/>
+                    <Loader2 className="animate-spin mb-3 text-red-600" size={32} />
                     <p className="font-bold uppercase tracking-widest text-xs text-zinc-400">Scanning Dossiers...</p>
                 </div>
             ) : filteredCuti.length === 0 ? (
-                <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-16 text-center shadow-xl shadow-black/30">
-                    <ShieldCheck className="mx-auto text-zinc-600 mb-3" size="{40}"/>
+                <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-12 text-center shadow-xl shadow-black/30">
+                    <ShieldCheck className="mx-auto text-zinc-600 mb-3" size={40} />
                     <h3 className="font-bold text-sm uppercase tracking-wider text-zinc-300">Tidak Ada Antrian Cuti</h3>
                     <p className="text-xs text-zinc-500 mt-1">Belum ada data cuti tercatat di kategori status ini.</p>
                 </div>
@@ -301,76 +307,80 @@ export default function SectionAdminCuti() {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.98 }}
-                                    className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden shadow-lg shadow-black/40 hover:border-zinc-700/80 transition-all group"
+                                    className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-4 md:p-5 flex flex-col gap-4 relative overflow-hidden shadow-lg shadow-black/40 hover:border-zinc-700/80 transition-all group"
                                 >
-                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${viewMode === 'PETINGGI' ? 'bg-red-600' : 'bg-zinc-700'}`} />
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${viewMode === 'PETINGGI' ? 'bg-red-600' : 'bg-zinc-700'}`} />
 
-                                    <div className="flex items-center gap-4 w-full md:w-auto pl-1">
-                                        <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
-                                            viewMode === 'PETINGGI'
-                                                ? 'bg-red-950/40 border-red-900/40 text-red-500'
-                                                : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-                                        }`}>
-                                            {viewMode === 'PETINGGI' ? <Crown size="{22}"/> : <Briefcase size="{22}"/>}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h4 className="font-bold text-sm uppercase tracking-tight text-zinc-100">
+                                    {/* Top Section Card */}
+                                    <div className="flex items-start justify-between gap-3 pl-2">
+                                        <div className="flex items-center gap-3.5 min-w-0">
+                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl border flex items-center justify-center shrink-0 ${
+                                                viewMode === 'PETINGGI'
+                                                    ? 'bg-red-950/40 border-red-900/40 text-red-500'
+                                                    : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+                                            }`}>
+                                                {viewMode === 'PETINGGI' ? <Crown size={20} /> : <Briefcase size={20} />}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h4 className="font-bold text-xs md:text-sm uppercase tracking-tight text-zinc-100 truncate">
                                                     {cleanName}
                                                 </h4>
-                                                <span className="bg-zinc-950 border border-zinc-800 text-zinc-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                                                    {log.pangkat} • #{badgeNumber}
-                                                </span>
-                                                {log.jenis_izin && (
-                                                    <span className="bg-red-950/50 border border-red-900/40 text-red-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                                                        {log.jenis_izin}
+                                                <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                                    <span className="bg-zinc-950 border border-zinc-800 text-zinc-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                                        {log.pangkat} • #{badgeNumber}
                                                     </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
-                                                <span className="text-zinc-500 font-medium">Alasan: </span>
-                                                <span className="text-zinc-300 italic">&quot;{log.alasan || 'Tidak ada alasan'}&quot;</span>
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 w-full md:w-auto pt-3 md:pt-0 border-t border-zinc-800/60 md:border-t-0 justify-between">
-                                        <div className="flex flex-col md:items-end">
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Durasi Cuti</span>
-                                            <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-lg text-zinc-300">
-                                                <Clock className="text-red-500" size="{12}"/>
-                                                <span className="text-xs font-bold uppercase tracking-wider">
-                                                    {format(new Date(log.tanggal_mulai), 'dd MMM')} — {format(new Date(log.tanggal_selesai), 'dd MMM yyyy')}
-                                                </span>
+                                                    {log.jenis_izin && (
+                                                        <span className="bg-red-950/50 border border-red-900/40 text-red-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                                            {log.jenis_izin}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {statusFilter === 'PENDING' && (
-                                            <div className="flex items-center gap-2 self-end md:self-auto">
-                                                <button
-                                                    onClick={() => handleAction(log.id, 'REJECTED')}
-                                                    title="Reject Leave"
-                                                    className="p-2.5 bg-red-950/30 border border-red-900/40 text-red-400 hover:bg-red-900/50 hover:text-red-200 rounded-xl transition-all cursor-pointer"
-                                                >
-                                                    <XCircle size="{18}"/>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleAction(log.id, 'APPROVED')}
-                                                    title="Approve Leave"
-                                                    className="p-2.5 bg-emerald-950/30 border border-emerald-900/40 text-emerald-400 hover:bg-emerald-900/50 hover:text-emerald-200 rounded-xl transition-all cursor-pointer"
-                                                >
-                                                    <CheckCircle2 size="{18}"/>
-                                                </button>
-                                            </div>
-                                        )}
-
+                                        {/* Status Badge jika bukan pending */}
                                         {statusFilter !== 'PENDING' && (
-                                            <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider ${
+                                            <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider shrink-0 ${
                                                 statusFilter === 'APPROVED'
                                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                                                     : 'bg-red-500/10 border-red-500/30 text-red-400'
                                             }`}>
                                                 {statusFilter}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Alasan */}
+                                    <div className="pl-2 pr-1">
+                                        <p className="text-xs text-zinc-400 leading-relaxed bg-zinc-950/50 p-2.5 rounded-xl border border-zinc-800/60">
+                                            <span className="text-zinc-500 font-medium block text-[10px] uppercase mb-0.5">Alasan:</span>
+                                            <span className="text-zinc-300 italic">&quot;{log.alasan || 'Tidak ada alasan'}&quot;</span>
+                                        </p>
+                                    </div>
+
+                                    {/* Footer Card: Durasi & Aksi Tombol */}
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-zinc-800/60 pl-2">
+                                        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl text-zinc-300 self-start sm:self-auto">
+                                            <Clock className="text-red-500 shrink-0" size={14} />
+                                            <span className="text-[11px] font-bold uppercase tracking-wider">
+                                                {format(new Date(log.tanggal_mulai), 'dd MMM')} — {format(new Date(log.tanggal_selesai), 'dd MMM yyyy')}
+                                            </span>
+                                        </div>
+
+                                        {statusFilter === 'PENDING' && (
+                                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                <button
+                                                    onClick={() => handleAction(log.id, 'REJECTED')}
+                                                    className="flex-1 sm:flex-none py-2.5 px-4 bg-red-950/30 border border-red-900/40 text-red-400 hover:bg-red-900/50 hover:text-red-200 rounded-xl transition-all font-bold text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer"
+                                                >
+                                                    <XCircle size={16} /> Tolak
+                                                </button>
+                                                <button
+                                                    onClick={() => handleAction(log.id, 'APPROVED')}
+                                                    className="flex-1 sm:flex-none py-2.5 px-4 bg-emerald-950/30 border border-emerald-900/40 text-emerald-400 hover:bg-emerald-900/50 hover:text-emerald-200 rounded-xl transition-all font-bold text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer"
+                                                >
+                                                    <CheckCircle2 size={16} /> Approve
+                                                </button>
                                             </div>
                                         )}
                                     </div>

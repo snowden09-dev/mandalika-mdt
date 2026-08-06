@@ -31,6 +31,42 @@ const formatTanggalDiscord = (dateStr: string) => {
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
 };
 
+// Helper: Ekstrak Nama Bersih (Menghilangkan prefix hashtag/badge nomor dan pipe jika ada)
+const cleanPersonnelName = (rawName: string) => {
+    if (!rawName) return 'UNKNOWN';
+    let name = rawName;
+    if (name.includes('|')) {
+        name = name.split('|').pop()?.trim() || name;
+    }
+    if (name.startsWith('#')) {
+        const spaceIndex = name.indexOf(' ');
+        if (spaceIndex !== -1) {
+            name = name.substring(spaceIndex + 1).trim();
+        } else {
+            name = "OFFICER";
+        }
+    }
+    return name.toUpperCase();
+};
+
+// Helper: Ekstrak Nomor Badge dari teks nama
+const extractBadgeNumber = (rawName: string) => {
+    if (!rawName) return '-';
+    let name = rawName;
+    if (name.includes('|')) {
+        name = name.split('|').pop()?.trim() || name;
+    }
+    if (name.startsWith('#')) {
+        const spaceIndex = name.indexOf(' ');
+        if (spaceIndex !== -1) {
+            return name.substring(1, spaceIndex);
+        } else {
+            return name.substring(1);
+        }
+    }
+    return '-';
+};
+
 export default function SectionAdminCuti() {
     const router = useRouter();
     const [cutiLogs, setCutiLogs] = useState<CutiLog[]>([]);
@@ -73,8 +109,10 @@ export default function SectionAdminCuti() {
                 return;
             }
 
-            const namaAdmin = user.nama_panggilan || user.nama || user.username || user.name || "Admin Divisi";
-            setAdminName(namaAdmin);
+            // Ambil nama admin dan bersihkan jika ada format badge di depannya
+            const rawAdmin = user.nama_panggilan || user.nama || user.username || user.name || "Admin Divisi";
+            const cleanedAdminName = cleanPersonnelName(rawAdmin);
+            setAdminName(cleanedAdminName);
 
             setIsAuthorized(true);
             
@@ -136,30 +174,15 @@ export default function SectionAdminCuti() {
                     toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
                 }
 
-                // Ekstrak nama dan badge untuk webhook
-                let rawName = currentLog.nama_panggilan || 'UNKNOWN';
-                if (rawName.includes('|')) {
-                    rawName = rawName.split('|').pop()?.trim() || rawName;
-                }
-
-                let badgeNumber = "-";
-                if (rawName.startsWith('#')) {
-                    const spaceIndex = rawName.indexOf(' ');
-                    if (spaceIndex !== -1) {
-                        badgeNumber = rawName.substring(1, spaceIndex);
-                        rawName = rawName.substring(spaceIndex + 1).trim();
-                    } else {
-                        badgeNumber = rawName.substring(1);
-                        rawName = "OFFICER";
-                    }
-                }
-                const cleanName = rawName.toUpperCase();
+                // Ekstrak nama bersih dan nomor badge menggunakan fungsi helper
+                const cleanName = cleanPersonnelName(currentLog.nama_panggilan);
+                const badgeNumber = extractBadgeNumber(currentLog.nama_panggilan);
 
                 // Format Tanggal
                 const formattedMulai = formatTanggalDiscord(currentLog.tanggal_mulai);
                 const formattedSelesai = formatTanggalDiscord(currentLog.tanggal_selesai);
 
-                // Kirim Webhook Discord (URL dibersihkan dari markdown)
+                // Kirim Webhook Discord
                 const webhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA"; 
                 
                 const discordPayload = {
@@ -283,23 +306,8 @@ export default function SectionAdminCuti() {
                 <div className="grid grid-cols-1 gap-3.5 text-zinc-100">
                     <AnimatePresence mode="popLayout">
                         {filteredCuti.map((log) => {
-                            let rawName = log.nama_panggilan || 'UNKNOWN';
-                            if (rawName.includes('|')) {
-                                rawName = rawName.split('|').pop()?.trim() || rawName;
-                            }
-
-                            let badgeNumber = "-";
-                            if (rawName.startsWith('#')) {
-                                const spaceIndex = rawName.indexOf(' ');
-                                if (spaceIndex !== -1) {
-                                    badgeNumber = rawName.substring(1, spaceIndex);
-                                    rawName = rawName.substring(spaceIndex + 1).trim();
-                                } else {
-                                    badgeNumber = rawName.substring(1);
-                                    rawName = "OFFICER";
-                                }
-                            }
-                            const cleanName = rawName.toUpperCase();
+                            const cleanName = cleanPersonnelName(log.nama_panggilan);
+                            const badgeNumber = extractBadgeNumber(log.nama_panggilan);
 
                             return (
                                 <motion.div

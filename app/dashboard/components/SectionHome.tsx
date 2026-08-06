@@ -110,7 +110,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         const syncFreshData = async () => {
             try {
-                // Tunda render sampai API check-role selesai menyinkronkan data terbaru dari Discord
+                // Tunda render sejenak sampai API check-role selesai menyinkronkan data terbaru dari Discord
                 await fetch('/api/check-role', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -225,17 +225,17 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
     const isPetinggi = userRoleIds.includes(PETINGGI_ROLE_ID);
 
-    // Validasi ganda dengan data divisi database agar tidak nyangkut ke Sabhara
+    // --- DETEKSI KADIV & WAKADIV FLEKSIBEL ---
     const kadivInfo = useMemo(() => {
-        return KADIV_ROLES.find(r => 
-            userRoleIds.includes(r.id) && userData.divisi?.toUpperCase() === r.divisi
-        );
+        const matched = KADIV_ROLES.filter(r => userRoleIds.includes(r.id));
+        if (matched.length === 0) return null;
+        return matched.find(r => r.divisi === userData.divisi?.toUpperCase()) || matched[0];
     }, [userRoleIds, userData.divisi]);
 
     const wakadivInfo = useMemo(() => {
-        return WAKADIV_ROLES.find(r => 
-            userRoleIds.includes(r.id) && userData.divisi?.toUpperCase() === r.divisi
-        );
+        const matched = WAKADIV_ROLES.filter(r => userRoleIds.includes(r.id));
+        if (matched.length === 0) return null;
+        return matched.find(r => r.divisi === userData.divisi?.toUpperCase()) || matched[0];
     }, [userRoleIds, userData.divisi]);
 
     const progress = useMemo(() => {

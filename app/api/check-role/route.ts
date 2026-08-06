@@ -21,6 +21,13 @@ export async function POST(req: Request) {
         const member = await res.json();
         const roles: string[] = member.roles || [];
 
+        // Ambil data user saat ini dari database untuk referensi cerdas
+        const { data: existingUser } = await supabaseAdmin
+            .from('users')
+            .select('divisi, jabatan')
+            .eq('discord_id', userId)
+            .single();
+
         // 1. DAFTAR PANGKAT (Tertinggi ke Terendah)
         const RANK_HIERARCHY = [
             { name: "JENDRAL", id: "1393368961940324462" }, { name: "KOMJEN", id: "1393369949988327624" },
@@ -44,7 +51,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. DAFTAR ROLE KADIV & WAKADIV
+        // 2. DAFTAR ROLE KADIV & WAKADIV (Urutan bebas, tidak ngaruh lagi)
         const KADIV_ROLES = [
             { divisi: "SABHARA", id: "1423067332389109801" },
             { divisi: "SATLANTAS", id: "1428104594252238998" },
@@ -73,22 +80,21 @@ export async function POST(req: Request) {
         let detectedJabatan = "ANGGOTA";
         let detectedDivisi = "NON DIVISI";
 
-        // Cek Petinggi KADIV (Pastikan mencocokkan dengan role yang benar-benar ada di array roles user)
-        const activeKadiv = KADIV_ROLES.find(item => roles.includes(item.id));
-        if (activeKadiv) {
-            detectedJabatan = "KADIV";
-            detectedDivisi = activeKadiv.divisi;
-        } else {
-            // Jika bukan Kadiv, cek WAKADIV
-            const activeWakadiv = WAKADIV_ROLES.find(item => roles.includes(item.id));
-            if (activeWakadiv) {
-                detectedJabatan = "WAKADIV";
-                detectedDivisi = activeWakadiv.divisi;
-            }
-        }
+        // --- SISTEM DETEKSI FLEKSIBEL (SMART FILTER) ---
+        const matchedKadivs = KADIV_ROLES.filter(item => roles.includes(item.id));
+        const matchedWakadivs = WAKADIV_ROLES.filter(item => roles.includes(item.id));
 
-        // Jika bukan KADIV/WAKADIV, cek Divisi biasa
-        if (detectedDivisi === "NON DIVISI") {
+        if (matchedKadivs.length > 0) {
+            detectedJabatan = "KADIV";
+            // Ambil yang cocok dengan database sebelumnya, atau ambil role pertama yang ditemukan secara dinamis
+            const active = matchedKadivs.find(k => k.divisi === existingUser?.divisi) || matchedKadivs[0];
+            detectedDivisi = active.divisi;
+        } else if (matchedWakadivs.length > 0) {
+            detectedJabatan = "WAKADIV";
+            const active = matchedWakadivs.find(w => w.divisi === existingUser?.divisi) || matchedWakadivs[0];
+            detectedDivisi = active.divisi;
+        } else {
+            // Jika bukan Kadiv/Wakadiv, cek Divisi biasa
             for (const [name, id] of Object.entries(DIVISI_ID)) {
                 if (roles.includes(id)) { 
                     detectedDivisi = name; 

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     CalendarDays, CheckCircle2, XCircle, Clock,
-    User, ShieldCheck, Briefcase, Crown, Lock, Loader2
+    User, ShieldCheck, Briefcase, Crown, Loader2
 } from 'lucide-react';
 import { format } from "date-fns";
 import { toast } from 'sonner';
@@ -36,7 +36,7 @@ export default function SectionAdminCuti() {
             .eq('discord_id', parsed.discord_id)
             .single();
 
-        if (userError || (!user.is_admin && !user.is_highadmin)) {
+        if (userError || (!user?.is_admin && !user?.is_highadmin)) {
             toast.error("UNAUTHORIZED ACCESS DETECTED!");
             router.push('/dashboard');
             return;
@@ -54,31 +54,40 @@ export default function SectionAdminCuti() {
 
     useEffect(() => { verifyAndFetch(); }, []);
 
+    // FILTER LOGIC (DISEMPURNAKAN AGAR CASE-INSENSITIVE)
     const filteredCuti = useMemo(() => {
         return cutiLogs.filter(log => {
             const isPetinggi = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL'].includes(log.pangkat?.toUpperCase());
-            const matchStatus = log.status === statusFilter;
+            
+            // Konversi status dari DB ke uppercase agar cocok dengan statusFilter
+            const logStatusUpper = log.status?.toUpperCase() || '';
+            const matchStatus = logStatusUpper === statusFilter;
+
             if (viewMode === 'PETINGGI') return isPetinggi && matchStatus;
             return !isPetinggi && matchStatus;
         });
     }, [cutiLogs, viewMode, statusFilter]);
 
     // OPTIMISTIC UPDATE
-    const handleAction = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-        const tId = toast.loading(`Memproses status ${status}...`);
+    const handleAction = async (id: string, targetStatus: 'APPROVED' | 'REJECTED') => {
+        const tId = toast.loading(`Memproses status ${targetStatus}...`);
+        
+        // Simpan dalam format lowercase jika DB menggunakan lowercase (contoh: "pending", "approved", "rejected")
+        const dbStatusValue = targetStatus.toLowerCase();
+
         const { error } = await supabase
             .from('pengajuan_cuti')
-            .update({ status })
+            .update({ status: dbStatusValue })
             .eq('id', id);
 
         if (error) {
             toast.error("Gagal memproses!", { id: tId });
         } else {
-            toast.success(`Cuti ${status}!`, { id: tId });
+            toast.success(`Cuti ${targetStatus}!`, { id: tId });
 
             setCutiLogs(prevLogs =>
                 prevLogs.map(log =>
-                    log.id === id ? { ...log, status: status } : log
+                    log.id === id ? { ...log, status: dbStatusValue } : log
                 )
             );
         }
@@ -225,6 +234,11 @@ export default function SectionAdminCuti() {
                                                 <span className="bg-zinc-950 border border-zinc-800 text-zinc-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
                                                     {log.pangkat} • #{badgeNumber}
                                                 </span>
+                                                {log.jenis_izin && (
+                                                    <span className="bg-red-950/50 border border-red-900/40 text-red-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                                        {log.jenis_izin}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
                                                 <span className="text-zinc-500 font-medium">Alasan: </span>

@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import {
     Zap, Clock, FileText, Award, Radar, Fingerprint, Target,
     Activity, Crosshair, HelpCircle, GraduationCap, Star,
-    ArrowRight, ShieldCheck, ShieldAlert
+    ArrowRight
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
@@ -56,24 +56,7 @@ const RANKS_DB = [
     { name: "JENDRAL", prp: 18000, hrs: 1800 },
 ];
 
-// --- ROLE DEFINITIONS ---
-const PETINGGI_ROLE_ID = "1516107049887334401";
-
-const KADIV_ROLES = [
-    { divisi: "SABHARA", id: "1423067332389109801" },
-    { divisi: "SATLANTAS", id: "1428104594252238998" },
-    { divisi: "PROPAM", id: "1458651434500358194" },
-    { divisi: "BRIMOB", id: "1445077121318785075" },
-    { divisi: "SETUM", id: "1518415347558907992" },
-];
-
-const WAKADIV_ROLES = [
-    { divisi: "SABHARA", id: "1423068619860082888" },
-    { divisi: "SATLANTAS", id: "1428104859717996665" },
-    { divisi: "PROPAM", id: "1466377320909635666" },
-    { divisi: "BRIMOB", id: "1456339100457238598" },
-    { divisi: "SETUM", id: "1518415643022725201" },
-];
+const PETINGGI_ROLE_ID = "1449382385090166844";
 
 export default function SectionHome({ nickname, realtimeData }: SectionHomeProps) {
     const router = useRouter();
@@ -96,12 +79,13 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
         show: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
     };
 
-    // Styling Constants
+    // Styling Constants (Clean Minimalist Dark Mode)
     const cardBase = "bg-[#18181B] border border-white/5 rounded-[28px] overflow-hidden relative flex flex-col p-5 md:p-6 shadow-xl shadow-black/20";
     const glassPill = "bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-white/90 flex items-center gap-1.5";
 
-    // FETCH & SYNC DATA
+    // FETCH & SYNC DATA (Database Source of Truth & Realtime)
     useEffect(() => {
+        // Ambil Discord ID dari realtimeData prop, atau fallback ke localStorage
         const sessionData = localStorage.getItem('police_session');
         const parsedSession = sessionData ? JSON.parse(sessionData) : {};
         const discordId = realtimeData?.discord_id || parsedSession?.discord_id;
@@ -110,13 +94,14 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         const syncFreshData = async () => {
             try {
-                // Tunda render sejenak sampai API check-role selesai menyinkronkan data terbaru dari Discord
-                await fetch('/api/check-role', {
+                // Background check role via API
+                fetch('/api/check-role', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: discordId })
-                });
+                }).catch(() => {});
 
+                // Fetch Database Terkini
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -128,6 +113,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                     const newRank = data.pangkat?.toUpperCase();
                     const oldRank = parsedSession.pangkat?.toUpperCase() || realtimeData.pangkat?.toUpperCase();
 
+                    // LOGIKA RESET: Jika Pangkat Lama ada dan Pangkat Baru berbeda (Berganti Pangkat)
                     if (oldRank && newRank && oldRank !== newRank) {
                         await supabase
                             .from('users')
@@ -152,6 +138,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         syncFreshData();
 
+        // REALTIME LISTENER: Supaya Jam Duty terupdate langsung di UI saat berubah di DB
         const channel = supabase
             .channel('realtime_user_stats')
             .on('postgres_changes', {
@@ -163,7 +150,9 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 const newData = payload.new as UserData;
                 
                 setUserData(prev => {
+                    // Cek jika update terjadi di backend dan menyebabkan pangkat berubah
                     if (prev.pangkat && newData.pangkat && prev.pangkat.toUpperCase() !== newData.pangkat.toUpperCase()) {
+                        // Memastikan jika dirubah paksa dari db, frontend mendeteksi dan trigger reset jam
                         supabase.from('users').update({ point_prp: 0, total_jam_duty: 0 }).eq('discord_id', discordId);
                         
                         toast.info(`Status Pangkat Diperbarui: ${newData.pangkat}`, {
@@ -186,7 +175,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
         setTimeout(() => { router.push(path); }, 3000);
     };
 
-    // Engine Parsing Name & Badge
+    // Engine Parsing
     const parsedName = useMemo(() => {
         let rawName = userData.name || nickname || "Officer";
         let badge = null;
@@ -207,36 +196,6 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
         }
         return { displayName: rawName, badgeNumber: badge };
     }, [userData.name, nickname]);
-
-    // DETEKSI ROLE (PETINGGI, KADIV, WAKADIV)
-    const userRoleIds = (() => {
-        if (!userData.roles) return [];
-        if (Array.isArray(userData.roles)) return userData.roles.map(String);
-        if (typeof userData.roles === 'string') {
-            try {
-                const parsed = JSON.parse(userData.roles);
-                if (Array.isArray(parsed)) return parsed.map(String);
-            } catch {
-                return userData.roles.split(',').map(r => r.trim());
-            }
-        }
-        return [String(userData.roles)];
-    })();
-
-    const isPetinggi = userRoleIds.includes(PETINGGI_ROLE_ID);
-
-    // --- DETEKSI KADIV & WAKADIV FLEKSIBEL ---
-    const kadivInfo = useMemo(() => {
-        const matched = KADIV_ROLES.filter(r => userRoleIds.includes(r.id));
-        if (matched.length === 0) return null;
-        return matched.find(r => r.divisi === userData.divisi?.toUpperCase()) || matched[0];
-    }, [userRoleIds, userData.divisi]);
-
-    const wakadivInfo = useMemo(() => {
-        const matched = WAKADIV_ROLES.filter(r => userRoleIds.includes(r.id));
-        if (matched.length === 0) return null;
-        return matched.find(r => r.divisi === userData.divisi?.toUpperCase()) || matched[0];
-    }, [userRoleIds, userData.divisi]);
 
     const progress = useMemo(() => {
         const currentPRP = Number(userData.point_prp) || 0;
@@ -259,6 +218,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
+    const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
     const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' && userData.divisi.toUpperCase() !== 'NON DIVISI' ? userData.divisi : null;
 
     const TARGET_TILANG = 15;
@@ -311,48 +271,28 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                         {parsedName.displayName}
                     </h1>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* PANGKAT BADGE */}
+                    <div className="flex flex-wrap gap-2">
                         <span className={glassPill}>
                             <Award size={14} className="text-blue-400" />
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {/* PETINGGI BADGE */}
-                        {isPetinggi && (
-                            <span className="bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-amber-400 flex items-center gap-1.5 shadow-xs shadow-amber-500/20">
-                                <Star size={14} className="fill-amber-400 text-amber-400 shrink-0" />
-                                Petinggi Kepolisian
-                            </span>
-                        )}
-
-                        {/* KADIV BADGE */}
-                        {kadivInfo && (
-                            <span className="bg-purple-500/10 border border-purple-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-purple-300 flex items-center gap-1.5 shadow-xs shadow-purple-500/20">
-                                <ShieldCheck size={14} className="text-purple-400 shrink-0" />
-                                Kadiv {kadivInfo.divisi}
-                            </span>
-                        )}
-
-                        {/* WAKADIV BADGE */}
-                        {wakadivInfo && (
-                            <span className="bg-indigo-500/10 border border-indigo-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-indigo-300 flex items-center gap-1.5 shadow-xs shadow-indigo-500/20">
-                                <ShieldAlert size={14} className="text-indigo-400 shrink-0" />
-                                Wakadiv {wakadivInfo.divisi}
-                            </span>
-                        )}
-
-                        {/* BADGE NUMBER */}
                         {parsedName.badgeNumber && (
                             <span className={glassPill}>
                                 Badge #{parsedName.badgeNumber}
                             </span>
                         )}
 
-                        {/* DIVISI BADGE */}
                         {cleanDivisi && (
                             <span className={glassPill}>
                                 {cleanDivisi}
+                            </span>
+                        )}
+
+                        {isPetinggi && (
+                            <span className="bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-amber-400 flex items-center gap-1.5">
+                                <Star size={14} className="fill-amber-400" />
+                                Petinggi
                             </span>
                         )}
                     </div>

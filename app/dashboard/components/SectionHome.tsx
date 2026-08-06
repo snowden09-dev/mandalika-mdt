@@ -22,7 +22,7 @@ interface UserData {
     point_prp?: number;
     total_jam_duty?: number;
     divisi?: string;
-    roles?: string | string[] | any;
+    roles?: string | string[];
     [key: string]: unknown;
 }
 
@@ -209,7 +209,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
     }, [userData.name, nickname]);
 
     // DETEKSI ROLE (PETINGGI, KADIV, WAKADIV)
-    const userRoleIds = useMemo(() => {
+    const userRoleIds = (() => {
         if (!userData.roles) return [];
         if (Array.isArray(userData.roles)) return userData.roles.map(String);
         if (typeof userData.roles === 'string') {
@@ -221,7 +221,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
             }
         }
         return [String(userData.roles)];
-    }, [userData.roles]);
+    })();
 
     const isPetinggi = userRoleIds.includes(PETINGGI_ROLE_ID);
 

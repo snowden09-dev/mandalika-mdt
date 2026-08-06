@@ -22,7 +22,8 @@ interface CutiLog {
     tanggal_selesai: string;
     status: string;
     created_at: string;
-    badge_number?: string; // Diambil dari tabel users
+    discord_id?: string;
+    badge_number?: string;
 }
 
 // Helper: Format tanggal untuk discord (Dari YYYY-MM-DD ke DD MMMM)
@@ -35,7 +36,6 @@ const formatTanggalDiscord = (dateStr: string) => {
 // Helper: Ubah format string jadi Title Case (Huruf depan tiap kata kapital, sisanya kecil)
 const toTitleCase = (str: string) => {
     if (!str) return '-';
-    // Hilangkan prefix badge jika masih terbawa di nama
     let cleaned = str.trim();
     if (cleaned.startsWith('#')) {
         const spaceIdx = cleaned.indexOf(' ');
@@ -50,14 +50,14 @@ const toTitleCase = (str: string) => {
         .join(' ');
 };
 
-// Helper: Ekstrak nomor badge dari format nama seperti "#03105 Owen Diningrat"
-const extractBadgeFromName = (nameStr: string) => {
-    if (!nameStr) return '-';
-    const trimmed = nameStr.trim();
+// Helper: Ekstrak nomor badge dari string seperti "#03105 Owen Diningrat"
+const extractBadgeFromString = (str: string) => {
+    if (!str) return '-';
+    const trimmed = str.trim();
     if (trimmed.startsWith('#')) {
         const spaceIdx = trimmed.indexOf(' ');
         if (spaceIdx !== -1) {
-            return trimmed.substring(1, spaceIdx); // Mengambil angka setelah # sampai spasi
+            return trimmed.substring(1, spaceIdx);
         } else {
             return trimmed.substring(1);
         }
@@ -88,7 +88,7 @@ export default function SectionAdminCuti() {
 
             const parsed = JSON.parse(sessionData);
 
-            // Ambil data admin yang sedang login dari tabel users
+            // Ambil data admin dari tabel users berdasarkan discord_id
             const { data: user, error: userError } = await supabase
                 .from('users')
                 .select('*')
@@ -108,35 +108,46 @@ export default function SectionAdminCuti() {
                 return;
             }
 
-            // Set nama admin dalam format Title Case
+            // Set nama admin (Title Case)
             const rawAdmin = user.name || user.nama_panggilan || user.nama || user.username || "Admin Divisi";
             setAdminName(toTitleCase(rawAdmin));
 
             setIsAuthorized(true);
             
-            // Ambil data pengajuan cuti
+            // Ambil data pengajuan cuti beserta relasi/kolom discord_id jika ada
             const { data: cutiData } = await supabase
                 .from('pengajuan_cuti')
                 .select('*')
                 .order('created_at', { ascending: false });
 
             if (cutiData) {
-                // Ambil juga data dari tabel users untuk mencocokkan badge berdasarkan nama / discord_id
-                const { data: usersData } = await supabase.from('users').select('name, discord_id');
+                // Ambil seluruh data user dari tabel users untuk mapping akurat
+                const { data: usersData } = await supabase.from('users').select('name, discord_id, nama_panggilan');
 
-                // Mapping data cuti dengan badge dari tabel users
+                // Petakan data cuti dan cari badge dari tabel users menggunakan discord_id ATAU kecocokan nama
                 const enrichedLogs = cutiData.map(log => {
-                    // Cari user yang namanya cocok di tabel users
-                    const matchedUser = usersData?.find(u => 
-                        u.name?.toLowerCase() === log.nama_panggilan?.toLowerCase() ||
-                        u.name?.includes(log.nama_panggilan)
-                    );
+                    let matchedUser = null;
+
+                    // 1. Cocokkan via discord_id jika log menyimpan discord_id
+                    if (log.discord_id && usersData) {
+                        matchedUser = usersData.find(u => u.discord_id === log.discord_id);
+                    }
+
+                    // 2. Jika tidak ketemu, cocokkan via nama_panggilan
+                    if (!matchedUser && usersData) {
+                        matchedUser = usersData.find(u => 
+                            (u.name && u.name.toLowerCase().includes(log.nama_panggilan?.toLowerCase())) ||
+                            (u.nama_panggilan && u.nama_panggilan.toLowerCase().includes(log.nama_panggilan?.toLowerCase()))
+                        );
+                    }
 
                     let badge = '-';
                     if (matchedUser?.name) {
-                        badge = extractBadgeFromName(matchedUser.name);
+                        badge = extractBadgeFromString(matchedUser.name);
+                    } else if (matchedUser?.nama_panggilan) {
+                        badge = extractBadgeFromString(matchedUser.nama_panggilan);
                     } else {
-                        badge = extractBadgeFromName(log.nama_panggilan);
+                        badge = extractBadgeFromString(log.nama_panggilan);
                     }
 
                     return {
@@ -199,9 +210,11 @@ export default function SectionAdminCuti() {
                     toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
                 }
 
-                // Format nama & badge (Title Case untuk nama, ambil badge dari properti)
+                // Format nama (Title Case) dan ambil badge terdeteksi
                 const formattedName = toTitleCase(currentLog.nama_panggilan);
-                const badgeNumber = currentLog.badge_number || '-';
+                const badgeNumber = currentLog.badge_number && currentLog.badge_number !== '-' 
+                    ? currentLog.badge_number 
+                    : extractBadgeFromString(currentLog.nama_panggilan);
 
                 // Format Tanggal
                 const formattedMulai = formatTanggalDiscord(currentLog.tanggal_mulai);
@@ -332,7 +345,9 @@ export default function SectionAdminCuti() {
                     <AnimatePresence mode="popLayout">
                         {filteredCuti.map((log) => {
                             const displayName = toTitleCase(log.nama_panggilan);
-                            const badgeNum = log.badge_number || '-';
+                            const badgeNum = log.badge_number && log.badge_number !== '-' 
+                                ? log.badge_number 
+                                : extractBadgeFromString(log.nama_panggilan);
 
                             return (
                                 <motion.div

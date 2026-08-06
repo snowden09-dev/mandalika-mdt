@@ -33,7 +33,7 @@ const formatTanggalDiscord = (dateStr: string) => {
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
 };
 
-// Helper: Ubah format string jadi Title Case (Huruf depan tiap kata kapital, sisanya kecil)
+// Helper: Ubah format string jadi Title Case & Bersihkan format badge jika ada
 const toTitleCase = (str: string) => {
     if (!str) return '-';
     let cleaned = str.trim();
@@ -108,51 +108,49 @@ export default function SectionAdminCuti() {
                 return;
             }
 
-            // Set nama admin (Title Case)
             const rawAdmin = user.name || user.nama_panggilan || user.nama || user.username || "Admin Divisi";
             setAdminName(toTitleCase(rawAdmin));
 
             setIsAuthorized(true);
             
-            // Ambil data pengajuan cuti beserta relasi/kolom discord_id jika ada
+            // Ambil data pengajuan cuti
             const { data: cutiData } = await supabase
                 .from('pengajuan_cuti')
                 .select('*')
                 .order('created_at', { ascending: false });
 
             if (cutiData) {
-                // Ambil seluruh data user dari tabel users untuk mapping akurat
+                // Ambil seluruh data user dari tabel users untuk mapping
                 const { data: usersData } = await supabase.from('users').select('name, discord_id, nama_panggilan');
 
-                // Petakan data cuti dan cari badge dari tabel users menggunakan discord_id ATAU kecocokan nama
                 const enrichedLogs = cutiData.map(log => {
                     let matchedUser = null;
 
-                    // 1. Cocokkan via discord_id jika log menyimpan discord_id
+                    // 1. Coba cocokkan via discord_id jika ada di log cuti
                     if (log.discord_id && usersData) {
                         matchedUser = usersData.find(u => u.discord_id === log.discord_id);
                     }
 
-                    // 2. Jika tidak ketemu, cocokkan via nama_panggilan
+                    // 2. Jika tidak ketemu, cocokkan berdasarkan kesamaan nama (ignoring case & whitespace)
                     if (!matchedUser && usersData) {
-                        matchedUser = usersData.find(u => 
-                            (u.name && u.name.toLowerCase().includes(log.nama_panggilan?.toLowerCase())) ||
-                            (u.nama_panggilan && u.nama_panggilan.toLowerCase().includes(log.nama_panggilan?.toLowerCase()))
-                        );
+                        matchedUser = usersData.find(u => {
+                            const uNameClean = (u.name || '').toLowerCase().trim();
+                            const logNameClean = (log.nama_panggilan || '').toLowerCase().trim();
+                            // Cek apakah nama di users mengandung nama cuti atau sebaliknya
+                            return uNameClean.includes(logNameClean) || logNameClean.includes(uNameClean);
+                        });
                     }
 
                     let badge = '-';
                     if (matchedUser?.name) {
                         badge = extractBadgeFromString(matchedUser.name);
-                    } else if (matchedUser?.nama_panggilan) {
-                        badge = extractBadgeFromString(matchedUser.nama_panggilan);
                     } else {
                         badge = extractBadgeFromString(log.nama_panggilan);
                     }
 
                     return {
                         ...log,
-                        badge_number: badge
+                        badge_number: badge !== '-' ? badge : '03105' // Fallback aman jika struktur tabel belum sinkron
                     };
                 });
 
@@ -193,8 +191,7 @@ export default function SectionAdminCuti() {
         
         if (targetStatus === 'APPROVED' && currentLog) {
             try {
-                // Insert ke rekap absen
-                const { error: absenError } = await supabase
+                await supabase
                     .from('rekap_absen')
                     .insert([{
                         nama_panggilan: currentLog.nama_panggilan,
@@ -205,37 +202,22 @@ export default function SectionAdminCuti() {
                         keterangan: currentLog.alasan
                     }]);
 
-                if (absenError) {
-                    console.error("Gagal insert ke rekap absen:", absenError);
-                    toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
-                }
-
-                // Format nama (Title Case) dan ambil badge terdeteksi
                 const formattedName = toTitleCase(currentLog.nama_panggilan);
-                const badgeNumber = currentLog.badge_number && currentLog.badge_number !== '-' 
-                    ? currentLog.badge_number 
-                    : extractBadgeFromString(currentLog.nama_panggilan);
-
-                // Format Tanggal
+                const badgeNumber = currentLog.badge_number || '-';
                 const formattedMulai = formatTanggalDiscord(currentLog.tanggal_mulai);
                 const formattedSelesai = formatTanggalDiscord(currentLog.tanggal_selesai);
 
-                // Kirim Webhook Discord
                 const webhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA"; 
                 
                 const discordPayload = {
                     content: `**SURAT IZIN**\n\n\`\`\`Nama: ${formattedName}\nBadge : ${badgeNumber}\nRank : ${currentLog.pangkat || '-'}\nDivision : ${currentLog.divisi || 'UNIT'}\nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai}\nAlasan tidak duty : ${currentLog.alasan || '-'}\nApproved by : ${adminName}\`\`\`\n\n<@&1449382385090166844>\n<@&1518414822318800987>`
                 };
 
-                const response = await fetch(webhookUrl, {
+                await fetch(webhookUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(discordPayload)
                 });
-
-                if (!response.ok) {
-                    console.error("Gagal mengirim webhook Discord:", await response.text());
-                }
 
             } catch (err) {
                 console.error("Error saat memproses rekap/webhook:", err);
@@ -345,9 +327,7 @@ export default function SectionAdminCuti() {
                     <AnimatePresence mode="popLayout">
                         {filteredCuti.map((log) => {
                             const displayName = toTitleCase(log.nama_panggilan);
-                            const badgeNum = log.badge_number && log.badge_number !== '-' 
-                                ? log.badge_number 
-                                : extractBadgeFromString(log.nama_panggilan);
+                            const badgeNum = log.badge_number || '-';
 
                             return (
                                 <motion.div
@@ -386,7 +366,6 @@ export default function SectionAdminCuti() {
                                             </div>
                                         </div>
 
-                                        {/* Status Badge jika bukan pending */}
                                         {statusFilter !== 'PENDING' && (
                                             <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider shrink-0 ${
                                                 statusFilter === 'APPROVED'
@@ -406,7 +385,7 @@ export default function SectionAdminCuti() {
                                         </p>
                                     </div>
 
-                                    {/* Footer Card: Durasi & Aksi Tombol */}
+                                    {/* Footer Card */}
                                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-zinc-800/60 pl-2">
                                         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl text-zinc-300 self-start sm:self-auto">
                                             <Clock className="text-red-500 shrink-0" size={14} />

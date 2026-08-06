@@ -22,6 +22,7 @@ interface CutiLog {
     tanggal_selesai: string;
     status: string;
     created_at: string;
+    badge_number?: string; // Diambil dari tabel users
 }
 
 // Helper: Format tanggal untuk discord (Dari YYYY-MM-DD ke DD MMMM)
@@ -31,37 +32,34 @@ const formatTanggalDiscord = (dateStr: string) => {
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
 };
 
-// Helper: Ekstrak Nama Bersih (Menghilangkan prefix hashtag/badge nomor dan pipe jika ada)
-const cleanPersonnelName = (rawName: string) => {
-    if (!rawName) return 'UNKNOWN';
-    let name = rawName;
-    if (name.includes('|')) {
-        name = name.split('|').pop()?.trim() || name;
-    }
-    if (name.startsWith('#')) {
-        const spaceIndex = name.indexOf(' ');
-        if (spaceIndex !== -1) {
-            name = name.substring(spaceIndex + 1).trim();
-        } else {
-            name = "OFFICER";
+// Helper: Ubah format string jadi Title Case (Huruf depan tiap kata kapital, sisanya kecil)
+const toTitleCase = (str: string) => {
+    if (!str) return '-';
+    // Hilangkan prefix badge jika masih terbawa di nama
+    let cleaned = str.trim();
+    if (cleaned.startsWith('#')) {
+        const spaceIdx = cleaned.indexOf(' ');
+        if (spaceIdx !== -1) {
+            cleaned = cleaned.substring(spaceIdx + 1).trim();
         }
     }
-    return name.toUpperCase();
+    return cleaned
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 };
 
-// Helper: Ekstrak Nomor Badge dari teks nama
-const extractBadgeNumber = (rawName: string) => {
-    if (!rawName) return '-';
-    let name = rawName;
-    if (name.includes('|')) {
-        name = name.split('|').pop()?.trim() || name;
-    }
-    if (name.startsWith('#')) {
-        const spaceIndex = name.indexOf(' ');
-        if (spaceIndex !== -1) {
-            return name.substring(1, spaceIndex);
+// Helper: Ekstrak nomor badge dari format nama seperti "#03105 Owen Diningrat"
+const extractBadgeFromName = (nameStr: string) => {
+    if (!nameStr) return '-';
+    const trimmed = nameStr.trim();
+    if (trimmed.startsWith('#')) {
+        const spaceIdx = trimmed.indexOf(' ');
+        if (spaceIdx !== -1) {
+            return trimmed.substring(1, spaceIdx); // Mengambil angka setelah # sampai spasi
         } else {
-            return name.substring(1);
+            return trimmed.substring(1);
         }
     }
     return '-';
@@ -90,6 +88,7 @@ export default function SectionAdminCuti() {
 
             const parsed = JSON.parse(sessionData);
 
+            // Ambil data admin yang sedang login dari tabel users
             const { data: user, error: userError } = await supabase
                 .from('users')
                 .select('*')
@@ -109,19 +108,45 @@ export default function SectionAdminCuti() {
                 return;
             }
 
-            // Ambil nama admin dan bersihkan jika ada format badge di depannya
-            const rawAdmin = user.nama_panggilan || user.nama || user.username || user.name || "Admin Divisi";
-            const cleanedAdminName = cleanPersonnelName(rawAdmin);
-            setAdminName(cleanedAdminName);
+            // Set nama admin dalam format Title Case
+            const rawAdmin = user.name || user.nama_panggilan || user.nama || user.username || "Admin Divisi";
+            setAdminName(toTitleCase(rawAdmin));
 
             setIsAuthorized(true);
             
-            const { data } = await supabase
+            // Ambil data pengajuan cuti
+            const { data: cutiData } = await supabase
                 .from('pengajuan_cuti')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            if (data) setCutiLogs(data);
+            if (cutiData) {
+                // Ambil juga data dari tabel users untuk mencocokkan badge berdasarkan nama / discord_id
+                const { data: usersData } = await supabase.from('users').select('name, discord_id');
+
+                // Mapping data cuti dengan badge dari tabel users
+                const enrichedLogs = cutiData.map(log => {
+                    // Cari user yang namanya cocok di tabel users
+                    const matchedUser = usersData?.find(u => 
+                        u.name?.toLowerCase() === log.nama_panggilan?.toLowerCase() ||
+                        u.name?.includes(log.nama_panggilan)
+                    );
+
+                    let badge = '-';
+                    if (matchedUser?.name) {
+                        badge = extractBadgeFromName(matchedUser.name);
+                    } else {
+                        badge = extractBadgeFromName(log.nama_panggilan);
+                    }
+
+                    return {
+                        ...log,
+                        badge_number: badge
+                    };
+                });
+
+                setCutiLogs(enrichedLogs);
+            }
             setLoading(false);
         };
 
@@ -174,9 +199,9 @@ export default function SectionAdminCuti() {
                     toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
                 }
 
-                // Ekstrak nama bersih dan nomor badge menggunakan fungsi helper
-                const cleanName = cleanPersonnelName(currentLog.nama_panggilan);
-                const badgeNumber = extractBadgeNumber(currentLog.nama_panggilan);
+                // Format nama & badge (Title Case untuk nama, ambil badge dari properti)
+                const formattedName = toTitleCase(currentLog.nama_panggilan);
+                const badgeNumber = currentLog.badge_number || '-';
 
                 // Format Tanggal
                 const formattedMulai = formatTanggalDiscord(currentLog.tanggal_mulai);
@@ -186,7 +211,7 @@ export default function SectionAdminCuti() {
                 const webhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA"; 
                 
                 const discordPayload = {
-                    content: `**SURAT IZIN**\n\n\`\`\`Nama: ${cleanName}\nBadge : ${badgeNumber}\nRank : ${currentLog.pangkat || '-'}\nDivision : ${currentLog.divisi || 'UNIT'}\nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai}\nAlasan tidak duty : ${currentLog.alasan || '-'}\nApproved by : ${adminName}\`\`\`\n\n<@&1449382385090166844>\n<@&1518414822318800987>`
+                    content: `**SURAT IZIN**\n\n\`\`\`Nama: ${formattedName}\nBadge : ${badgeNumber}\nRank : ${currentLog.pangkat || '-'}\nDivision : ${currentLog.divisi || 'UNIT'}\nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai}\nAlasan tidak duty : ${currentLog.alasan || '-'}\nApproved by : ${adminName}\`\`\`\n\n<@&1449382385090166844>\n<@&1518414822318800987>`
                 };
 
                 const response = await fetch(webhookUrl, {
@@ -306,8 +331,8 @@ export default function SectionAdminCuti() {
                 <div className="grid grid-cols-1 gap-3.5 text-zinc-100">
                     <AnimatePresence mode="popLayout">
                         {filteredCuti.map((log) => {
-                            const cleanName = cleanPersonnelName(log.nama_panggilan);
-                            const badgeNumber = extractBadgeNumber(log.nama_panggilan);
+                            const displayName = toTitleCase(log.nama_panggilan);
+                            const badgeNum = log.badge_number || '-';
 
                             return (
                                 <motion.div
@@ -330,12 +355,12 @@ export default function SectionAdminCuti() {
                                                 {viewMode === 'PETINGGI' ? <Crown size={20} /> : <Briefcase size={20} />}
                                             </div>
                                             <div className="min-w-0">
-                                                <h4 className="font-bold text-xs md:text-sm uppercase tracking-tight text-zinc-100 truncate">
-                                                    {cleanName}
+                                                <h4 className="font-bold text-xs md:text-sm tracking-tight text-zinc-100 truncate">
+                                                    {displayName}
                                                 </h4>
                                                 <div className="flex items-center gap-1.5 flex-wrap mt-1">
                                                     <span className="bg-zinc-950 border border-zinc-800 text-zinc-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                                                        {log.pangkat} • #{badgeNumber}
+                                                        {log.pangkat} • #{badgeNum}
                                                     </span>
                                                     {log.jenis_izin && (
                                                         <span className="bg-red-950/50 border border-red-900/40 text-red-400 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">

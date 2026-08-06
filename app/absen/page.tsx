@@ -31,7 +31,7 @@ export default function AbsenPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
 
-    // Setup Waktu & Batas Tanggal (Maks hari ini, Min H-3)
+    // Setup Waktu & Batas Tanggal (Maks hari ini, Min H-3, Tidak boleh masa depan)
     const now = new Date();
     const currentDateStr = getLocalDateString(now);
     const currentTimeStr = now.toTimeString().slice(0, 5);
@@ -191,16 +191,33 @@ export default function AbsenPage() {
         toast.success("Foto berhasil dihapus dari daftar bukti.");
     };
 
-    // 📝 Submit Form
+    // 📝 Submit Form dengan Validasi Ketat (Keamanan Absen & Cuti)
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-        const tId = toast.loading("Mengirim transmisi data...");
+        const tId = toast.loading("Memvalidasi dan mengirim transmisi data...");
 
         try {
             if (tipe === 'ON_DUTY') {
-                if (!dutyForm.tanggal) return toast.error("Tanggal wajib diisi!", { id: tId });
-                if (!dutyForm.jam_duty) return toast.error("Jam duty wajib diisi!", { id: tId });
+                if (!dutyForm.tanggal) {
+                    setIsSubmitting(false);
+                    return toast.error("Tanggal wajib diisi!", { id: tId });
+                }
+                if (!dutyForm.jam_duty) {
+                    setIsSubmitting(false);
+                    return toast.error("Jam duty wajib diisi!", { id: tId });
+                }
+
+                // Validasi rentang tanggal: Maksimal hari ini, Minimal H-3, Tidak boleh masa depan
+                if (dutyForm.tanggal > currentDateStr) {
+                    setIsSubmitting(false);
+                    return toast.error("Tidak dapat melakukan presensi untuk tanggal di masa depan!", { id: tId });
+                }
+                if (dutyForm.tanggal < minDateStr) {
+                    setIsSubmitting(false);
+                    return toast.error("Batas maksimal presensi mundur adalah 3 hari ke belakang!", { id: tId });
+                }
+
                 if (dutyForm.bukti_foto_urls.length < 2) {
                     setIsSubmitting(false);
                     return toast.error("Minimal harus mengunggah 2 foto bukti sebelum mengirim presensi!", { id: tId });
@@ -208,6 +225,38 @@ export default function AbsenPage() {
                 if (dutyForm.bukti_foto_urls.length > 3) {
                     setIsSubmitting(false);
                     return toast.error("Maksimal bukti foto yang diizinkan adalah 3!", { id: tId });
+                }
+
+                // 🛡️ SECURITY 1: Cek apakah user sudah pernah absen di tanggal tersebut
+                const { data: existingAbsen, error: checkAbsenErr } = await supabase
+                    .from('presensi_duty')
+                    .select('id')
+                    .eq('user_id_discord', identity.discordId)
+                    .gte('start_time', `${dutyForm.tanggal}T00:00:00`)
+                    .lte('start_time', `${dutyForm.tanggal}T23:59:59`);
+
+                if (checkAbsenErr) throw checkAbsenErr;
+
+                if (existingAbsen && existingAbsen.length > 0) {
+                    setIsSubmitting(false);
+                    return toast.error(`Penolakan Otomatis: Anda sudah memiliki data presensi pada tanggal ${dutyForm.tanggal}!`, { id: tId });
+                }
+
+                // 🛡️ SECURITY 2: Cek apakah pada tanggal tersebut user memiliki data cuti/izin yang tercatat di database[cite: 7]
+                const { data: existingCuti, error: checkCutiErr } = await supabase
+                    .from('pengajuan_cuti')
+                    .select('id, status, tanggal_mulai, tanggal_selesai')
+                    .eq('user_id_discord', identity.discordId)
+                    .lte('tanggal_mulai', dutyForm.tanggal)
+                    .gte('tanggal_selesai', dutyForm.tanggal);
+
+                if (checkCutiErr) throw checkCutiErr;
+
+                // Filter yang statusnya disetujui atau masih pending (atau semua status aktif cuti)
+                const activeCuti = existingCuti?.find(c => c.status?.toLowerCase() !== 'rejected');
+                if (activeCuti) {
+                    setIsSubmitting(false);
+                    return toast.error(`Penolakan Otomatis: Anda terdata sedang dalam masa cuti/izin pada tanggal ${dutyForm.tanggal}!`, { id: tId });
                 }
 
                 let durasi = 0;
@@ -269,9 +318,23 @@ export default function AbsenPage() {
                 handleNavigation('/dashboard');
 
             } else {
-                if (!cutiForm.tanggal_mulai) return toast.error("Tanggal mulai wajib diisi!", { id: tId });
-                if (!cutiForm.tanggal_selesai) return toast.error("Tanggal selesai wajib diisi!", { id: tId });
-                if (!cutiForm.alasan) return toast.error("Alasan wajib diisi!", { id: tId });
+                if (!cutiForm.tanggal_mulai) {
+                    setIsSubmitting(false);
+                    return toast.error("Tanggal mulai wajib diisi!", { id: tId });
+                }
+                if (!cutiForm.tanggal_selesai) {
+                    setIsSubmitting(false);
+                    return toast.error("Tanggal selesai wajib diisi!", { id: tId });
+                }
+                if (!cutiForm.alasan) {
+                    setIsSubmitting(false);
+                    return toast.error("Alasan wajib diisi!", { id: tId });
+                }
+
+                if (cutiForm.tanggal_selesai < cutiForm.tanggal_mulai) {
+                    setIsSubmitting(false);
+                    return toast.error("Tanggal selesai tidak boleh lebih awal dari tanggal mulai!", { id: tId });
+                }
 
                 const { error } = await supabase.from('pengajuan_cuti').insert([
                     {
@@ -288,8 +351,6 @@ export default function AbsenPage() {
                 ]);
 
                 if (error) throw error;
-
-                // Webhook Discord sengaja dihilangkan dan di-hold sesuai request
 
                 toast.success("Pengajuan izin/cuti berhasil terkirim dan menunggu approval! Mengalihkan ke halaman utama...", { id: tId });
                 handleNavigation('/dashboard');
@@ -385,10 +446,10 @@ export default function AbsenPage() {
                                 exit={{ opacity: 0, y: -10 }}
                                 className="space-y-4"
                             >
-                                {/* TANGGAL */}
+                                {/* TANGGAL (Maksimal hari ini, Minimal H-3, Tidak bisa pilih masa depan) */}
                                 <div className="space-y-2">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                        <Calendar size={12} className="text-red-500" /> Tanggal Duty
+                                        <Calendar size={12} className="text-red-500" /> Tanggal Duty (Maks H-3 s/d Hari Ini)
                                     </label>
                                     <input
                                         type="date"

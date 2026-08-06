@@ -11,48 +11,62 @@ import { format } from "date-fns";
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
+interface CutiLog {
+    id: string;
+    nama_panggilan: string;
+    pangkat: string;
+    jenis_izin: string;
+    alasan: string;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    status: string;
+    created_at: string;
+}
+
 export default function SectionAdminCuti() {
     const router = useRouter();
-    const [cutiLogs, setCutiLogs] = useState<any[]>([]);
+    const [cutiLogs, setCutiLogs] = useState<CutiLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [viewMode, setViewMode] = useState<'ANGGOTA' | 'PETINGGI'>('ANGGOTA');
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
 
-    const verifyAndFetch = async () => {
-        setLoading(true);
-        const sessionData = localStorage.getItem('police_session');
+    useEffect(() => {
+        const verifyAndFetch = async () => {
+            setLoading(true);
+            const sessionData = localStorage.getItem('police_session');
 
-        if (!sessionData) {
-            router.push('/');
-            return;
-        }
+            if (!sessionData) {
+                router.push('/');
+                return;
+            }
 
-        const parsed = JSON.parse(sessionData);
+            const parsed = JSON.parse(sessionData);
 
-        const { data: user, error: userError } = await supabase
-            .from('users')
-            .select('is_admin, is_highadmin')
-            .eq('discord_id', parsed.discord_id)
-            .single();
+            const { data: user, error: userError } = await supabase
+                .from('users')
+                .select('is_admin, is_highadmin')
+                .eq('discord_id', parsed.discord_id)
+                .single();
 
-        if (userError || (!user?.is_admin && !user?.is_highadmin)) {
-            toast.error("UNAUTHORIZED ACCESS DETECTED!");
-            router.push('/dashboard');
-            return;
-        }
+            if (userError || (!user?.is_admin && !user?.is_highadmin)) {
+                toast.error("UNAUTHORIZED ACCESS DETECTED!");
+                router.push('/dashboard');
+                return;
+            }
 
-        setIsAuthorized(true);
-        const { data } = await supabase
-            .from('pengajuan_cuti')
-            .select('*')
-            .order('created_at', { ascending: false });
+            setIsAuthorized(true);
+            const { data } = await supabase
+                .from('pengajuan_cuti')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-        if (data) setCutiLogs(data);
-        setLoading(false);
-    };
+            if (data) setCutiLogs(data);
+            setLoading(false);
+        };
 
-    useEffect(() => { verifyAndFetch(); }, []);
+        void verifyAndFetch();
+    }, [router]);
 
     // FILTER LOGIC (DISEMPURNAKAN AGAR CASE-INSENSITIVE)
     const filteredCuti = useMemo(() => {
@@ -242,7 +256,7 @@ export default function SectionAdminCuti() {
                                             </div>
                                             <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
                                                 <span className="text-zinc-500 font-medium">Alasan: </span>
-                                                <span className="text-zinc-300 italic">"{log.alasan || 'Tidak ada alasan'}"</span>
+                                                <span className="text-zinc-300 italic">&quot;{log.alasan || 'Tidak ada alasan'}&quot;</span>
                                             </p>
                                         </div>
                                     </div>

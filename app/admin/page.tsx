@@ -87,7 +87,7 @@ export default function AdminHQPage() {
                             >
                                 <ArrowLeft size={16} /> Base
                             </button>
-                            <div className="hidden md:block w-[1px] h-6 bg-zinc-800 mx-1"></div>
+                            <div className="hidden md:block w-px h-6 bg-zinc-800 mx-1"></div>
 
                             {mainTabs.map((tab) => (
                                 <button

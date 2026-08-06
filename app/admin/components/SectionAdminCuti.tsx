@@ -29,7 +29,7 @@ export default function SectionAdminCuti() {
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
     
-    // State baru untuk menyimpan nama admin yang melakukan approve
+    // State untuk nama admin
     const [adminName, setAdminName] = useState<string>("Unknown Admin");
     
     const [viewMode, setViewMode] = useState<'ANGGOTA' | 'PETINGGI'>('ANGGOTA');
@@ -47,25 +47,34 @@ export default function SectionAdminCuti() {
 
             const parsed = JSON.parse(sessionData);
 
-            // Tambahkan select 'nama_panggilan' untuk mendapatkan nama admin
+            // PERBAIKAN: Gunakan select('*') agar tidak error "Column not found"
             const { data: user, error: userError } = await supabase
                 .from('users')
-                .select('is_admin, is_highadmin, nama_panggilan')
+                .select('*')
                 .eq('discord_id', parsed.discord_id)
                 .single();
 
-            if (userError || (!user?.is_admin && !user?.is_highadmin)) {
+            // Pisahkan error handling supaya ketahuan salahnya di mana
+            if (userError) {
+                console.error("SUPABASE ERROR (Verify User):", userError);
+                toast.error("Gagal memverifikasi data pengguna!");
+                router.push('/dashboard');
+                return;
+            }
+
+            if (!user?.is_admin && !user?.is_highadmin) {
                 toast.error("UNAUTHORIZED ACCESS DETECTED!");
                 router.push('/dashboard');
                 return;
             }
 
-            // Simpan nama admin ke state
-            if (user.nama_panggilan) {
-                setAdminName(user.nama_panggilan);
-            }
+            // PERBAIKAN: Cek properti mana yang ada di tabel users kamu
+            // Kalau nama kolomnya beda, dia akan otomatis pakai fallback
+            const namaAdmin = user.nama_panggilan || user.nama || user.username || user.name || "Admin Divisi";
+            setAdminName(namaAdmin);
 
             setIsAuthorized(true);
+            
             const { data } = await supabase
                 .from('pengajuan_cuti')
                 .select('*')
@@ -93,10 +102,8 @@ export default function SectionAdminCuti() {
         const tId = toast.loading(`Memproses status ${targetStatus}...`);
         const dbStatusValue = targetStatus.toLowerCase();
 
-        // 1. Ambil data cuti spesifik yang sedang diproses untuk dikirim ke Discord/Rekap
         const currentLog = cutiLogs.find(log => log.id === id);
 
-        // 2. Update status pengajuan cuti terlebih dahulu
         const { error } = await supabase
             .from('pengajuan_cuti')
             .update({ status: dbStatusValue })
@@ -104,20 +111,18 @@ export default function SectionAdminCuti() {
 
         if (error) {
             toast.error("Gagal memproses pengajuan!", { id: tId });
-            return; // Hentikan eksekusi jika update gagal
+            return; 
         } 
         
-        // 3. JIKA STATUS APPROVED, Masukkan ke Rekap Absen & Kirim Webhook
         if (targetStatus === 'APPROVED' && currentLog) {
             try {
-                // A. Insert ke tabel rekap absen 
-                // PENTING: Sesuaikan nama tabel 'rekap_absen' dan kolom-kolomnya dengan struktur database kamu
+                // Insert ke rekap absen
                 const { error: absenError } = await supabase
                     .from('rekap_absen')
                     .insert([{
                         nama_panggilan: currentLog.nama_panggilan,
                         pangkat: currentLog.pangkat,
-                        status_kehadiran: 'CUTI', // Sesuaikan nilainya
+                        status_kehadiran: 'CUTI', 
                         tanggal_mulai: currentLog.tanggal_mulai,
                         tanggal_selesai: currentLog.tanggal_selesai,
                         keterangan: currentLog.alasan
@@ -128,19 +133,19 @@ export default function SectionAdminCuti() {
                     toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
                 }
 
-                // B. Kirim Notifikasi ke Discord Webhook
-                const webhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA"; 
+                // Kirim Webhook Discord
+                const webhookUrl = "URL_WEBHOOK_DISCORD_KAMU_DISINI"; 
                 const discordPayload = {
                     embeds: [{
                         title: "✅ PENGAJUAN CUTI DISETUJUI",
-                        color: 5763719, // Warna Hijau
+                        color: 5763719,
                         fields: [
                             { name: "Nama", value: currentLog.nama_panggilan, inline: true },
                             { name: "Pangkat", value: currentLog.pangkat, inline: true },
                             { name: "Jenis Izin", value: currentLog.jenis_izin || "-", inline: true },
                             { name: "Durasi", value: `${format(new Date(currentLog.tanggal_mulai), 'dd MMM')} - ${format(new Date(currentLog.tanggal_selesai), 'dd MMM yyyy')}`, inline: false },
                             { name: "Alasan", value: currentLog.alasan || "-", inline: false },
-                            { name: "Approved By", value: adminName, inline: false } // Menambahkan nama admin
+                            { name: "Approved By", value: adminName, inline: false }
                         ],
                         timestamp: new Date().toISOString()
                     }]
@@ -157,7 +162,6 @@ export default function SectionAdminCuti() {
             }
         }
 
-        // 4. Update UI Local State jika semuanya sukses
         toast.success(`Cuti berhasil di-${targetStatus}!`, { id: tId });
         setCutiLogs(prevLogs =>
             prevLogs.map(log =>
@@ -180,7 +184,6 @@ export default function SectionAdminCuti() {
     return (
         <div className="w-full max-w-6xl mx-auto space-y-6 font-mono pb-24 text-zinc-100 px-4">
             
-            {/* HEADER & VIEW TOGGLER */}
             <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl shadow-black/40">
                 <div className="flex items-center gap-3.5">
                     <div className="p-3 bg-red-950/40 border border-red-900/40 rounded-xl text-red-500 shrink-0">
@@ -219,7 +222,6 @@ export default function SectionAdminCuti() {
                 </div>
             </div>
 
-            {/* STATUS FILTER TABS */}
             <div className="flex gap-2 overflow-x-auto pb-1">
                 {(['PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => {
                     const isActive = statusFilter === s;
@@ -244,7 +246,6 @@ export default function SectionAdminCuti() {
                 })}
             </div>
 
-            {/* LIST CONTENT AREA */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
                     <Loader2 className="animate-spin mb-3 text-red-600" size={32} />
@@ -286,10 +287,8 @@ export default function SectionAdminCuti() {
                                     exit={{ opacity: 0, scale: 0.98 }}
                                     className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden shadow-lg shadow-black/40 hover:border-zinc-700/80 transition-all group"
                                 >
-                                    {/* Left Accent Bar */}
                                     <div className={`absolute left-0 top-0 bottom-0 w-1 ${viewMode === 'PETINGGI' ? 'bg-red-600' : 'bg-zinc-700'}`} />
 
-                                    {/* Left Section: User Info */}
                                     <div className="flex items-center gap-4 w-full md:w-auto pl-1">
                                         <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
                                             viewMode === 'PETINGGI'
@@ -319,10 +318,7 @@ export default function SectionAdminCuti() {
                                         </div>
                                     </div>
 
-                                    {/* Right Section: Duration & Actions */}
                                     <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 w-full md:w-auto pt-3 md:pt-0 border-t border-zinc-800/60 md:border-t-0 justify-between">
-                                        
-                                        {/* Date Range */}
                                         <div className="flex flex-col md:items-end">
                                             <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Durasi Cuti</span>
                                             <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-lg text-zinc-300">
@@ -333,7 +329,6 @@ export default function SectionAdminCuti() {
                                             </div>
                                         </div>
 
-                                        {/* Pending Action Buttons */}
                                         {statusFilter === 'PENDING' && (
                                             <div className="flex items-center gap-2 self-end md:self-auto">
                                                 <button
@@ -353,7 +348,6 @@ export default function SectionAdminCuti() {
                                             </div>
                                         )}
 
-                                        {/* Processed Status Indicator */}
                                         {statusFilter !== 'PENDING' && (
                                             <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider ${
                                                 statusFilter === 'APPROVED'

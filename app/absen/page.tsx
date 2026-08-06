@@ -25,6 +25,16 @@ const getLocalDateString = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
+// Helper: Format tanggal untuk discord (Dari YYYY-MM-DD ke DD MMMM)
+const formatTanggalDiscord = (dateStr: string) => {
+    if (!dateStr) return "-";
+    const [year, month, day] = dateStr.split('-');
+    // Memasukkan ke Date object untuk mengambil nama bulan
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    // Menggunakan API toLocaleDateString lokal Indonesia
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
+};
+
 export default function AbsenPage() {
     const router = useRouter();
     const [isNavigating, setIsNavigating] = useState(false);
@@ -293,8 +303,12 @@ export default function AbsenPage() {
                 try {
                     const discordWebhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA";
 
+                    // FORMAT TANGGAL DI SINI 👈
+                    const formattedMulai = formatTanggalDiscord(cutiForm.tanggal_mulai);
+                    const formattedSelesai = formatTanggalDiscord(cutiForm.tanggal_selesai);
+
                     const discordPayload = {
-                        content: `**SURAT IZIN**\n\n\`\`\`Nama: ${identity.nama}\nBadge : ${identity.badgeNumber}\nRank : ${identity.pangkat}\nDivision : ${identity.divisi} \nIzin tidak duty : ${cutiForm.tanggal_mulai}\nDuty aktif kembali : ${cutiForm.tanggal_selesai} \nAlasan tidak duty : ${cutiForm.alasan}\`\`\`\n\n<@&1449382385090166844> \n<@&1518414822318800987>`
+                        content: `**SURAT IZIN**\n\n\`\`\`Nama: ${identity.nama}\nBadge : ${identity.badgeNumber}\nRank : ${identity.pangkat}\nDivision : ${identity.divisi} \nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai} \nAlasan tidak duty : ${cutiForm.alasan}\`\`\`\n\n<@&1449382385090166844> \n<@&1518414822318800987>`
                     };
 
                     await fetch(discordWebhookUrl, {

@@ -25,16 +25,6 @@ const getLocalDateString = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-// Helper: Format tanggal untuk discord (Dari YYYY-MM-DD ke DD MMMM)
-const formatTanggalDiscord = (dateStr: string) => {
-    if (!dateStr) return "-";
-    const [year, month, day] = dateStr.split('-');
-    // Memasukkan ke Date object untuk mengambil nama bulan
-    const date = new Date(Number(year), Number(month) - 1, Number(day));
-    // Menggunakan API toLocaleDateString lokal Indonesia
-    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
-};
-
 export default function AbsenPage() {
     const router = useRouter();
     const [isNavigating, setIsNavigating] = useState(false);
@@ -299,28 +289,9 @@ export default function AbsenPage() {
 
                 if (error) throw error;
 
-                // 🚀 KIRIM WEBHOOK DISCORD
-                try {
-                    const discordWebhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA";
+                // Webhook Discord sengaja dihilangkan dan di-hold sesuai request
 
-                    // FORMAT TANGGAL DI SINI 👈
-                    const formattedMulai = formatTanggalDiscord(cutiForm.tanggal_mulai);
-                    const formattedSelesai = formatTanggalDiscord(cutiForm.tanggal_selesai);
-
-                    const discordPayload = {
-                        content: `**SURAT IZIN**\n\n\`\`\`Nama: ${identity.nama}\nBadge : ${identity.badgeNumber}\nRank : ${identity.pangkat}\nDivision : ${identity.divisi} \nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai} \nAlasan tidak duty : ${cutiForm.alasan}\`\`\`\n\n<@&1449382385090166844> \n<@&1518414822318800987>`
-                    };
-
-                    await fetch(discordWebhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(discordPayload)
-                    });
-                } catch (webhookError) {
-                    console.error("Gagal mengirim webhook ke Discord:", webhookError);
-                }
-
-                toast.success("Pengajuan izin/cuti berhasil terkirim! Mengalihkan ke halaman utama...", { id: tId });
+                toast.success("Pengajuan izin/cuti berhasil terkirim dan menunggu approval! Mengalihkan ke halaman utama...", { id: tId });
                 handleNavigation('/dashboard');
             }
 

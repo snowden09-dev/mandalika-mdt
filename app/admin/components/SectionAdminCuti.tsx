@@ -15,6 +15,7 @@ interface CutiLog {
     id: string;
     nama_panggilan: string;
     pangkat: string;
+    divisi?: string; // Ditambahkan untuk mengambil data divisi
     jenis_izin: string;
     alasan: string;
     tanggal_mulai: string;
@@ -22,6 +23,13 @@ interface CutiLog {
     status: string;
     created_at: string;
 }
+
+// Helper: Format tanggal untuk discord (Dari YYYY-MM-DD ke DD MMMM)
+const formatTanggalDiscord = (dateStr: string) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
+};
 
 export default function SectionAdminCuti() {
     const router = useRouter();
@@ -47,14 +55,12 @@ export default function SectionAdminCuti() {
 
             const parsed = JSON.parse(sessionData);
 
-            // PERBAIKAN: Gunakan select('*') agar tidak error "Column not found"
             const { data: user, error: userError } = await supabase
                 .from('users')
                 .select('*')
                 .eq('discord_id', parsed.discord_id)
                 .single();
 
-            // Pisahkan error handling supaya ketahuan salahnya di mana
             if (userError) {
                 console.error("SUPABASE ERROR (Verify User):", userError);
                 toast.error("Gagal memverifikasi data pengguna!");
@@ -68,8 +74,6 @@ export default function SectionAdminCuti() {
                 return;
             }
 
-            // PERBAIKAN: Cek properti mana yang ada di tabel users kamu
-            // Kalau nama kolomnya beda, dia akan otomatis pakai fallback
             const namaAdmin = user.nama_panggilan || user.nama || user.username || user.name || "Admin Divisi";
             setAdminName(namaAdmin);
 
@@ -133,22 +137,34 @@ export default function SectionAdminCuti() {
                     toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
                 }
 
-                // Kirim Webhook Discord
-                const webhookUrl = "URL_WEBHOOK_DISCORD_KAMU_DISINI"; 
+                // Ekstrak nama dan badge untuk webhook
+                let rawName = currentLog.nama_panggilan || 'UNKNOWN';
+                if (rawName.includes('|')) {
+                    rawName = rawName.split('|').pop()?.trim() || rawName;
+                }
+
+                let badgeNumber = "-";
+                if (rawName.startsWith('#')) {
+                    const spaceIndex = rawName.indexOf(' ');
+                    if (spaceIndex !== -1) {
+                        badgeNumber = rawName.substring(1, spaceIndex);
+                        rawName = rawName.substring(spaceIndex + 1).trim();
+                    } else {
+                        badgeNumber = rawName.substring(1);
+                        rawName = "OFFICER";
+                    }
+                }
+                const cleanName = rawName.toUpperCase();
+
+                // Format Tanggal
+                const formattedMulai = formatTanggalDiscord(currentLog.tanggal_mulai);
+                const formattedSelesai = formatTanggalDiscord(currentLog.tanggal_selesai);
+
+                // Kirim Webhook Discord (Format Baru)
+                const webhookUrl = "[https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA](https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA)"; 
+                
                 const discordPayload = {
-                    embeds: [{
-                        title: "✅ PENGAJUAN CUTI DISETUJUI",
-                        color: 5763719,
-                        fields: [
-                            { name: "Nama", value: currentLog.nama_panggilan, inline: true },
-                            { name: "Pangkat", value: currentLog.pangkat, inline: true },
-                            { name: "Jenis Izin", value: currentLog.jenis_izin || "-", inline: true },
-                            { name: "Durasi", value: `${format(new Date(currentLog.tanggal_mulai), 'dd MMM')} - ${format(new Date(currentLog.tanggal_selesai), 'dd MMM yyyy')}`, inline: false },
-                            { name: "Alasan", value: currentLog.alasan || "-", inline: false },
-                            { name: "Approved By", value: adminName, inline: false }
-                        ],
-                        timestamp: new Date().toISOString()
-                    }]
+                    content: `**SURAT IZIN**\n\n\`\`\`Nama: ${cleanName}\nBadge : ${badgeNumber}\nRank : ${currentLog.pangkat || '-'}\nDivision : ${currentLog.divisi || 'UNIT'}\nIzin tidak duty : ${formattedMulai}\nDuty aktif kembali : ${formattedSelesai}\nAlasan tidak duty : ${currentLog.alasan || '-'}\nApproved by : ${adminName}\`\`\`\n\n<@&1449382385090166844>\n<@&1518414822318800987>`
                 };
 
                 await fetch(webhookUrl, {
@@ -173,7 +189,7 @@ export default function SectionAdminCuti() {
     if (!isAuthorized && loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-                <Loader2 className="animate-spin mb-3 text-red-600" size={32} />
+                <Loader2 className="animate-spin mb-3 text-red-600" size="{32}"/>
                 <p className="font-bold uppercase tracking-widest text-xs text-zinc-400">Authenticating Clearance...</p>
             </div>
         );
@@ -187,7 +203,7 @@ export default function SectionAdminCuti() {
             <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl shadow-black/40">
                 <div className="flex items-center gap-3.5">
                     <div className="p-3 bg-red-950/40 border border-red-900/40 rounded-xl text-red-500 shrink-0">
-                        <CalendarDays size={24} />
+                        <CalendarDays size="{24}"/>
                     </div>
                     <div>
                         <h2 className="font-bold text-xl uppercase tracking-wider text-zinc-100 flex items-center gap-2">
@@ -207,7 +223,7 @@ export default function SectionAdminCuti() {
                                 : 'text-zinc-500 hover:text-zinc-300'
                         }`}
                     >
-                        <User size={14} /> <span>Anggota</span>
+                        <User size="{14}"/> <span>Anggota</span>
                     </button>
                     <button
                         onClick={() => setViewMode('PETINGGI')}
@@ -217,7 +233,7 @@ export default function SectionAdminCuti() {
                                 : 'text-zinc-500 hover:text-zinc-300'
                         }`}
                     >
-                        <Crown size={14} className={viewMode === 'PETINGGI' ? 'text-red-400' : ''} /> <span>Petinggi</span>
+                        <Crown ''} 'PETINGGI' 'text-red-400' : ? className="{viewMode" size="{14}"/> <span>Petinggi</span>
                     </button>
                 </div>
             </div>
@@ -248,12 +264,12 @@ export default function SectionAdminCuti() {
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-                    <Loader2 className="animate-spin mb-3 text-red-600" size={32} />
+                    <Loader2 className="animate-spin mb-3 text-red-600" size="{32}"/>
                     <p className="font-bold uppercase tracking-widest text-xs text-zinc-400">Scanning Dossiers...</p>
                 </div>
             ) : filteredCuti.length === 0 ? (
                 <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-16 text-center shadow-xl shadow-black/30">
-                    <ShieldCheck size={40} className="mx-auto text-zinc-600 mb-3" />
+                    <ShieldCheck className="mx-auto text-zinc-600 mb-3" size="{40}"/>
                     <h3 className="font-bold text-sm uppercase tracking-wider text-zinc-300">Tidak Ada Antrian Cuti</h3>
                     <p className="text-xs text-zinc-500 mt-1">Belum ada data cuti tercatat di kategori status ini.</p>
                 </div>
@@ -295,7 +311,7 @@ export default function SectionAdminCuti() {
                                                 ? 'bg-red-950/40 border-red-900/40 text-red-500'
                                                 : 'bg-zinc-950 border-zinc-800 text-zinc-400'
                                         }`}>
-                                            {viewMode === 'PETINGGI' ? <Crown size={22} /> : <Briefcase size={22} />}
+                                            {viewMode === 'PETINGGI' ? <Crown size="{22}"/> : <Briefcase size="{22}"/>}
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2 flex-wrap">
@@ -322,7 +338,7 @@ export default function SectionAdminCuti() {
                                         <div className="flex flex-col md:items-end">
                                             <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Durasi Cuti</span>
                                             <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-lg text-zinc-300">
-                                                <Clock size={12} className="text-red-500" />
+                                                <Clock className="text-red-500" size="{12}"/>
                                                 <span className="text-xs font-bold uppercase tracking-wider">
                                                     {format(new Date(log.tanggal_mulai), 'dd MMM')} — {format(new Date(log.tanggal_selesai), 'dd MMM yyyy')}
                                                 </span>
@@ -336,14 +352,14 @@ export default function SectionAdminCuti() {
                                                     title="Reject Leave"
                                                     className="p-2.5 bg-red-950/30 border border-red-900/40 text-red-400 hover:bg-red-900/50 hover:text-red-200 rounded-xl transition-all cursor-pointer"
                                                 >
-                                                    <XCircle size={18} />
+                                                    <XCircle size="{18}"/>
                                                 </button>
                                                 <button
                                                     onClick={() => handleAction(log.id, 'APPROVED')}
                                                     title="Approve Leave"
                                                     className="p-2.5 bg-emerald-950/30 border border-emerald-900/40 text-emerald-400 hover:bg-emerald-900/50 hover:text-emerald-200 rounded-xl transition-all cursor-pointer"
                                                 >
-                                                    <CheckCircle2 size={18} />
+                                                    <CheckCircle2 size="{18}"/>
                                                 </button>
                                             </div>
                                         )}

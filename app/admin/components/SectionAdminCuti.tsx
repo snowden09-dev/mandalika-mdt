@@ -28,6 +28,10 @@ export default function SectionAdminCuti() {
     const [cutiLogs, setCutiLogs] = useState<CutiLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAuthorized, setIsAuthorized] = useState(false);
+    
+    // State baru untuk menyimpan nama admin yang melakukan approve
+    const [adminName, setAdminName] = useState<string>("Unknown Admin");
+    
     const [viewMode, setViewMode] = useState<'ANGGOTA' | 'PETINGGI'>('ANGGOTA');
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
 
@@ -43,9 +47,10 @@ export default function SectionAdminCuti() {
 
             const parsed = JSON.parse(sessionData);
 
+            // Tambahkan select 'nama_panggilan' untuk mendapatkan nama admin
             const { data: user, error: userError } = await supabase
                 .from('users')
-                .select('is_admin, is_highadmin')
+                .select('is_admin, is_highadmin, nama_panggilan')
                 .eq('discord_id', parsed.discord_id)
                 .single();
 
@@ -53,6 +58,11 @@ export default function SectionAdminCuti() {
                 toast.error("UNAUTHORIZED ACCESS DETECTED!");
                 router.push('/dashboard');
                 return;
+            }
+
+            // Simpan nama admin ke state
+            if (user.nama_panggilan) {
+                setAdminName(user.nama_panggilan);
             }
 
             setIsAuthorized(true);
@@ -68,12 +78,9 @@ export default function SectionAdminCuti() {
         void verifyAndFetch();
     }, [router]);
 
-    // FILTER LOGIC (DISEMPURNAKAN AGAR CASE-INSENSITIVE)
     const filteredCuti = useMemo(() => {
         return cutiLogs.filter(log => {
             const isPetinggi = ['JENDRAL', 'KOMJEN', 'IRJEN', 'BRIGJEN', 'KOMBESPOL'].includes(log.pangkat?.toUpperCase());
-            
-            // Konversi status dari DB ke uppercase agar cocok dengan statusFilter
             const logStatusUpper = log.status?.toUpperCase() || '';
             const matchStatus = logStatusUpper === statusFilter;
 
@@ -82,29 +89,81 @@ export default function SectionAdminCuti() {
         });
     }, [cutiLogs, viewMode, statusFilter]);
 
-    // OPTIMISTIC UPDATE
     const handleAction = async (id: string, targetStatus: 'APPROVED' | 'REJECTED') => {
         const tId = toast.loading(`Memproses status ${targetStatus}...`);
-        
-        // Simpan dalam format lowercase jika DB menggunakan lowercase (contoh: "pending", "approved", "rejected")
         const dbStatusValue = targetStatus.toLowerCase();
 
+        // 1. Ambil data cuti spesifik yang sedang diproses untuk dikirim ke Discord/Rekap
+        const currentLog = cutiLogs.find(log => log.id === id);
+
+        // 2. Update status pengajuan cuti terlebih dahulu
         const { error } = await supabase
             .from('pengajuan_cuti')
             .update({ status: dbStatusValue })
             .eq('id', id);
 
         if (error) {
-            toast.error("Gagal memproses!", { id: tId });
-        } else {
-            toast.success(`Cuti ${targetStatus}!`, { id: tId });
+            toast.error("Gagal memproses pengajuan!", { id: tId });
+            return; // Hentikan eksekusi jika update gagal
+        } 
+        
+        // 3. JIKA STATUS APPROVED, Masukkan ke Rekap Absen & Kirim Webhook
+        if (targetStatus === 'APPROVED' && currentLog) {
+            try {
+                // A. Insert ke tabel rekap absen 
+                // PENTING: Sesuaikan nama tabel 'rekap_absen' dan kolom-kolomnya dengan struktur database kamu
+                const { error: absenError } = await supabase
+                    .from('rekap_absen')
+                    .insert([{
+                        nama_panggilan: currentLog.nama_panggilan,
+                        pangkat: currentLog.pangkat,
+                        status_kehadiran: 'CUTI', // Sesuaikan nilainya
+                        tanggal_mulai: currentLog.tanggal_mulai,
+                        tanggal_selesai: currentLog.tanggal_selesai,
+                        keterangan: currentLog.alasan
+                    }]);
 
-            setCutiLogs(prevLogs =>
-                prevLogs.map(log =>
-                    log.id === id ? { ...log, status: dbStatusValue } : log
-                )
-            );
+                if (absenError) {
+                    console.error("Gagal insert ke rekap absen:", absenError);
+                    toast.warning("Cuti disetujui, tapi gagal masuk ke rekap absen.");
+                }
+
+                // B. Kirim Notifikasi ke Discord Webhook
+                const webhookUrl = "https://discord.com/api/webhooks/1534541668899098666/opXx4dxIWV_a2HIe2RVMeh_VN5iv1mdUejIvt0QlP8VEAG05fIgJ5UMjeP4nN8O35KIA"; 
+                const discordPayload = {
+                    embeds: [{
+                        title: "✅ PENGAJUAN CUTI DISETUJUI",
+                        color: 5763719, // Warna Hijau
+                        fields: [
+                            { name: "Nama", value: currentLog.nama_panggilan, inline: true },
+                            { name: "Pangkat", value: currentLog.pangkat, inline: true },
+                            { name: "Jenis Izin", value: currentLog.jenis_izin || "-", inline: true },
+                            { name: "Durasi", value: `${format(new Date(currentLog.tanggal_mulai), 'dd MMM')} - ${format(new Date(currentLog.tanggal_selesai), 'dd MMM yyyy')}`, inline: false },
+                            { name: "Alasan", value: currentLog.alasan || "-", inline: false },
+                            { name: "Approved By", value: adminName, inline: false } // Menambahkan nama admin
+                        ],
+                        timestamp: new Date().toISOString()
+                    }]
+                };
+
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(discordPayload)
+                });
+
+            } catch (err) {
+                console.error("Error saat memproses rekap/webhook:", err);
+            }
         }
+
+        // 4. Update UI Local State jika semuanya sukses
+        toast.success(`Cuti berhasil di-${targetStatus}!`, { id: tId });
+        setCutiLogs(prevLogs =>
+            prevLogs.map(log =>
+                log.id === id ? { ...log, status: dbStatusValue } : log
+            )
+        );
     };
 
     if (!isAuthorized && loading) {
@@ -201,7 +260,6 @@ export default function SectionAdminCuti() {
                 <div className="grid grid-cols-1 gap-3.5 text-zinc-100">
                     <AnimatePresence mode="popLayout">
                         {filteredCuti.map((log) => {
-                            // PARSING LOGIC
                             let rawName = log.nama_panggilan || 'UNKNOWN';
                             if (rawName.includes('|')) {
                                 rawName = rawName.split('|').pop()?.trim() || rawName;

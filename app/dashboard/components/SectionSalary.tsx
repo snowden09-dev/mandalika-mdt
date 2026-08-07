@@ -322,8 +322,9 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
                 setIsVerifying(false); return;
             }
 
-            const startStr = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
-            const endStr = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
+            // ISO string khusus untuk filter query aktivitas
+            const startIso = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
+            const endIso = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
 
             // Cek apakah tanggal ini pernah diajukan sebelumnya
             const { data: existing } = await supabase.from('pengajuan_gaji')
@@ -348,8 +349,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
                 .from('laporan_aktivitas')
                 .select('*', { count: 'exact', head: true })
                 .eq('user_id_discord', String(targetId))
-                .gte('created_at', startStr)
-                .lte('created_at', endStr);
+                .gte('created_at', startIso)
+                .lte('created_at', endIso);
 
             if (dutyError) {
                 console.error("Supabase Duty Check Error:", dutyError);
@@ -366,6 +367,10 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
             }
             // =================================================================
 
+            // 💡 TANGGAL MURNI (YYYY-MM-DD) MENCEGAH MUNDUR H-1 DI DATABASE/ADMIN PANEL
+            const pureStartDate = format(range.from, 'yyyy-MM-dd');
+            const pureEndDate = format(range.to, 'yyyy-MM-dd');
+
             // 💡 PAYLOAD DISESUAIKAN DENGAN TABEL PENGAJUAN_GAJI & USERS
             const payload = {
                 user_id_discord: String(targetId),
@@ -373,8 +378,8 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
                 pangkat: activePangkat,
                 divisi: activeDivisi,
                 jumlah_gaji: Number(finalSalary),
-                tanggal_mulai: startStr,
-                tanggal_selesai: endStr,
+                tanggal_mulai: pureStartDate,
+                tanggal_selesai: pureEndDate,
                 status: 'PENDING' as const
             };
 

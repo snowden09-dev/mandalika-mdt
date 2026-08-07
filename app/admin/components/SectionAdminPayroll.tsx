@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check, Clock, Award
+    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check, Clock, Award, MinusCircle
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -20,10 +20,10 @@ const PETINGGI_RANKS = ['JENDRAL', 'WAKAPOLRI', 'KAPOLRI', 'KOMJEN', 'IRJEN', 'B
 // 📋 DATA ATURAN BONUS GAJI & ROLE ID
 const BONUS_RULES = {
     divisiMingguan: [
-        { label: "ALL ANGGOTA DIVISI (ABSEN BOLONG)", value: "$35.000", amount: 35000 },
-        { label: "ALL ANGGOTA DIVISI (ABSEN RAJIN)", value: "$50.000", amount: 50000 },
-        { label: "ALL KADIV", value: "$70.000", amount: 70000 },
-        { label: "ALL WAKADIV", value: "$60.000", amount: 60000 },
+        { label: "ALL ANGGOTA DIVISI (ABSEN BOLONG)", shortLabel: "Bonus Absen Bolong", value: "$35.000", amount: 35000 },
+        { label: "ALL ANGGOTA DIVISI (ABSEN RAJIN)", shortLabel: "Bonus Absen Rajin", value: "$50.000", amount: 50000 },
+        { label: "ALL KADIV", shortLabel: "Bonus Kadiv", value: "$70.000", amount: 70000 },
+        { label: "ALL WAKADIV", shortLabel: "Bonus Wakadiv", value: "$60.000", amount: 60000 },
     ],
     administrasi: [
         { label: "1 JAM ADMINISTRASI", value: "$30.000", amount: 30000 },
@@ -163,6 +163,7 @@ export default function SectionAdminPayroll() {
     const [selectedPeriod, setSelectedPeriod] = useState<string>('ALL');
 
     const [manualAdjustments, setManualAdjustments] = useState<Record<string, Adjustment>>({});
+    const [selectedPresetBonuses, setSelectedPresetBonuses] = useState<Record<string, string[]>>({});
     const [adjInputs, setAdjInputs] = useState<Record<string, { amount: string, reason: string }>>({});
 
     const [currentSlipData, setCurrentSlipData] = useState<SlipData | null>(null);
@@ -175,13 +176,12 @@ export default function SectionAdminPayroll() {
 
     const [showRules, setShowRules] = useState(false);
 
-    // ✅ FUNGSI HANDLE MULTIPLE BONUS
+    // ✅ FUNGSI HANDLE MULTIPLE BONUS / ADJUSTMENT
     const handleAddAdjustment = (reqId: string, amount: number, reason: string) => {
         setManualAdjustments(prev => {
             const existing = prev[reqId] || { amount: 0, reason: '' };
             const newAmount = existing.amount + amount;
             
-            // Gabungkan alasan jika sebelumnya sudah ada
             let newReason = reason;
             if (existing.reason && existing.reason.trim() !== '') {
                 newReason = `${existing.reason} + ${reason}`;
@@ -192,6 +192,47 @@ export default function SectionAdminPayroll() {
                 [reqId]: { amount: newAmount, reason: newReason }
             };
         });
+    };
+
+    // ✅ FUNGSI TAMBAH PRESET BONUS (DENGAN PENCEGAHAN DUPLIKASI 1x)
+    const handleAddPresetBonus = (reqId: string, bLabel: string, amount: number) => {
+        const currentSelected = selectedPresetBonuses[reqId] || [];
+        if (currentSelected.includes(bLabel)) {
+            toast.error("Bonus ini sudah ditambahkan sebelumnya!");
+            return;
+        }
+
+        handleAddAdjustment(reqId, amount, bLabel);
+        setSelectedPresetBonuses(prev => ({
+            ...prev,
+            [reqId]: [...(prev[reqId] || []), bLabel]
+        }));
+        toast.success(`${bLabel} berhasil ditambahkan!`);
+    };
+
+    // ✅ FUNGSI TAMBAH ADJUSTMENT CUSTOM (BONUS ATAU DENDA/POTONGAN)
+    const handleAddCustomAdj = (reqId: string, isDenda: boolean) => {
+        const rawAmt = Number(adjInputs[reqId]?.amount || 0);
+        if (!rawAmt || rawAmt === 0) {
+            toast.error("Masukkan nominal angka terlebih dahulu!");
+            return;
+        }
+
+        // Jika Denda, otomatis ubah angka positif menjadi negatif (-Math.abs)
+        const finalAmt = isDenda ? -Math.abs(rawAmt) : Math.abs(rawAmt);
+        const defaultReason = isDenda ? 'Denda/Potongan' : 'Bonus Manual';
+        const rsn = adjInputs[reqId]?.reason?.trim() || defaultReason;
+
+        handleAddAdjustment(reqId, finalAmt, rsn);
+        setAdjInputs(prev => ({ ...prev, [reqId]: { amount: '', reason: '' } }));
+        toast.success(`${isDenda ? 'Denda' : 'Bonus'} sebesar $${Math.abs(finalAmt).toLocaleString()} berhasil diterapkan!`);
+    };
+
+    // ✅ RESET ADJUSTMENT & STATUS TOMBOL BONUS
+    const handleResetAdjustment = (reqId: string) => {
+        setManualAdjustments(prev => ({ ...prev, [reqId]: { amount: 0, reason: '' } }));
+        setSelectedPresetBonuses(prev => ({ ...prev, [reqId]: [] }));
+        toast.info("Penyesuaian bonus & denda telah direset.");
     };
 
     const fetchData = async () => {
@@ -705,7 +746,7 @@ export default function SectionAdminPayroll() {
                                     <div className="bg-zinc-900 border border-zinc-800/80 rounded-xl divide-y divide-zinc-800/60">
                                         {BONUS_RULES.divisiMingguan.map((rule, idx) => (
                                             <div key={idx} className="p-3 flex justify-between items-center text-xs">
-                                                <span className="text-zinc-300 font-medium">{rule.label}</span>
+                                                <span className="text-zinc-300 font-medium">{rule.shortLabel} ({rule.label})</span>
                                                 <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">{rule.value}</span>
                                             </div>
                                         ))}
@@ -948,31 +989,59 @@ export default function SectionAdminPayroll() {
                                         {/* ATUR ADJUSTMENT MANUAL PRESET & CUSTOM */}
                                         {activeTab === 'PENDING' && (
                                             <div className="border-t border-zinc-800/60 pt-3 space-y-3">
+                                                {/* TOMBOL PRESET BONUS KETERANGAN DETAIL & PENCEGAHAN KLIK REPEAT */}
                                                 <div>
-                                                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Quick Presets Bonus / Adj</span>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                                                        {BONUS_RULES.divisiMingguan.map((b, i) => (
-                                                            <button
-                                                                key={i}
-                                                                onClick={() => handleAddAdjustment(req.id, b.amount, `Bonus ${b.label}`)}
-                                                                className="bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 py-1.5 px-1.5 rounded-lg transition-colors truncate text-center shadow-sm"
-                                                                title={b.label}
-                                                            >
-                                                                +${b.amount / 1000}k
-                                                            </button>
-                                                        ))}
+                                                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                        Pilih Preset Bonus Gaji HQ (1x Klik)
+                                                    </span>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+                                                        {BONUS_RULES.divisiMingguan.map((b, i) => {
+                                                            const isSelected = (selectedPresetBonuses[req.id] || []).includes(b.shortLabel);
+                                                            return (
+                                                                <button
+                                                                    key={i}
+                                                                    disabled={isSelected}
+                                                                    onClick={() => handleAddPresetBonus(req.id, b.shortLabel, b.amount)}
+                                                                    className={cn(
+                                                                        "py-2 px-2.5 rounded-xl text-xs font-medium transition-all text-left flex items-center justify-between border shadow-sm",
+                                                                        isSelected
+                                                                            ? "bg-zinc-900/60 border-emerald-500/30 text-emerald-500/50 cursor-not-allowed opacity-60"
+                                                                            : "bg-zinc-950 hover:bg-zinc-800/80 border-zinc-800 text-zinc-300 hover:text-white"
+                                                                    )}
+                                                                    title={b.label}
+                                                                >
+                                                                    <div className="truncate pr-1">
+                                                                        <p className="font-semibold text-[11px] leading-tight truncate">{b.shortLabel}</p>
+                                                                        <p className="text-[9px] text-zinc-500 truncate">{b.label}</p>
+                                                                    </div>
+                                                                    <span className={cn(
+                                                                        "font-bold text-[10px] shrink-0 px-1.5 py-0.5 rounded border",
+                                                                        isSelected 
+                                                                            ? "bg-emerald-500/10 text-emerald-400/60 border-emerald-500/20" 
+                                                                            : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                                                    )}>
+                                                                        {isSelected ? "✓ Added" : `+${b.value}`}
+                                                                    </span>
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
 
+                                                {/* CUSTOM ADJUSTMENT INPUT (NILAI POSITIF UNTUK DENDA / POTONGAN) */}
                                                 <div className="flex flex-col gap-2">
-                                                    <div className="flex gap-2 items-center">
+                                                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                                                        Custom Adj / Denda (Masukkan Nominal Positif)
+                                                    </span>
+                                                    <div className="flex gap-1.5 items-center">
                                                         <div className="flex flex-1 bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden focus-within:border-zinc-600 transition-colors shadow-inner">
                                                             <div className="px-2.5 py-2 bg-zinc-900 border-r border-zinc-800 flex items-center justify-center">
                                                                 <span className="text-xs text-zinc-400 font-bold">$</span>
                                                             </div>
                                                             <input
                                                                 type="number"
-                                                                placeholder="Nominal (- utk Denda)"
+                                                                min="0"
+                                                                placeholder="Nominal (Angka Positif)"
                                                                 value={adjInputs[req.id]?.amount || ''}
                                                                 onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], amount: e.target.value } })}
                                                                 className="bg-transparent px-2 py-2 text-xs w-28 outline-none text-zinc-200"
@@ -980,36 +1049,37 @@ export default function SectionAdminPayroll() {
                                                             <div className="w-px bg-zinc-800"></div>
                                                             <input
                                                                 type="text"
-                                                                placeholder="Keterangan tambahan..."
+                                                                placeholder="Keterangan..."
                                                                 value={adjInputs[req.id]?.reason || ''}
                                                                 onChange={(e) => setAdjInputs({ ...adjInputs, [req.id]: { ...adjInputs[req.id], reason: e.target.value } })}
                                                                 className="bg-transparent px-2 py-2 text-xs flex-1 outline-none text-zinc-200"
                                                             />
                                                         </div>
                                                         <button
-                                                            onClick={() => {
-                                                                const amt = Number(adjInputs[req.id]?.amount || 0);
-                                                                const rsn = adjInputs[req.id]?.reason || 'Penyesuaian Sistem';
-                                                                if (amt !== 0) {
-                                                                    handleAddAdjustment(req.id, amt, rsn);
-                                                                    setAdjInputs({ ...adjInputs, [req.id]: { amount: '', reason: '' } });
-                                                                }
-                                                            }}
-                                                            className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+                                                            onClick={() => handleAddCustomAdj(req.id, false)}
+                                                            className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 px-2.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                                                            title="Tambah sebagai Bonus (+)"
                                                         >
-                                                            <PlusCircle size={14} /> Add
+                                                            <PlusCircle size={14} /> Bonus
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleAddCustomAdj(req.id, true)}
+                                                            className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 px-2.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                                                            title="Tambah sebagai Denda / Potongan (-)"
+                                                        >
+                                                            <MinusCircle size={14} /> Denda
                                                         </button>
                                                     </div>
 
                                                     {req.adjustment?.amount !== 0 && (
                                                         <div className="flex justify-between items-center bg-zinc-950 border border-zinc-800 p-2.5 rounded-xl shadow-sm mt-1">
                                                             <span className="text-[11px] text-amber-400 font-medium break-words pr-2">
-                                                                Total Adj: {req.adjustment?.reason} (${req.adjustment?.amount.toLocaleString()})
+                                                                Total Adj: {req.adjustment?.reason} ({req.adjustment?.amount > 0 ? '+' : ''}${req.adjustment?.amount.toLocaleString()})
                                                             </span>
                                                             <button 
-                                                                onClick={() => setManualAdjustments({ ...manualAdjustments, [req.id]: { amount: 0, reason: '' } })} 
+                                                                onClick={() => handleResetAdjustment(req.id)} 
                                                                 className="text-zinc-500 hover:text-red-400 bg-zinc-900 hover:bg-zinc-800 p-1.5 rounded-lg transition-colors border border-zinc-800 shrink-0"
-                                                                title="Reset Penyesuaian"
+                                                                title="Reset Seluruh Penyesuaian"
                                                             >
                                                                 <X size={14} />
                                                             </button>

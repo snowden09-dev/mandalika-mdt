@@ -12,19 +12,28 @@ const ROLE_PEMBEKUAN_ID = "1500842973259104276";
 export async function POST(req: Request) {
     try {
         const { userId } = await req.json();
+        
+        if (!userId) {
+            return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        }
+
         const botToken = process.env.DISCORD_BOT_TOKEN;
         const guildId = process.env.DISCORD_GUILD_ID;
 
-        const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}`, {
+        // Fetch data terbaru langsung dari Discord API (Bypassing cache)
+        const discordRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}`, {
             headers: { Authorization: `Bot ${botToken}` },
-            next: { revalidate: 0 }
+            cache: 'no-store'
         });
 
-        if (!res.ok) return NextResponse.json({ isPolice: false });
-        const member = await res.json();
+        if (!discordRes.ok) {
+            return NextResponse.json({ error: "Failed to fetch member from Discord", status: discordRes.status }, { status: 400 });
+        }
+
+        const member = await discordRes.json();
         const roles: string[] = member.roles || [];
 
-        // Ambil data user saat ini dari database untuk referensi cerdas
+        // Ambil data user saat ini dari database untuk referensi
         const { data: existingUser } = await supabaseAdmin
             .from('users')
             .select('divisi, jabatan')
@@ -54,7 +63,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. DAFTAR ROLE KADIV & WAKADIV (Urutan bebas, tidak ngaruh lagi)
+        // 2. DAFTAR ROLE KADIV & WAKADIV
         const KADIV_ROLES = [
             { divisi: "SABHARA", id: "1423067332389109801" },
             { divisi: "SATLANTAS", id: "1428104594252238998" },
@@ -71,7 +80,6 @@ export async function POST(req: Request) {
             { divisi: "SETUM", id: "1518415643022725201" },
         ];
 
-        // 3. DAFTAR ROLE DIVISI UTAMA (ANGGOTA)
         const DIVISI_ID = {
             PROPAM: "1458009275472281672",
             BRIMOB: "1417238500025040987",
@@ -83,7 +91,6 @@ export async function POST(req: Request) {
         let detectedJabatan = "ANGGOTA";
         let detectedDivisi = "NON DIVISI";
 
-        // --- SISTEM DETEKSI FLEKSIBEL (SMART FILTER) ---
         const matchedKadivs = KADIV_ROLES.filter(item => roles.includes(item.id));
         const matchedWakadivs = WAKADIV_ROLES.filter(item => roles.includes(item.id));
 
@@ -104,13 +111,12 @@ export async function POST(req: Request) {
             }
         }
 
-        // 4. DETEKSI STATUS PEMBEKUAN
+        // 3. DETEKSI STATUS PEMBEKUAN SECARA EKSPLISIT
         const isPembekuan = roles.includes(ROLE_PEMBEKUAN_ID);
-
         const isPolice = roles.includes("1393366590942085220");
 
         if (isPolice) {
-            await supabaseAdmin.from('users').upsert({
+            const { error: upsertError } = await supabaseAdmin.from('users').upsert({
                 id: userId,
                 discord_id: userId,
                 name: member.nick || member.user.username,
@@ -119,9 +125,13 @@ export async function POST(req: Request) {
                 divisi: detectedDivisi,
                 pangkat: detectedPangkat,
                 jabatan: detectedJabatan,
-                is_pembekuan: isPembekuan, // 🟢 UPDATE: Simpan status pembekuan ke Supabase
+                is_pembekuan: isPembekuan, // Memastikan nilai boolean ter-update ke database
                 last_login: new Date().toISOString(),
             }, { onConflict: 'discord_id' });
+
+            if (upsertError) {
+                console.error("Supabase Upsert Error:", upsertError);
+            }
         }
 
         return NextResponse.json({ 
@@ -129,11 +139,12 @@ export async function POST(req: Request) {
             divisi: detectedDivisi, 
             pangkat: detectedPangkat, 
             jabatan: detectedJabatan,
-            is_pembekuan: isPembekuan, // 🟢 UPDATE: Return status pembekuan
+            is_pembekuan: isPembekuan, 
             discord_id: userId 
         });
 
-    } catch (err) {
-        return NextResponse.json({ error: "Fail" }, { status: 500 });
+    } catch (err: any) {
+        console.error("API Check Role Error:", err);
+        return NextResponse.json({ error: err.message || "Fail" }, { status: 500 });
     }
 }

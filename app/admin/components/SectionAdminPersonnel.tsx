@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield, Search, Edit, UserMinus,
     ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock, TrendingUp, Zap,
-    Clock, Calendar, AlertTriangle
+    Clock, Calendar, AlertTriangle, Snowflake
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Image from 'next/image';
@@ -30,6 +30,7 @@ interface UserProfile {
     last_login?: string | null;
     is_highadmin: boolean;
     is_admin: boolean;
+    is_pembekuan?: boolean; // 🚀 Ditambahkan tipe untuk status pembekuan
     image?: string;
 }
 
@@ -80,7 +81,8 @@ export default function SectionAdminPersonnel() {
         point_prp: 0,
         total_jam_duty: 0,
         is_highadmin: false,
-        is_admin: false
+        is_admin: false,
+        is_pembekuan: false // 🚀 State form untuk pembekuan
     });
 
     const verifyAndFetch = useCallback(async () => {
@@ -201,6 +203,7 @@ export default function SectionAdminPersonnel() {
                 payload.total_jam_duty = Number(editForm.total_jam_duty || 0);
                 payload.is_highadmin = editForm.is_highadmin;
                 payload.is_admin = editForm.is_admin;
+                payload.is_pembekuan = editForm.is_pembekuan; // 🚀 Menyimpan data pembekuan
             }
 
             if (isAddMode) {
@@ -246,7 +249,8 @@ export default function SectionAdminPersonnel() {
             name: user.name || '', discord_id: user.discord_id || '',
             pangkat: user.pangkat || '', divisi: user.divisi || '',
             point_prp: user.point_prp || 0, total_jam_duty: Number(user.total_jam_duty || 0),
-            is_highadmin: user.is_highadmin || false, is_admin: user.is_admin || false
+            is_highadmin: user.is_highadmin || false, is_admin: user.is_admin || false,
+            is_pembekuan: user.is_pembekuan || false // 🚀 Load state pembekuan
         });
     };
 
@@ -261,11 +265,12 @@ export default function SectionAdminPersonnel() {
             point_prp: 0,
             total_jam_duty: 0,
             is_highadmin: false,
-            is_admin: false
+            is_admin: false,
+            is_pembekuan: false
         });
         setEditForm({
             name: '', discord_id: '', pangkat: 'CASIS', divisi: 'SABHARA',
-            point_prp: 0, total_jam_duty: 0, is_highadmin: false, is_admin: false
+            point_prp: 0, total_jam_duty: 0, is_highadmin: false, is_admin: false, is_pembekuan: false
         });
     };
 
@@ -373,31 +378,44 @@ export default function SectionAdminPersonnel() {
                             }
                         }
                         const cleanName = rawName.toUpperCase();
+                        
+                        // Menyesuaikan border jika sedang dibekukan
+                        const activeBorderClass = p.is_pembekuan ? "border border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]" : cardBorder;
 
                         return (
-                            <div key={p.id || p.discord_id} className={`bg-zinc-900 ${cardBorder} ${cardShadow} rounded-2xl flex flex-col overflow-hidden relative group`}>
-                                {/* BADGE HIGH ADMIN / WARNING LOGO */}
+                            <div key={p.id || p.discord_id} className={`bg-zinc-900 ${activeBorderClass} ${cardShadow} rounded-2xl flex flex-col overflow-hidden relative group transition-all`}>
+                                {/* 🚀 BADGES SECTION */}
                                 <div className="absolute top-3 right-3 flex flex-col gap-1 items-end z-10">
                                     {p.is_highadmin && <div className="bg-red-500/10 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Crown size={10} /> HIGH ADMIN</div>}
                                     {p.is_admin && !p.is_highadmin && <div className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Shield size={10} /> STAFF</div>}
                                     
+                                    {/* ❄️ LOGO PEMBEKUAN AKTIF */}
+                                    {p.is_pembekuan && (
+                                        <div 
+                                            title="Status: Dibekukan (Frozen)"
+                                            className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm animate-pulse"
+                                        >
+                                            <Snowflake size={10} /> DIBEKUKAN
+                                        </div>
+                                    )}
+
                                     {/* ⚠️ LOGO WARNING INAKTIF > 10 HARI */}
-                                    {isInactive && (
+                                    {isInactive && !p.is_pembekuan && (
                                         <div 
                                             title="Anggota tidak aktif >10 hari di web"
-                                            className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm animate-pulse"
+                                            className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"
                                         >
                                             <AlertTriangle size={10} /> INAKTIF &gt;10H
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="bg-zinc-950/70 p-4 flex gap-3.5 items-center border-b border-zinc-800/80 relative overflow-hidden">
-                                    <div className="w-12 h-12 shrink-0 border border-zinc-800 bg-zinc-900 overflow-hidden rounded-xl flex items-center justify-center relative z-10 shadow-inner">
+                                <div className={`bg-zinc-950/70 p-4 flex gap-3.5 items-center border-b border-zinc-800/80 relative overflow-hidden ${p.is_pembekuan ? "bg-cyan-950/10" : ""}`}>
+                                    <div className={`w-12 h-12 shrink-0 border ${p.is_pembekuan ? "border-cyan-500/40 grayscale" : "border-zinc-800"} bg-zinc-900 overflow-hidden rounded-xl flex items-center justify-center relative z-10 shadow-inner`}>
                                         {p.image ? <Image src={p.image} alt="User" width={48} height={48} className="object-cover w-full h-full" /> : <ShieldAlert size={20} className="text-zinc-600" />}
                                     </div>
                                     <div className="flex-1 min-w-0 pr-16 relative z-10">
-                                        <h3 className="font-extrabold text-xs uppercase truncate text-zinc-100">{cleanName}</h3>
+                                        <h3 className={`font-extrabold text-xs uppercase truncate ${p.is_pembekuan ? "text-cyan-100" : "text-zinc-100"}`}>{cleanName}</h3>
                                         <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight truncate mt-0.5">
                                             {p.pangkat} • #{badgeNumber} • {p.divisi || 'UNIT'}
                                         </p>
@@ -425,7 +443,7 @@ export default function SectionAdminPersonnel() {
                                             transition={{ duration: 1, ease: "easeOut" }}
                                             className={cn(
                                                 "h-full rounded-full",
-                                                promoProgress.isReady ? "bg-green-500" : "bg-red-600"
+                                                promoProgress.isReady ? "bg-green-500" : p.is_pembekuan ? "bg-cyan-600" : "bg-red-600"
                                             )}
                                         />
                                     </div>
@@ -466,7 +484,12 @@ export default function SectionAdminPersonnel() {
                                                 Last Login: <span className="text-zinc-200">{formatLastLogin(p.last_login)}</span>
                                             </span>
                                         </div>
-                                        {isInactive ? (
+                                        {p.is_pembekuan ? (
+                                            <div className="flex items-center gap-1 text-cyan-400 font-extrabold text-[9px] uppercase tracking-wider">
+                                                <Snowflake size={12} />
+                                                <span>FROZEN</span>
+                                            </div>
+                                        ) : isInactive ? (
                                             <div className="flex items-center gap-1 text-amber-400 font-extrabold text-[9px] uppercase tracking-wider" title="Anggota tidak aktif >10 hari di web">
                                                 <AlertTriangle size={12} className="animate-pulse" />
                                                 <span>INAKTIF</span>
@@ -561,7 +584,7 @@ export default function SectionAdminPersonnel() {
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-2.5 pt-1">
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
                                                 <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-all">
                                                     <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0 cursor-pointer" />
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-300">Akses Staff</span>
@@ -569,6 +592,10 @@ export default function SectionAdminPersonnel() {
                                                 <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-all">
                                                     <input type="checkbox" checked={editForm.is_highadmin} onChange={e => setEditForm({ ...editForm, is_highadmin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0 cursor-pointer" />
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-300">High Admin</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-cyan-700 transition-all">
+                                                    <input type="checkbox" checked={editForm.is_pembekuan} onChange={e => setEditForm({ ...editForm, is_pembekuan: e.target.checked })} className="w-3.5 h-3.5 accent-cyan-600 shrink-0 cursor-pointer" />
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400">Pembekuan</span>
                                                 </label>
                                             </div>
                                         </div>

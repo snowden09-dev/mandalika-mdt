@@ -36,9 +36,15 @@ export default function AbsenPage() {
     const currentDateStr = getLocalDateString(now);
     const currentTimeStr = now.toTimeString().slice(0, 5);
 
+    // Batas Duty H-2
     const minDateObj = new Date();
-    minDateObj.setDate(now.getDate() - 2); // UPDATE: Maksimal 2 hari ke belakang
+    minDateObj.setDate(now.getDate() - 2); 
     const minDateStr = getLocalDateString(minDateObj);
+
+    // UPDATE: Batas Cuti H-4
+    const minDateCutiObj = new Date();
+    minDateCutiObj.setDate(now.getDate() - 4);
+    const minDateCutiStr = getLocalDateString(minDateCutiObj);
 
     // Identitas Pengguna
     const [identity, setIdentity] = useState({
@@ -54,8 +60,8 @@ export default function AbsenPage() {
     // Form State untuk Presensi Duty
     const [dutyForm, setDutyForm] = useState({
         tanggal: currentDateStr,
-        jam_duty: '', // UPDATE: Dikosongkan
-        jam_off_duty: currentTimeStr, // UPDATE: Diisi dengan waktu saat ini
+        jam_duty: '', 
+        jam_off_duty: currentTimeStr, 
         catatan_duty: '',
         bukti_foto_urls: [] as string[],
         kategori_presensi: 'OPERASIONAL'
@@ -215,7 +221,7 @@ export default function AbsenPage() {
                 }
                 if (dutyForm.tanggal < minDateStr) {
                     setIsSubmitting(false);
-                    return toast.error("Batas maksimal presensi mundur adalah 2 hari ke belakang!", { id: tId }); // UPDATE
+                    return toast.error("Batas maksimal presensi mundur adalah 2 hari ke belakang!", { id: tId });
                 }
 
                 if (dutyForm.bukti_foto_urls.length < 2) {
@@ -326,6 +332,13 @@ export default function AbsenPage() {
                     setIsSubmitting(false);
                     return toast.error("Tanggal selesai wajib diisi!", { id: tId });
                 }
+                
+                // UPDATE: Validasi Batas H-4
+                if (cutiForm.tanggal_mulai < minDateCutiStr) {
+                    setIsSubmitting(false);
+                    return toast.error("Batas maksimal pengajuan mundur (backdate) adalah 4 hari ke belakang!", { id: tId });
+                }
+
                 if (!cutiForm.alasan) {
                     setIsSubmitting(false);
                     return toast.error("Alasan wajib diisi!", { id: tId });
@@ -596,6 +609,7 @@ export default function AbsenPage() {
                                         </label>
                                         <input
                                             type="date"
+                                            min={minDateCutiStr} // UPDATE: Batas maksimal H-4
                                             value={cutiForm.tanggal_mulai}
                                             onChange={(e) => setCutiForm({ ...cutiForm, tanggal_mulai: e.target.value })}
                                             className={inputStyle}
@@ -607,6 +621,7 @@ export default function AbsenPage() {
                                         </label>
                                         <input
                                             type="date"
+                                            min={cutiForm.tanggal_mulai || minDateCutiStr} // Dinamis mengikuti tanggal mulai
                                             value={cutiForm.tanggal_selesai}
                                             onChange={(e) => setCutiForm({ ...cutiForm, tanggal_selesai: e.target.value })}
                                             className={inputStyle}

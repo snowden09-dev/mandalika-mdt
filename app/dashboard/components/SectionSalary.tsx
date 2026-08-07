@@ -341,6 +341,31 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
                 setIsVerifying(false); return;
             }
 
+            // =================================================================
+            // 🚀 VALIDASI WAJIB DUTY: Tolak jika tidak ada aktivitas di periode ini
+            // =================================================================
+            const { count: dutyCount, error: dutyError } = await supabase
+                .from('laporan_aktivitas')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id_discord', String(targetId))
+                .gte('created_at', startStr)
+                .lte('created_at', endStr);
+
+            if (dutyError) {
+                console.error("Supabase Duty Check Error:", dutyError);
+                showNotif("SISTEM ERROR", "Gagal memverifikasi data aktivitas duty Anda.", "ERROR");
+                setIsVerifying(false);
+                return;
+            }
+
+            // Jika record laporan_aktivitas pada tanggal tersebut kosong (0)
+            if (!dutyCount || dutyCount === 0) {
+                showNotif("PENGAJUAN DITOLAK", "ga duty kok mau ambil gaji", "ERROR");
+                setIsVerifying(false);
+                return;
+            }
+            // =================================================================
+
             // 💡 PAYLOAD DISESUAIKAN DENGAN TABEL PENGAJUAN_GAJI & USERS
             const payload = {
                 user_id_discord: String(targetId),
@@ -489,7 +514,7 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
             <div className="md:col-span-5 bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl flex flex-col text-zinc-100">
                 <div className="flex justify-between items-center mb-5 border-b border-zinc-800 pb-4">
                     <h3 className="font-semibold text-sm tracking-wide uppercase text-zinc-200 flex items-center gap-2">
-                        <Receipt size={18} className="text-red-500" /> PERIODE (WIB)
+                        <Receipt size={18} className="text-red-500" /> PERIODE
                     </h3>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold uppercase tracking-wider bg-zinc-800 text-zinc-200 px-3 py-1.5 rounded-lg border border-zinc-700/50">

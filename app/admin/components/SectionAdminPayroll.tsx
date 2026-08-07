@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import QRCode from "react-qr-code";
 import {
-    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Copy, Check, Clock, Award, MinusCircle
+    Trash2, Eye, X, AlertOctagon, Database, Loader2, Send, FileSpreadsheet, PlusCircle, ChevronLeft, ChevronRight, Filter, Gift, Info, ChevronDown, ChevronUp, Shield, Check, Clock, Award, MinusCircle
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, eachDayOfInterval } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -117,6 +117,8 @@ type SlipData = PayrollRequest & {
     isWakadiv: boolean;
     bonusJabatan: number;
     bonusJabatanLabel: string;
+    bonusAbsensi: number;
+    bonusAbsensiLabel: string;
     tilangCount: number;
     isTargetMet: boolean;
     isPetinggi: boolean;
@@ -436,7 +438,9 @@ export default function SectionAdminPayroll() {
                     potonganCuti: extractLegacy('CUTI'),
                     totalPotongan: extractLegacy('ALPH') + extractLegacy('CUTI'),
                     adjustment: { amount: legacyAdj, reason: extractReason() },
-                    finalGaji: Number(req.jumlah_gaji)
+                    finalGaji: Number(req.jumlah_gaji),
+                    bonusAbsensi: 0, 
+                    bonusAbsensiLabel: ''
                 };
             }
 
@@ -455,10 +459,23 @@ export default function SectionAdminPayroll() {
                 else if (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) earnedBonus += 50000;
             }
 
-            const baseGajiSubmit = baseGajiPokok + earnedBonus;
+            // AUTO BONUS ABSENSI
+            let bonusAbsensi = 0;
+            let bonusAbsensiLabel = '';
 
-            const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGajiPokok * 0.05));
-            const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGajiPokok * 0.02));
+            if (hadirCount === daysInPeriod.length && daysInPeriod.length > 0) {
+                bonusAbsensi = 50000;
+                bonusAbsensiLabel = 'Bonus Absen Rajin';
+            } else if (hadirCount > 0) {
+                bonusAbsensi = 35000;
+                bonusAbsensiLabel = 'Bonus Absen Bolong';
+            }
+
+            const baseGajiSubmit = baseGajiPokok + earnedBonus + bonusAbsensi;
+
+            // UPDATE PERSENTASE POTONGAN
+            const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGajiPokok * 0.10));
+            const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGajiPokok * 0.05));
             const totalPotongan = potonganAlpha + potonganCuti;
 
             const adjustment = manualAdjustments[req.id] || { amount: 0, reason: 'Penyesuaian Manual' };
@@ -468,6 +485,7 @@ export default function SectionAdminPayroll() {
                 ...req, hadir: hadirCount, cuti: cutiCount, alpha: alphaCount,
                 total_hari: daysInPeriod.length, tilangCount: tilangData.length,
                 totalDutyHours, is100HoursDuty, isKadiv, isWakadiv, bonusJabatan, bonusJabatanLabel,
+                bonusAbsensi, bonusAbsensiLabel,
                 isTargetMet, isPetinggi, cleanName, badgeNumber,
                 baseGaji: baseGajiSubmit,
                 potonganAlpha, potonganCuti, totalPotongan, adjustment, finalGaji
@@ -974,8 +992,15 @@ export default function SectionAdminPayroll() {
                                                 </div>
                                             )}
 
-                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-red-400"><span>Potongan Alpha (5% x {req.alpha})</span><span className="font-mono">- ${req.potonganAlpha.toLocaleString()}</span></div>}
-                                            {req.potonganCuti > 0 && <div className="flex justify-between text-amber-400"><span>Potongan Cuti (2% x {req.cuti})</span><span className="font-mono">- ${req.potonganCuti.toLocaleString()}</span></div>}
+                                            {req.bonusAbsensi > 0 && (
+                                                <div className="flex justify-between text-emerald-400 font-medium">
+                                                    <span className="flex items-center gap-1"><Check size={12} /> {req.bonusAbsensiLabel} (Auto)</span>
+                                                    <span className="font-mono">+ ${req.bonusAbsensi.toLocaleString()}</span>
+                                                </div>
+                                            )}
+
+                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-red-400"><span>Potongan Alpha (10% x {req.alpha})</span><span className="font-mono">- ${req.potonganAlpha.toLocaleString()}</span></div>}
+                                            {req.potonganCuti > 0 && <div className="flex justify-between text-amber-400"><span>Potongan Cuti (5% x {req.cuti})</span><span className="font-mono">- ${req.potonganCuti.toLocaleString()}</span></div>}
                                             {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-emerald-400"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
 
                                             {req.adjustment?.amount !== 0 && (
@@ -1234,15 +1259,22 @@ export default function SectionAdminPayroll() {
                                 </div>
                             )}
 
+                            {currentSlipData.bonusAbsensi > 0 && (
+                                <div className="flex justify-between items-center text-emerald-400">
+                                    <span>{currentSlipData.bonusAbsensiLabel} (Auto)</span>
+                                    <span className="font-mono">+ ${currentSlipData.bonusAbsensi.toLocaleString()}</span>
+                                </div>
+                            )}
+
                             {currentSlipData.potonganAlpha > 0 && (
                                 <div className="flex justify-between items-center text-red-400">
-                                    <span>Potongan Alpha (5%)</span>
+                                    <span>Potongan Alpha (10%)</span>
                                     <span className="font-mono">- ${currentSlipData.potonganAlpha.toLocaleString()}</span>
                                 </div>
                             )}
                             {currentSlipData.potonganCuti > 0 && (
                                 <div className="flex justify-between items-center text-amber-400">
-                                    <span>Potongan Cuti (2%)</span>
+                                    <span>Potongan Cuti (5%)</span>
                                     <span className="font-mono">- ${currentSlipData.potonganCuti.toLocaleString()}</span>
                                 </div>
                             )}

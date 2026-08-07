@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import {
     Zap, Clock, FileText, Award, Radar, Fingerprint, Target,
     Activity, Crosshair, HelpCircle, GraduationCap, Star,
-    ArrowRight
+    ArrowRight, ShieldAlert
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import TacticalTransition from './TacticalTransition';
@@ -23,6 +23,7 @@ interface UserData {
     total_jam_duty?: number;
     divisi?: string;
     roles?: string | string[];
+    is_pembekuan?: boolean; // 🟢 Ditambahkan field pembekuan
     [key: string]: unknown;
 }
 
@@ -85,7 +86,6 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
     // FETCH & SYNC DATA (Database Source of Truth & Realtime)
     useEffect(() => {
-        // Ambil Discord ID dari realtimeData prop, atau fallback ke localStorage
         const sessionData = localStorage.getItem('police_session');
         const parsedSession = sessionData ? JSON.parse(sessionData) : {};
         const discordId = realtimeData?.discord_id || parsedSession?.discord_id;
@@ -138,7 +138,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         syncFreshData();
 
-        // REALTIME LISTENER: Supaya Jam Duty terupdate langsung di UI saat berubah di DB
+        // REALTIME LISTENER
         const channel = supabase
             .channel('realtime_user_stats')
             .on('postgres_changes', {
@@ -150,9 +150,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 const newData = payload.new as UserData;
                 
                 setUserData(prev => {
-                    // Cek jika update terjadi di backend dan menyebabkan pangkat berubah
                     if (prev.pangkat && newData.pangkat && prev.pangkat.toUpperCase() !== newData.pangkat.toUpperCase()) {
-                        // Memastikan jika dirubah paksa dari db, frontend mendeteksi dan trigger reset jam
                         supabase.from('users').update({ point_prp: 0, total_jam_duty: 0 }).eq('discord_id', discordId);
                         
                         toast.info(`Status Pangkat Diperbarui: ${newData.pangkat}`, {
@@ -219,6 +217,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
+    const isPembekuan = Boolean(userData.is_pembekuan); // 🟢 Status Pembekuan
     const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' && userData.divisi.toUpperCase() !== 'NON DIVISI' ? userData.divisi : null;
 
     const TARGET_TILANG = 15;
@@ -272,10 +271,19 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                     </h1>
 
                     <div className="flex flex-wrap gap-2">
+                        {/* Pangkat */}
                         <span className={glassPill}>
                             <Award size={14} className="text-blue-400" />
                             {userData.pangkat || 'NO RANK'}
                         </span>
+
+                        {/* 🟢 Status Pembekuan (Sejajar dengan Pangkat) */}
+                        {isPembekuan && (
+                            <span className="bg-red-500/15 border border-red-500/30 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] md:text-xs font-semibold text-red-400 flex items-center gap-1.5 shadow-sm shadow-red-950/50">
+                                <ShieldAlert size={14} className="text-red-400 animate-pulse" />
+                                Dibekukan
+                            </span>
+                        )}
 
                         {parsedName.badgeNumber && (
                             <span className={glassPill}>

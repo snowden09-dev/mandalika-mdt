@@ -77,7 +77,11 @@ export default function SectionAdminSystem() {
         setIsAuthorized(true);
         if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
-        const { data: users } = await supabase.from('users').select('discord_id, name, pangkat, divisi, is_highadmin').order('pangkat', { ascending: false });
+        // 🟢 UPDATE: Menambahkan `is_pembekuan` ke dalam query select
+        const { data: users } = await supabase
+            .from('users')
+            .select('discord_id, name, pangkat, divisi, is_highadmin, is_pembekuan')
+            .order('pangkat', { ascending: false });
         if (users) setPersonnel(users);
 
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
@@ -93,10 +97,12 @@ export default function SectionAdminSystem() {
 
     // --- 📡 LOGIKA RADAR: DETEKSI RANTAI ALPHA 4 HARI BERUNTUN ---
     const inactiveStats = useMemo(() => {
+        // 🟢 UPDATE: Mengecualikan anggota yang is_pembekuan === true agar kebal radar
         const regularPersonnel = personnel.filter(p => {
             const isHigh = p.is_highadmin === true;
             const isTopRank = EXCLUDED_RANKS.includes(p.pangkat?.toUpperCase());
-            return !isHigh && !isTopRank;
+            const isPembekuan = p.is_pembekuan === true;
+            return !isHigh && !isTopRank && !isPembekuan;
         });
 
         const inactive7: any[] = [];
@@ -204,7 +210,6 @@ export default function SectionAdminSystem() {
     const executeDeleteSingle = async () => {
         const tId = toast.loading("Menghapus data spesifik...");
         try {
-            // Jika data presensi duty yang dihapus, bersihkan foto-fotonya di Storage dulu
             if (confirmModal.data?.table === 'presensi_duty' && confirmModal.data?.id) {
                 const { data: dutyItem } = await supabase
                     .from('presensi_duty')
@@ -249,14 +254,12 @@ export default function SectionAdminSystem() {
         const tId = toast.loading("Menghapus foto dari storage & database...");
 
         try {
-            // 1. Hapus file dari Supabase Storage
             const filePath = extractStoragePath(currentPhotoUrl);
             if (filePath) {
                 const { error: storageErr } = await supabase.storage.from('bukti-absen').remove([filePath]);
                 if (storageErr) console.warn("Peringatan Storage:", storageErr);
             }
 
-            // 2. Update array foto di Supabase Database
             const updatedPhotos = photoGallery.photos.filter((_, i) => i !== photoGallery.index);
             
             const { error: dbErr } = await supabase
@@ -268,7 +271,6 @@ export default function SectionAdminSystem() {
 
             toast.success("Foto berhasil dihapus!", { id: tId });
 
-            // 3. Update state lokal
             if (updatedPhotos.length === 0) {
                 setPhotoGallery(null);
             } else {
@@ -382,7 +384,6 @@ export default function SectionAdminSystem() {
                         </thead>
                         <tbody>
                             {personnel.map((p) => {
-                                // 🚀 PARSING LOGIC: Pisah Nama dan Badge
                                 let rawName = p.name || 'UNKNOWN';
                                 if (rawName.includes('|')) {
                                     rawName = rawName.split('|').pop()?.trim() || rawName;
@@ -405,7 +406,16 @@ export default function SectionAdminSystem() {
                                     <tr key={p.discord_id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group">
                                         <td className="p-4 border-r border-zinc-800/80 font-bold sticky left-0 bg-zinc-900 group-hover:bg-zinc-900/95 z-10 transition-colors shadow-[2px_0px_5px_rgba(0,0,0,0.3)]">
                                             <p className="text-xs uppercase leading-tight text-zinc-100">{cleanName}</p>
-                                            <p className="text-[10px] font-semibold text-red-500 uppercase tracking-tight mt-0.5">{p.pangkat} • #{badgeNumber}</p>
+                                            
+                                            {/* 🟢 UPDATE: Badge Indikator Pembekuan */}
+                                            <p className="text-[10px] font-semibold text-red-500 uppercase tracking-tight mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                                <span>{p.pangkat} • #{badgeNumber}</span>
+                                                {p.is_pembekuan && (
+                                                    <span className="bg-cyan-900/40 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 rounded text-[8px] font-bold">
+                                                        PEMBEKUAN
+                                                    </span>
+                                                )}
+                                            </p>
                                         </td>
                                         {daysInWeek.map((day, idx) => {
                                             const status = getDayStatus(p.discord_id, day);
@@ -544,7 +554,6 @@ export default function SectionAdminSystem() {
                                         Foto {photoGallery.index + 1} dari {photoGallery.photos.length}
                                     </span>
 
-                                    {/* TOMBOL HAPUS FOTO INDIVIDUAL */}
                                     {photoGallery.dutyId && (
                                         <button
                                             disabled={isDeletingPhoto}

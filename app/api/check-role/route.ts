@@ -6,6 +6,9 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// ID Role Pembekuan
+const ROLE_PEMBEKUAN_ID = "1500842973259104276";
+
 export async function POST(req: Request) {
     try {
         const { userId } = await req.json();
@@ -86,7 +89,6 @@ export async function POST(req: Request) {
 
         if (matchedKadivs.length > 0) {
             detectedJabatan = "KADIV";
-            // Ambil yang cocok dengan database sebelumnya, atau ambil role pertama yang ditemukan secara dinamis
             const active = matchedKadivs.find(k => k.divisi === existingUser?.divisi) || matchedKadivs[0];
             detectedDivisi = active.divisi;
         } else if (matchedWakadivs.length > 0) {
@@ -94,7 +96,6 @@ export async function POST(req: Request) {
             const active = matchedWakadivs.find(w => w.divisi === existingUser?.divisi) || matchedWakadivs[0];
             detectedDivisi = active.divisi;
         } else {
-            // Jika bukan Kadiv/Wakadiv, cek Divisi biasa
             for (const [name, id] of Object.entries(DIVISI_ID)) {
                 if (roles.includes(id)) { 
                     detectedDivisi = name; 
@@ -102,6 +103,9 @@ export async function POST(req: Request) {
                 }
             }
         }
+
+        // 4. DETEKSI STATUS PEMBEKUAN
+        const isPembekuan = roles.includes(ROLE_PEMBEKUAN_ID);
 
         const isPolice = roles.includes("1393366590942085220");
 
@@ -115,6 +119,7 @@ export async function POST(req: Request) {
                 divisi: detectedDivisi,
                 pangkat: detectedPangkat,
                 jabatan: detectedJabatan,
+                is_pembekuan: isPembekuan, // 🟢 UPDATE: Simpan status pembekuan ke Supabase
                 last_login: new Date().toISOString(),
             }, { onConflict: 'discord_id' });
         }
@@ -124,6 +129,7 @@ export async function POST(req: Request) {
             divisi: detectedDivisi, 
             pangkat: detectedPangkat, 
             jabatan: detectedJabatan,
+            is_pembekuan: isPembekuan, // 🟢 UPDATE: Return status pembekuan
             discord_id: userId 
         });
 

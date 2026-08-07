@@ -77,7 +77,7 @@ export default function SectionAdminSystem() {
         setIsAuthorized(true);
         if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
-        // 🟢 UPDATE: Menambahkan `is_pembekuan` ke dalam query select
+        // Fetch users beserta field is_pembekuan
         const { data: users } = await supabase
             .from('users')
             .select('discord_id, name, pangkat, divisi, is_highadmin, is_pembekuan')
@@ -97,7 +97,7 @@ export default function SectionAdminSystem() {
 
     // --- 📡 LOGIKA RADAR: DETEKSI RANTAI ALPHA 4 HARI BERUNTUN ---
     const inactiveStats = useMemo(() => {
-        // 🟢 UPDATE: Mengecualikan anggota yang is_pembekuan === true agar kebal radar
+        // Mengecualikan anggota yang is_pembekuan === true agar kebal radar
         const regularPersonnel = personnel.filter(p => {
             const isHigh = p.is_highadmin === true;
             const isTopRank = EXCLUDED_RANKS.includes(p.pangkat?.toUpperCase());
@@ -206,7 +206,6 @@ export default function SectionAdminSystem() {
         }
     };
 
-    // 🗑️ HAPUS SATUAN BARIS DATA (Sertakan Hapus Foto Storage)
     const executeDeleteSingle = async () => {
         const tId = toast.loading("Menghapus data spesifik...");
         try {
@@ -245,7 +244,6 @@ export default function SectionAdminSystem() {
         verifyAndFetch();
     };
 
-    // 🗑️ HAPUS FOTO SPESIFIK LANGSUNG DARI MODAL GALLERY
     const handleDeletePhotoFromGallery = async () => {
         if (!photoGallery || !photoGallery.dutyId) return;
         
@@ -407,7 +405,7 @@ export default function SectionAdminSystem() {
                                         <td className="p-4 border-r border-zinc-800/80 font-bold sticky left-0 bg-zinc-900 group-hover:bg-zinc-900/95 z-10 transition-colors shadow-[2px_0px_5px_rgba(0,0,0,0.3)]">
                                             <p className="text-xs uppercase leading-tight text-zinc-100">{cleanName}</p>
                                             
-                                            {/* 🟢 UPDATE: Badge Indikator Pembekuan */}
+                                            {/* Badge Indikator Pembekuan */}
                                             <p className="text-[10px] font-semibold text-red-500 uppercase tracking-tight mt-0.5 flex items-center gap-1.5 flex-wrap">
                                                 <span>{p.pangkat} • #{badgeNumber}</span>
                                                 {p.is_pembekuan && (
@@ -472,13 +470,24 @@ export default function SectionAdminSystem() {
                                                             )}
                                                         </>
                                                     ) : (
+                                                        /* --- 🟢 UPDATE: STATUS DALAM MODE ANALISIS SINGKAT --- */
                                                         <div className="flex justify-center items-center h-full">
-                                                            {status.type === 'DUTY' ? (
-                                                                <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">DUTY</div>
+                                                            {p.is_pembekuan ? (
+                                                                <div className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">
+                                                                    P/PEMBEKUAN
+                                                                </div>
+                                                            ) : status.type === 'DUTY' ? (
+                                                                <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">
+                                                                    DUTY
+                                                                </div>
                                                             ) : status.type === 'CUTI' ? (
-                                                                <div className="bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">CUTI</div>
+                                                                <div className="bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">
+                                                                    CUTI
+                                                                </div>
                                                             ) : (
-                                                                <div className="bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">ALPHA</div>
+                                                                <div className="bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-[10px] py-1.5 px-3 rounded-lg uppercase tracking-wider">
+                                                                    ALPHA
+                                                                </div>
                                                             )}
                                                         </div>
                                                     )}

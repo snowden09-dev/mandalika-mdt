@@ -31,13 +31,13 @@ export default function AbsenPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
 
-    // Setup Waktu & Batas Tanggal (Maks hari ini, Min H-3, Tidak boleh masa depan)
+    // Setup Waktu & Batas Tanggal (Maks hari ini, Min H-2, Tidak boleh masa depan)
     const now = new Date();
     const currentDateStr = getLocalDateString(now);
     const currentTimeStr = now.toTimeString().slice(0, 5);
 
     const minDateObj = new Date();
-    minDateObj.setDate(now.getDate() - 3);
+    minDateObj.setDate(now.getDate() - 2); // UPDATE: Maksimal 2 hari ke belakang
     const minDateStr = getLocalDateString(minDateObj);
 
     // Identitas Pengguna
@@ -54,8 +54,8 @@ export default function AbsenPage() {
     // Form State untuk Presensi Duty
     const [dutyForm, setDutyForm] = useState({
         tanggal: currentDateStr,
-        jam_duty: currentTimeStr,
-        jam_off_duty: '',
+        jam_duty: '', // UPDATE: Dikosongkan
+        jam_off_duty: currentTimeStr, // UPDATE: Diisi dengan waktu saat ini
         catatan_duty: '',
         bukti_foto_urls: [] as string[],
         kategori_presensi: 'OPERASIONAL'
@@ -208,14 +208,14 @@ export default function AbsenPage() {
                     return toast.error("Jam duty wajib diisi!", { id: tId });
                 }
 
-                // Validasi rentang tanggal: Maksimal hari ini, Minimal H-3, Tidak boleh masa depan
+                // Validasi rentang tanggal: Maksimal hari ini, Minimal H-2, Tidak boleh masa depan
                 if (dutyForm.tanggal > currentDateStr) {
                     setIsSubmitting(false);
                     return toast.error("Tidak dapat melakukan presensi untuk tanggal di masa depan!", { id: tId });
                 }
                 if (dutyForm.tanggal < minDateStr) {
                     setIsSubmitting(false);
-                    return toast.error("Batas maksimal presensi mundur adalah 3 hari ke belakang!", { id: tId });
+                    return toast.error("Batas maksimal presensi mundur adalah 2 hari ke belakang!", { id: tId }); // UPDATE
                 }
 
                 if (dutyForm.bukti_foto_urls.length < 2) {
@@ -242,7 +242,7 @@ export default function AbsenPage() {
                     return toast.error(`Penolakan Otomatis: Anda sudah memiliki data presensi pada tanggal ${dutyForm.tanggal}!`, { id: tId });
                 }
 
-                // 🛡️ SECURITY 2: Cek apakah pada tanggal tersebut user memiliki data cuti/izin yang tercatat di database[cite: 7]
+                // 🛡️ SECURITY 2: Cek apakah pada tanggal tersebut user memiliki data cuti/izin yang tercatat di database
                 const { data: existingCuti, error: checkCutiErr } = await supabase
                     .from('pengajuan_cuti')
                     .select('id, status, tanggal_mulai, tanggal_selesai')
@@ -446,10 +446,10 @@ export default function AbsenPage() {
                                 exit={{ opacity: 0, y: -10 }}
                                 className="space-y-4"
                             >
-                                {/* TANGGAL (Maksimal hari ini, Minimal H-3, Tidak bisa pilih masa depan) */}
+                                {/* TANGGAL (Maksimal hari ini, Minimal H-2, Tidak bisa pilih masa depan) */}
                                 <div className="space-y-2">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 italic flex items-center gap-2">
-                                        <Calendar size={12} className="text-red-500" /> Tanggal Duty (Maks H-3 s/d Hari Ini)
+                                        <Calendar size={12} className="text-red-500" /> Tanggal Duty (Maks H-2 s/d Hari Ini)
                                     </label>
                                     <input
                                         type="date"

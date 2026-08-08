@@ -23,9 +23,9 @@ interface UserData {
     total_jam_duty?: number;
     divisi?: string;
     roles?: string | string[];
-    is_pembekuan?: boolean; // 泙 Ditambahkan field pembekuan
-    is_kadiv?: boolean;     // 🌟 Ditambahkan field KADIV
-    is_wakadiv?: boolean;   // 🌟 Ditambahkan field WAKADIV
+    is_pembekuan?: boolean; 
+    is_kadiv?: boolean;     
+    is_wakadiv?: boolean;   
     [key: string]: unknown;
 }
 
@@ -64,7 +64,22 @@ const PETINGGI_ROLE_ID = "1449382385090166844";
 export default function SectionHome({ nickname, realtimeData }: SectionHomeProps) {
     const router = useRouter();
 
-    const [userData, setUserData] = useState<UserData>(realtimeData);
+    // Inisialisasi state dengan prioritas session lokal terbaru, fallback ke realtimeData
+    const [userData, setUserData] = useState<UserData>(() => {
+        if (typeof window !== 'undefined') {
+            const sessionData = localStorage.getItem('police_session');
+            if (sessionData) {
+                try {
+                    const parsed = JSON.parse(sessionData);
+                    return { ...realtimeData, ...parsed };
+                } catch (e) {
+                    // Ignore JSON parse error
+                }
+            }
+        }
+        return realtimeData;
+    });
+
     const [navState, setNavState] = useState<{ active: boolean, type: 'STAR' | 'COMPUTER' }>({
         active: false,
         type: 'STAR'
@@ -96,14 +111,18 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         const syncFreshData = async () => {
             try {
-                // Tunggu proses API check-role selesai melakukan update data ke database secara sinkron
-                await fetch('/api/check-role', {
+                // 1. Panggil API check-role untuk memaksa sinkronisasi Discord ke database
+                const res = await fetch('/api/check-role', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: discordId })
                 });
 
-                // Fetch Database Terkini setelah API selesai memperbarui tabel
+                if (!res.ok) {
+                    console.error("Gagal melakukan sinkronisasi role via API");
+                }
+
+                // 2. Fetch Database Terkini setelah API selesai memperbarui tabel
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')
@@ -111,7 +130,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                     .single();
 
                 if (data && !error) {
-                    const finalData = { ...data };
+                    let finalData = { ...data };
                     const newRank = data.pangkat?.toUpperCase();
                     const oldRank = parsedSession.pangkat?.toUpperCase() || realtimeData.pangkat?.toUpperCase();
 
@@ -130,6 +149,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                         });
                     }
 
+                    // 3. Simpan ke state dan localStorage agar UI langsung merespons data terbaru
                     setUserData(finalData);
                     localStorage.setItem('police_session', JSON.stringify({ ...parsedSession, ...finalData }));
                 }
@@ -140,7 +160,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         syncFreshData();
 
-        // REALTIME LISTENER
+        // REALTIME LISTENER SUPABASE
         const channel = supabase
             .channel('realtime_user_stats')
             .on('postgres_changes', {
@@ -152,15 +172,18 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                 const newData = payload.new as UserData;
                 
                 setUserData(prev => {
+                    const updated = { ...prev, ...newData };
                     if (prev.pangkat && newData.pangkat && prev.pangkat.toUpperCase() !== newData.pangkat.toUpperCase()) {
                         supabase.from('users').update({ point_prp: 0, total_jam_duty: 0 }).eq('discord_id', discordId);
                         
                         toast.info(`Status Pangkat Diperbarui: ${newData.pangkat}`, {
                             description: "Sistem mereset PRP dan Duty untuk role baru."
                         });
-                        return { ...prev, ...newData, point_prp: 0, total_jam_duty: 0 };
+                        updated.point_prp = 0;
+                        updated.total_jam_duty = 0;
                     }
-                    return { ...prev, ...newData };
+                    localStorage.setItem('police_session', JSON.stringify(updated));
+                    return updated;
                 });
             })
             .subscribe();
@@ -168,7 +191,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [realtimeData]);
+    }, []);
 
     const handleAction = (path: string, type: 'STAR' | 'COMPUTER') => {
         setNavState({ active: true, type });
@@ -220,8 +243,8 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
     const isPembekuan = Boolean(userData.is_pembekuan); 
-    const isKadiv = Boolean(userData.is_kadiv);       // 🌟 Cek status Kadiv
-    const isWakadiv = Boolean(userData.is_wakadiv);   // 🌟 Cek status Wakadiv
+    const isKadiv = Boolean(userData.is_kadiv);       
+    const isWakadiv = Boolean(userData.is_wakadiv);   
     const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' && userData.divisi.toUpperCase() !== 'NON DIVISI' ? userData.divisi : null;
 
     const TARGET_TILANG = 15;
@@ -301,7 +324,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                             </span>
                         )}
 
-                        {/* 🌟 Lencana KADIV */}
+                        {/* Lencana KADIV */}
                         {isKadiv && (
                             <span className="bg-purple-500/15 border border-purple-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-purple-400 flex items-center gap-1.5 shadow-sm shadow-purple-900/20">
                                 <Star size={14} className="fill-purple-400" />
@@ -309,7 +332,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                             </span>
                         )}
 
-                        {/* 🌟 Lencana WAKADIV */}
+                        {/* Lencana WAKADIV */}
                         {isWakadiv && (
                             <span className="bg-indigo-500/15 border border-indigo-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-indigo-400 flex items-center gap-1.5 shadow-sm shadow-indigo-900/20">
                                 <Star size={14} className="fill-indigo-400" />

@@ -338,15 +338,18 @@ export default function SectionAdminPayroll() {
                 }
             }
 
-            // 2. AUTO DETECT KADIV / WAKADIV DARI ROLE ID & TEKS
+            // 2. BACA STATUS KADIV / WAKADIV LANGSUNG DARI DATABASE USERS (is_kadiv / is_wakadiv true/false) DENGAN FALLBACK ROLE/TEKS[cite: 4]
+            const isKadivFromDb = userObj?.is_kadiv === true;
+            const isWakadivFromDb = userObj?.is_wakadiv === true;
+
             const isKadivRole = kadivIds.some(id => userRolesArr.includes(id));
             const isWakadivRole = wakadivIds.some(id => userRolesArr.includes(id));
 
             const isKadivText = (req.pangkat || "").toUpperCase().includes('KADIV') || (userObj?.jabatan || "").toUpperCase().includes('KADIV') || (userObj?.pangkat || "").toUpperCase().includes('KADIV');
             const isWakadivText = (req.pangkat || "").toUpperCase().includes('WAKADIV') || (userObj?.jabatan || "").toUpperCase().includes('WAKADIV') || (userObj?.pangkat || "").toUpperCase().includes('WAKADIV');
 
-            const isKadiv = Boolean(userObj?.is_kadiv) || isKadivRole || isKadivText;
-            const isWakadiv = !isKadiv && (Boolean(userObj?.is_wakadiv) || isWakadivRole || isWakadivText);
+            const isKadiv = isKadivFromDb || isKadivRole || isKadivText;
+            const isWakadiv = !isKadiv && (isWakadivFromDb || isWakadivRole || isWakadivText);
 
             let bonusJabatan = 0;
             let bonusJabatanLabel = '';
@@ -484,7 +487,7 @@ export default function SectionAdminPayroll() {
 
             const baseGajiSubmit = baseGajiPokok + earnedBonus + bonusAbsensi;
 
-            // 🛑 LOGIKA POTONGAN NON-AKUMULASI (Flat 1x jika alpha/cuti > 0)[cite: 5]
+            // 🛑 LOGIKA POTONGAN NON-AKUMULASI (Flat 1x jika alpha/cuti > 0)
             const potonganAlpha = isPetinggi ? 0 : (alphaCount > 0 ? Math.round(baseGajiPokok * 0.10) : 0);
             const potonganCuti = isPetinggi ? 0 : (cutiCount > 0 ? Math.round(baseGajiPokok * 0.05) : 0);
             const totalPotongan = potonganAlpha + potonganCuti;
@@ -991,7 +994,7 @@ export default function SectionAdminPayroll() {
 
                                             {req.bonusJabatan > 0 && (
                                                 <div className="flex justify-between text-emerald-400 font-medium">
-                                                    <span className="flex items-center gap-1"><Award size={12} /> {req.bonusJabatanLabel} (Auto Role)</span>
+                                                    <span className="flex items-center gap-1"><Award size={12} /> {req.bonusJabatanLabel} (Auto Database)</span>
                                                     <span className="font-mono">+ ${req.bonusJabatan.toLocaleString()}</span>
                                                 </div>
                                             )}
@@ -1256,7 +1259,7 @@ export default function SectionAdminPayroll() {
 
                             {currentSlipData.bonusJabatan > 0 && (
                                 <div className="flex justify-between items-center text-emerald-400">
-                                    <span>{currentSlipData.bonusJabatanLabel} (Auto Role)</span>
+                                    <span>{currentSlipData.bonusJabatanLabel} (Auto Database)</span>
                                     <span className="font-mono">+ ${currentSlipData.bonusJabatan.toLocaleString()}</span>
                                 </div>
                             )}

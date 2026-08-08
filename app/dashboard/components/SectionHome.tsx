@@ -96,14 +96,14 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
 
         const syncFreshData = async () => {
             try {
-                // Background check role via API
-                fetch('/api/check-role', {
+                // Tunggu proses API check-role selesai melakukan update data ke database secara sinkron
+                await fetch('/api/check-role', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: discordId })
-                }).catch(() => {});
+                });
 
-                // Fetch Database Terkini
+                // Fetch Database Terkini setelah API selesai memperbarui tabel
                 const { data, error } = await supabase
                     .from('users')
                     .select('*')

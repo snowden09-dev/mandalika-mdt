@@ -147,8 +147,9 @@ export async function POST(req: Request) {
             discord_id: userId 
         });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("API Check Role Error:", err);
-        return NextResponse.json({ error: err.message || "Fail" }, { status: 500 });
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: message || "Fail" }, { status: 500 });
     }
 }

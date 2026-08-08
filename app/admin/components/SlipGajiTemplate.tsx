@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Send, Download, DollarSign, Activity } from 'lucide-react';
+import { ShieldCheck, Send, Download, DollarSign, Activity, Award } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from "@/lib/supabase";
 import { toast } from 'sonner';
@@ -10,12 +10,48 @@ import { toast } from 'sonner';
 const boxBorder = "border-[3.5px] border-slate-950";
 const hardShadow = "shadow-[6px_6px_0px_#000]";
 
+// DAFTAR KADIV & WAKADIV ROLE ID (Sama seperti command center utama)
+const BONUS_RULES = {
+    kadivRoles: [
+        { divisi: "Sabhara", id: "1423067332389109801" },
+        { divisi: "Satlantas", id: "1428104594252238998" },
+        { divisi: "Setum", id: "1518415347558907992" },
+        { divisi: "Propam", id: "1458651434500358194" },
+        { divisi: "Brimob", id: "1445077121318785075" },
+    ],
+    wakadivRoles: [
+        { divisi: "Sabhara", id: "1423068619860082888" },
+        { divisi: "Satlantas", id: "1428104859717996665" },
+        { divisi: "Setum", id: "1518415643022725201" },
+        { divisi: "Propam", id: "1466377320909635666" },
+        { divisi: "Brimob", id: "1456339100457238598" },
+    ]
+};
+
 export default function SlipGajiTemplate({ data, onClose, onSuccess }: any) {
     const [loading, setLoading] = useState(false);
     const slipRef = useRef<HTMLDivElement>(null);
     const [adminSession, setAdminSession] = useState<{ name: string, pangkat: string, divisi: string } | null>(null);
+    
+    // State untuk menampung data user database yang lengkap (roles, is_kadiv, dll)
+    const [userData, setUserData] = useState<any>(null);
 
     useEffect(() => {
+        const fetchUserDetails = async () => {
+            const targetDiscordId = data.user_id_discord || data.discord_id;
+            if (targetDiscordId) {
+                const { data: uData } = await supabase
+                    .from('users')
+                    .select('discord_id, name, roles, jabatan, pangkat, divisi, is_kadiv, is_wakadiv')
+                    .eq('discord_id', targetDiscordId)
+                    .single();
+                
+                if (uData) setUserData(uData);
+            }
+        };
+
+        fetchUserDetails();
+
         const sessionData = localStorage.getItem('police_session');
         if (sessionData) {
             const parsed = JSON.parse(sessionData);
@@ -30,13 +66,57 @@ export default function SlipGajiTemplate({ data, onClose, onSuccess }: any) {
                     }
                 });
         }
-    }, []);
+    }, [data]);
+
+    // Evaluasi Status Kadiv / Wakadiv secara presisi di template slip
+    const evaluateKadivStatus = () => {
+        if (!userData) return { isKadiv: false, isWakadiv: false };
+        
+        const kadivIds = BONUS_RULES.kadivRoles.map(r => String(r.id).trim());
+        const wakadivIds = BONUS_RULES.wakadivRoles.map(r => String(r.id).trim());
+
+        let userRolesArr: string[] = [];
+        if (userData?.roles) {
+            if (Array.isArray(userData.roles)) {
+                userRolesArr = userData.roles.map((r: any) => String(r).trim());
+            } else if (typeof userData.roles === 'string') {
+                let cleaned = userData.roles.trim();
+                if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+                    cleaned = cleaned.slice(1, -1);
+                    userRolesArr = cleaned.split(',').map(r => r.replace(/"/g, '').trim());
+                } else {
+                    try { 
+                        const parsed = JSON.parse(cleaned);
+                        if (Array.isArray(parsed)) userRolesArr = parsed.map((r: any) => String(r).trim());
+                        else userRolesArr = [String(cleaned).trim()];
+                    } catch { 
+                        userRolesArr = cleaned.split(',').map(r => r.replace(/"/g, '').trim()); 
+                    }
+                }
+            }
+        }
+
+        const isKadivFromDb = userData?.is_kadiv === true || userData?.is_kadiv === 'true' || userData?.is_kadiv === 1;
+        const isWakadivFromDb = userData?.is_wakadiv === true || userData?.is_wakadiv === 'true' || userData?.is_wakadiv === 1;
+
+        const isKadivRole = kadivIds.some(id => userRolesArr.includes(id));
+        const isWakadivRole = wakadivIds.some(id => userRolesArr.includes(id));
+
+        const isKadivText = (data.pangkat || "").toUpperCase().includes('KADIV') || (userData?.jabatan || "").toUpperCase().includes('KADIV');
+        const isWakadivText = (data.pangkat || "").toUpperCase().includes('WAKADIV') || (userData?.jabatan || "").toUpperCase().includes('WAKADIV');
+
+        const isKadiv = isKadivFromDb || isKadivRole || isKadivText;
+        const isWakadiv = !isKadiv && (isWakadivFromDb || isWakadivRole || isWakadivText);
+
+        return { isKadiv, isWakadiv };
+    };
+
+    const { isKadiv, isWakadiv } = evaluateKadivStatus();
 
     const handleSendSlip = async () => {
         setLoading(true);
         const tId = toast.loading("Processing Transaction...");
         try {
-            // Update status ke SENT_IMAGE_QR
             const { error } = await supabase
                 .from('pengajuan_gaji')
                 .update({ status: 'SENT_IMAGE_QR', keterangan_admin: `PROCESSED BY ${adminSession?.pangkat || 'HIGH COMMAND'}` })
@@ -53,7 +133,7 @@ export default function SlipGajiTemplate({ data, onClose, onSuccess }: any) {
         }
     };
 
-    const cleanName = data.name?.includes('|') ? data.name.split('|').pop()?.trim() : data.name;
+    const cleanName = data.name?.includes('|') ? data.name.split('|').pop()?.trim() : (data.nama_panggilan || data.name);
 
     return (
         <div className="space-y-6 text-slate-950 font-mono relative">
@@ -86,11 +166,23 @@ export default function SlipGajiTemplate({ data, onClose, onSuccess }: any) {
                         <div className="space-y-6">
                             <div>
                                 <label className="text-[9px] font-black uppercase opacity-40 block mb-1 tracking-[0.2em]">Personnel Name</label>
-                                <p className="font-black text-xl italic border-l-4 border-slate-950 pl-3 uppercase">{cleanName}</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-black text-xl italic border-l-4 border-slate-950 pl-3 uppercase">{cleanName}</p>
+                                    {isKadiv && (
+                                        <span className="bg-purple-600 text-white border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-lg italic shadow-[2px_2px_0px_#000] flex items-center gap-1">
+                                            <Award size={10} /> KADIV
+                                        </span>
+                                    )}
+                                    {isWakadiv && (
+                                        <span className="bg-amber-500 text-black border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-lg italic shadow-[2px_2px_0px_#000] flex items-center gap-1">
+                                            <Award size={10} /> WAKADIV
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="text-[9px] font-black uppercase opacity-40 block mb-1 tracking-[0.2em]">Rank & Position</label>
-                                <p className="font-black text-sm italic uppercase pl-4">{data.pangkat || 'UNKNOWN'}</p>
+                                <p className="font-black text-sm italic uppercase pl-4">{data.pangkat || 'UNKNOWN'} • {data.divisi || 'UNIT'}</p>
                             </div>
                         </div>
                         <div className="space-y-6">
@@ -114,7 +206,7 @@ export default function SlipGajiTemplate({ data, onClose, onSuccess }: any) {
                             <DollarSign className="text-[#00E676]" size={24} />
                         </div>
                         <div className="flex items-baseline gap-2 leading-none">
-                            <span className="text-[#00E676] text-2xl font-black italic">Rp</span>
+                            <span className="text-[#00E676] text-2xl font-black italic">$</span>
                             <h1 className="text-[#00E676] text-5xl md:text-6xl font-[1000] italic tracking-tighter">
                                 {Number(data.total_gaji || data.jumlah_gaji || 0).toLocaleString()}
                             </h1>

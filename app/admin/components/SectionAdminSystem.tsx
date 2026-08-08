@@ -33,6 +33,26 @@ const extractStoragePath = (url: string) => {
     }
 };
 
+// Helper untuk mengambil nama asli (tanpa simbol badge atau divisi) untuk keperluan sorting A-Z
+const extractCleanName = (rawName: string) => {
+    if (!rawName) return 'UNKNOWN';
+    let name = rawName;
+    
+    if (name.includes('|')) {
+        name = name.split('|').pop()?.trim() || name;
+    }
+    
+    if (name.startsWith('#')) {
+        const spaceIndex = name.indexOf(' ');
+        if (spaceIndex !== -1) {
+            name = name.substring(spaceIndex + 1).trim();
+        } else {
+            name = "OFFICER";
+        }
+    }
+    return name.toUpperCase();
+};
+
 export default function SectionAdminSystem() {
     const router = useRouter();
     const reportRef = useRef<HTMLDivElement>(null);
@@ -77,12 +97,19 @@ export default function SectionAdminSystem() {
         setIsAuthorized(true);
         if (auth.pangkat === 'JENDRAL' || auth.is_highadmin === true) setIsHighAdmin(true);
 
-        // Fetch users beserta field is_pembekuan
+        // Fetch users beserta field is_pembekuan dan urutkan A-Z
         const { data: users } = await supabase
             .from('users')
-            .select('discord_id, name, pangkat, divisi, is_highadmin, is_pembekuan')
-            .order('pangkat', { ascending: false });
-        if (users) setPersonnel(users);
+            .select('discord_id, name, pangkat, divisi, is_highadmin, is_pembekuan');
+            
+        if (users) {
+            const sortedUsers = users.sort((a, b) => {
+                const nameA = extractCleanName(a.name);
+                const nameB = extractCleanName(b.name);
+                return nameA.localeCompare(nameB);
+            });
+            setPersonnel(sortedUsers);
+        }
 
         const { data: dutyData } = await supabase.from('presensi_duty').select('*').gte('start_time', weekStart.toISOString()).lte('start_time', weekEnd.toISOString());
         if (dutyData) setDuties(dutyData);

@@ -79,6 +79,8 @@ interface UserRecord {
     pangkat?: string;
     divisi?: string;
     total_jam_duty?: string | number;
+    is_kadiv?: boolean;
+    is_wakadiv?: boolean;
 }
 
 interface Cuti {
@@ -220,7 +222,6 @@ export default function SectionAdminPayroll() {
             return;
         }
 
-        // Jika Denda, otomatis ubah angka positif menjadi negatif (-Math.abs)
         const finalAmt = isDenda ? -Math.abs(rawAmt) : Math.abs(rawAmt);
         const defaultReason = isDenda ? 'Denda/Potongan' : 'Bonus Manual';
         const rsn = adjInputs[reqId]?.reason?.trim() || defaultReason;
@@ -245,7 +246,8 @@ export default function SectionAdminPayroll() {
         const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, durasi_menit, status');
         if (dutyData) setDuties(dutyData);
 
-        const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_jam_duty');
+        // ✅ Diperbarui: Mengambil is_kadiv dan is_wakav dari tabel users
+        const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_jam_duty, is_kadiv, is_wakadiv');
         if (userData) setUsers(userData);
 
         const { data: cutiData } = await supabase.from('pengajuan_cuti').select('user_id_discord, tanggal_mulai, tanggal_selesai, status');
@@ -327,15 +329,16 @@ export default function SectionAdminPayroll() {
                 }
             }
 
-            // 2. AUTO DETECT ROLE KADIV / WAKADIV
+            // 2. AUTO DETECT KADIV / WAKADIV DARI TABEL USERS & ROLE ID
             const isKadivRole = kadivIds.some(id => userRolesArr.includes(id));
             const isWakadivRole = wakadivIds.some(id => userRolesArr.includes(id));
 
             const isKadivText = (req.pangkat || "").toUpperCase().includes('KADIV') || (userObj?.jabatan || "").toUpperCase().includes('KADIV');
             const isWakadivText = (req.pangkat || "").toUpperCase().includes('WAKADIV') || (userObj?.jabatan || "").toUpperCase().includes('WAKADIV');
 
-            const isKadiv = isKadivRole || isKadivText;
-            const isWakadiv = !isKadiv && (isWakadivRole || isWakadivText);
+            // ✅ Menggabungkan pengecekan is_kadiv / is_wakadiv langsung dari database users
+            const isKadiv = Boolean(userObj?.is_kadiv) || isKadivRole || isKadivText;
+            const isWakadiv = !isKadiv && (Boolean(userObj?.is_wakadiv) || isWakadivRole || isWakadivText);
 
             let bonusJabatan = 0;
             let bonusJabatanLabel = '';
@@ -473,7 +476,6 @@ export default function SectionAdminPayroll() {
 
             const baseGajiSubmit = baseGajiPokok + earnedBonus + bonusAbsensi;
 
-            // UPDATE PERSENTASE POTONGAN
             const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGajiPokok * 0.10));
             const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGajiPokok * 0.05));
             const totalPotongan = potonganAlpha + potonganCuti;
@@ -729,7 +731,7 @@ export default function SectionAdminPayroll() {
             <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl overflow-hidden backdrop-blur-md transition-all">
                 <button
                     onClick={() => setShowRules(!showRules)}
-                    className="w-full p-4 flex justify-between items-center bg-zinc-900/90 hover:bg-zinc-800/60 transition-colors text-left"
+                    className="w-full p-4 flex justify-between items-center bg-zinc-900/90 hover:bg-zinc-800/65 transition-colors text-left"
                 >
                     <div className="flex items-center gap-2.5">
                         <div className="p-2 bg-red-500/10 text-red-500 rounded-xl border border-red-500/20">
@@ -756,7 +758,6 @@ export default function SectionAdminPayroll() {
                             className="border-t border-zinc-800/80 p-5 space-y-6 bg-zinc-950/40"
                         >
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* BONUS DIVISI MINGGUAN */}
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
                                         <Shield size={14} /> Bonus Divisi Mingguan
@@ -771,7 +772,6 @@ export default function SectionAdminPayroll() {
                                     </div>
                                 </div>
 
-                                {/* BONUS ADMINISTRASI */}
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
                                         <Info size={14} /> Bonus Administrasi & Duty
@@ -931,7 +931,6 @@ export default function SectionAdminPayroll() {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                             {paginatedData.map((req) => (
                                 <div key={req.id} className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl overflow-hidden flex flex-col justify-between backdrop-blur-md hover:border-zinc-700 transition-all">
-                                    {/* CARD HEADER */}
                                     <div className="bg-zinc-950/80 border-b border-zinc-800/80 p-4 flex justify-between items-start">
                                         <div>
                                             <div className="flex items-center gap-2">
@@ -951,10 +950,8 @@ export default function SectionAdminPayroll() {
                                         </div>
                                     </div>
 
-                                    {/* CARD BODY */}
                                     <div className="p-4 space-y-4 flex-1">
                                         <div className="grid grid-cols-2 gap-3">
-                                            {/* KEHADIRAN */}
                                             <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
                                                 <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Kehadiran ({req.total_hari} Hari)</p>
                                                 <div className="flex gap-1.5 text-xs font-mono font-bold">
@@ -964,7 +961,6 @@ export default function SectionAdminPayroll() {
                                                 </div>
                                             </div>
 
-                                            {/* AUTO DUTY HOURS COUNTER */}
                                             <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
                                                 <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1 flex items-center gap-1">
                                                     <Clock size={11} className="text-red-400" /> Jam Duty DB
@@ -978,7 +974,6 @@ export default function SectionAdminPayroll() {
                                             </div>
                                         </div>
 
-                                        {/* BREAKDOWN RINCIAN GAJI */}
                                         <div className="border-t border-zinc-800/60 pt-3 space-y-1 text-xs">
                                             <div className="flex justify-between text-zinc-400">
                                                 <span>Gaji Pokok {req.is100HoursDuty ? '(Bonus 100 Jam Duty 2x)' : ''}</span>
@@ -1011,10 +1006,8 @@ export default function SectionAdminPayroll() {
                                             )}
                                         </div>
 
-                                        {/* ATUR ADJUSTMENT MANUAL PRESET & CUSTOM */}
                                         {activeTab === 'PENDING' && (
                                             <div className="border-t border-zinc-800/60 pt-3 space-y-3">
-                                                {/* TOMBOL PRESET BONUS KETERANGAN DETAIL & PENCEGAHAN KLIK REPEAT ATAU AUTO */}
                                                 <div>
                                                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">
                                                         Pilih Preset Bonus Gaji HQ (1x Klik)
@@ -1055,7 +1048,6 @@ export default function SectionAdminPayroll() {
                                                     </div>
                                                 </div>
 
-                                                {/* CUSTOM ADJUSTMENT INPUT (NILAI POSITIF UNTUK DENDA / POTONGAN) */}
                                                 <div className="flex flex-col gap-2">
                                                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
                                                         Custom Adj / Denda (Masukkan Nominal Positif)
@@ -1117,7 +1109,6 @@ export default function SectionAdminPayroll() {
                                         )}
                                     </div>
 
-                                    {/* CARD FOOTER (TOTAL & AKSI) */}
                                     <div className="bg-zinc-950/80 border-t border-zinc-800/80 p-4 flex justify-between items-center">
                                         <div>
                                             <p className="text-[10px] text-zinc-500 uppercase font-semibold">Total Net Payout</p>
@@ -1210,7 +1201,7 @@ export default function SectionAdminPayroll() {
                 )}
             </AnimatePresence>
 
-            {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATOR GAMBAR SLIP GAJI (CLEAN DARK DESIGN) --- */}
+            {/* --- ELEMEN TERSEMBUNYI UNTUK GENERATOR GAMBAR SLIP GAJI --- */}
             {currentSlipData && (
                 <div className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none z-[-1000]">
                     <div ref={slipRef} className="bg-zinc-950 w-[600px] border-2 border-zinc-800 p-10 space-y-8 text-zinc-100 font-sans relative">

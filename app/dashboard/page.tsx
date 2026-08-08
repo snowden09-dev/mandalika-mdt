@@ -164,29 +164,45 @@ export default function PortalPage() {
             if (!sessionData) { router.push('/'); return; }
 
             const parsed = JSON.parse(sessionData);
-            const { data, error } = await supabase.from('users').select('*').eq('discord_id', parsed.discord_id).single();
+            const discordId = parsed.discord_id;
 
-            if (data) {
-                setUserData(data);
-                const cleanName = data.name.includes('|') ? data.name.split('|').pop().trim() : data.name;
-                setNickname(cleanName.toUpperCase());
+            if (!discordId) { router.push('/'); return; }
 
-                const isAdmin = data.is_admin === true;
-                const isHighAdmin = data.is_highadmin === true;
-
-                setDbStatus({
-                    is_admin: isAdmin || isHighAdmin,
-                    is_highadmin: isHighAdmin
+            try {
+                // 1. Panggil API check-role terlebih dahulu agar database diperbarui dengan role/pangkat terbaru dari Discord
+                await fetch('/api/check-role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: discordId })
                 });
 
-                setRealtimeData({
-                    point_prp: data.point_prp,
-                    total_jam_duty: data.total_jam_duty,
-                    pangkat: data.pangkat,
-                    divisi: data.divisi 
-                });
-            } else if (error) {
-                console.error(error);
+                // 2. Ambil data terbaru dari database Supabase setelah disinkronkan
+                const { data, error } = await supabase.from('users').select('*').eq('discord_id', discordId).single();
+
+                if (data && !error) {
+                    setUserData(data);
+                    const cleanName = data.name.includes('|') ? data.name.split('|').pop().trim() : data.name;
+                    setNickname(cleanName.toUpperCase());
+
+                    const isAdmin = data.is_admin === true;
+                    const isHighAdmin = data.is_highadmin === true;
+
+                    setDbStatus({
+                        is_admin: isAdmin || isHighAdmin,
+                        is_highadmin: isHighAdmin
+                    });
+
+                    setRealtimeData({
+                        point_prp: data.point_prp,
+                        total_jam_duty: data.total_jam_duty,
+                        pangkat: data.pangkat,
+                        divisi: data.divisi 
+                    });
+                } else if (error) {
+                    console.error("Supabase Fetch Error:", error);
+                }
+            } catch (err) {
+                console.error("Sync Check Error:", err);
             }
         };
         checkUser();

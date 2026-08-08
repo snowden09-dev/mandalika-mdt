@@ -72,15 +72,15 @@ interface Duty {
 }
 
 interface UserRecord {
-    discord_id: string;
+    discord_id: string | number;
     name?: string;
     roles?: string[] | string;
     jabatan?: string;
     pangkat?: string;
     divisi?: string;
     total_jam_duty?: string | number;
-    is_kadiv?: boolean;
-    is_wakadiv?: boolean;
+    is_kadiv?: boolean | string | number;
+    is_wakadiv?: boolean | string | number;
 }
 
 interface Cuti {
@@ -132,7 +132,7 @@ type SlipData = PayrollRequest & {
     finalGaji: number;
 };
 
-// 🛠️ HELPER PARSING TANGGAL WIB (UTC+7) AGAR TEPAT TANPA SHIFT DAY / OFF-BY-ONE
+// 🛠️ HELPER PARSING TANGGAL WIB (UTC+7)
 const getWIBDateStr = (dateInput: string | Date) => {
     if (!dateInput) return '';
     try {
@@ -180,7 +180,6 @@ export default function SectionAdminPayroll() {
 
     const [showRules, setShowRules] = useState(false);
 
-    // ✅ FUNGSI HANDLE MULTIPLE BONUS / ADJUSTMENT
     const handleAddAdjustment = (reqId: string, amount: number, reason: string) => {
         setManualAdjustments(prev => {
             const existing = prev[reqId] || { amount: 0, reason: '' };
@@ -198,7 +197,6 @@ export default function SectionAdminPayroll() {
         });
     };
 
-    // ✅ FUNGSI TAMBAH PRESET BONUS (DENGAN PENCEGAHAN DUPLIKASI 1x)
     const handleAddPresetBonus = (reqId: string, bLabel: string, amount: number) => {
         const currentSelected = selectedPresetBonuses[reqId] || [];
         if (currentSelected.includes(bLabel)) {
@@ -214,7 +212,6 @@ export default function SectionAdminPayroll() {
         toast.success(`${bLabel} berhasil ditambahkan!`);
     };
 
-    // ✅ FUNGSI TAMBAH ADJUSTMENT CUSTOM (BONUS ATAU DENDA/POTONGAN)
     const handleAddCustomAdj = (reqId: string, isDenda: boolean) => {
         const rawAmt = Number(adjInputs[reqId]?.amount || 0);
         if (!rawAmt || rawAmt === 0) {
@@ -231,7 +228,6 @@ export default function SectionAdminPayroll() {
         toast.success(`${isDenda ? 'Denda' : 'Bonus'} sebesar $${Math.abs(finalAmt).toLocaleString()} berhasil diterapkan!`);
     };
 
-    // ✅ RESET ADJUSTMENT & STATUS TOMBOL BONUS
     const handleResetAdjustment = (reqId: string) => {
         setManualAdjustments(prev => ({ ...prev, [reqId]: { amount: 0, reason: '' } }));
         setSelectedPresetBonuses(prev => ({ ...prev, [reqId]: [] }));
@@ -316,31 +312,39 @@ export default function SectionAdminPayroll() {
             const start = parseDateOnly(req.tanggal_mulai);
             const end = parseDateOnly(req.tanggal_selesai);
             const daysInPeriod = eachDayOfInterval({ start, end });
-            const discordId = req.user_id_discord;
+            const discordIdStr = String(req.user_id_discord || '').trim();
 
-            // 1. MATCH DATA USER & PARSE ROLES
-            const userObj = users.find(u => u.discord_id === discordId);
+            // 1. MATCH DATA USER (MENGATASI PERBEDAAN TIPE STRING / NUMBER DI DATABASE)
+            const userObj = users.find(u => String(u.discord_id || '').trim() === discordIdStr);
+
+            // 2. PARSE ROLES DENGAN DUKUNGAN POSTGRES ARRAY `{...}` DAN JSON `[...]`
             let userRolesArr: string[] = [];
             if (userObj?.roles) {
                 if (Array.isArray(userObj.roles)) {
                     userRolesArr = userObj.roles.map(r => String(r).trim());
                 } else if (typeof userObj.roles === 'string') {
-                    try { 
-                        const parsed = JSON.parse(userObj.roles);
-                        if (Array.isArray(parsed)) {
-                            userRolesArr = parsed.map(r => String(r).trim());
-                        } else {
-                            userRolesArr = [String(userObj.roles).trim()];
+                    let cleaned = userObj.roles.trim();
+                    if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+                        cleaned = cleaned.slice(1, -1);
+                        userRolesArr = cleaned.split(',').map(r => r.replace(/"/g, '').trim());
+                    } else {
+                        try { 
+                            const parsed = JSON.parse(cleaned);
+                            if (Array.isArray(parsed)) {
+                                userRolesArr = parsed.map(r => String(r).trim());
+                            } else {
+                                userRolesArr = [String(cleaned).trim()];
+                            }
+                        } catch { 
+                            userRolesArr = cleaned.split(',').map(r => r.replace(/"/g, '').trim()); 
                         }
-                    } catch { 
-                        userRolesArr = userObj.roles.split(',').map(r => r.trim()); 
                     }
                 }
             }
 
-            // 2. BACA STATUS KADIV / WAKADIV LANGSUNG DARI DATABASE USERS (is_kadiv / is_wakadiv true/false) DENGAN FALLBACK ROLE/TEKS[cite: 4]
-            const isKadivFromDb = userObj?.is_kadiv === true;
-            const isWakadivFromDb = userObj?.is_wakadiv === true;
+            // 3. EVALUASI STATUS KADIV & WAKADIV (DB BOOLEAN / STRING / ROLE ID / TEKS)
+            const isKadivFromDb = userObj?.is_kadiv === true || userObj?.is_kadiv === 'true' || userObj?.is_kadiv === 1;
+            const isWakadivFromDb = userObj?.is_wakadiv === true || userObj?.is_wakadiv === 'true' || userObj?.is_wakadiv === 1;
 
             const isKadivRole = kadivIds.some(id => userRolesArr.includes(id));
             const isWakadivRole = wakadivIds.some(id => userRolesArr.includes(id));
@@ -361,12 +365,12 @@ export default function SectionAdminPayroll() {
                 bonusJabatanLabel = 'Bonus Wakadiv';
             }
 
-            // 3. KALKULASI JAM DUTY PRESISI DARI presensi_duty
+            // 4. KALKULASI JAM DUTY PRESISI DARI presensi_duty
             const startStr = getWIBDateStr(start);
             const endStr = getWIBDateStr(end);
 
             const userDutiesInPeriod = duties.filter(d => {
-                if (d.user_id_discord !== discordId) return false;
+                if (String(d.user_id_discord || '').trim() !== discordIdStr) return false;
                 const dDateStr = getWIBDateStr(d.start_time);
                 return dDateStr >= startStr && dDateStr <= endStr;
             });
@@ -378,7 +382,7 @@ export default function SectionAdminPayroll() {
             const totalDutyHours = calculatedDutyHours > 0 ? calculatedDutyHours : userObjDuty;
             const is100HoursDuty = totalDutyHours >= 100;
 
-            // 4. PARSING NAMA DAN BADGE
+            // 5. PARSING NAMA DAN BADGE
             let rawName = req.nama_panggilan || "OFFICER";
             let badgeNumber = "-";
 
@@ -399,14 +403,14 @@ export default function SectionAdminPayroll() {
 
             const cleanName = rawName.toUpperCase();
 
-            // 5. KALKULASI HADIR, CUTI, ALFA
+            // 6. KALKULASI HADIR, CUTI, ALFA
             let hadirCount = 0;
             let cutiCount = 0;
 
             daysInPeriod.forEach(day => {
                 const targetStr = getWIBDateStr(day);
                 const isHadir = duties.some(d =>
-                    d.user_id_discord === discordId &&
+                    String(d.user_id_discord || '').trim() === discordIdStr &&
                     getWIBDateStr(d.start_time) === targetStr
                 );
 
@@ -414,7 +418,7 @@ export default function SectionAdminPayroll() {
                     hadirCount++;
                 } else {
                     const isCuti = cutis.some(c => {
-                        if (c.status !== 'APPROVED' || c.user_id_discord !== discordId) return false;
+                        if (c.status !== 'APPROVED' || String(c.user_id_discord || '').trim() !== discordIdStr) return false;
                         const cStartStr = getWIBDateStr(c.tanggal_mulai);
                         const cEndStr = getWIBDateStr(c.tanggal_selesai);
                         return targetStr >= cStartStr && targetStr <= cEndStr;
@@ -424,7 +428,7 @@ export default function SectionAdminPayroll() {
             });
 
             const alphaCount = Math.max(0, daysInPeriod.length - hadirCount - cutiCount);
-            const tilangData = laporans.filter(l => l.user_id_discord === discordId && new Date(l.created_at) >= start && new Date(l.created_at) <= end);
+            const tilangData = laporans.filter(l => String(l.user_id_discord || '').trim() === discordIdStr && new Date(l.created_at) >= start && new Date(l.created_at) <= end);
             const isTargetMet = tilangData.length >= 15;
             const pangkatUser = (req.pangkat || "").toUpperCase();
             const isPetinggi = PETINGGI_RANKS.some(rank => pangkatUser.includes(rank));
@@ -473,7 +477,6 @@ export default function SectionAdminPayroll() {
                 else if (divisiUser.includes('BRIMOB') || divisiUser.includes('PROPAM')) earnedBonus += 50000;
             }
 
-            // AUTO BONUS ABSENSI
             let bonusAbsensi = 0;
             let bonusAbsensiLabel = '';
 
@@ -487,7 +490,6 @@ export default function SectionAdminPayroll() {
 
             const baseGajiSubmit = baseGajiPokok + earnedBonus + bonusAbsensi;
 
-            // 🛑 LOGIKA POTONGAN NON-AKUMULASI (Flat 1x jika alpha/cuti > 0)
             const potonganAlpha = isPetinggi ? 0 : (alphaCount > 0 ? Math.round(baseGajiPokok * 0.10) : 0);
             const potonganCuti = isPetinggi ? 0 : (cutiCount > 0 ? Math.round(baseGajiPokok * 0.05) : 0);
             const totalPotongan = potonganAlpha + potonganCuti;

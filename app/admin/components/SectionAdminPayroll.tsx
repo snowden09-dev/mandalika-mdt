@@ -246,7 +246,6 @@ export default function SectionAdminPayroll() {
         const { data: dutyData } = await supabase.from('presensi_duty').select('user_id_discord, start_time, end_time, durasi_menit, status');
         if (dutyData) setDuties(dutyData);
 
-        // ✅ Diperbarui: Mengambil is_kadiv dan is_wakav dari tabel users
         const { data: userData } = await supabase.from('users').select('discord_id, name, roles, jabatan, pangkat, divisi, total_jam_duty, is_kadiv, is_wakadiv');
         if (userData) setUsers(userData);
 
@@ -310,8 +309,8 @@ export default function SectionAdminPayroll() {
     }, [requests]);
 
     const augmentedRequests = useMemo(() => {
-        const kadivIds = BONUS_RULES.kadivRoles.map(r => r.id);
-        const wakadivIds = BONUS_RULES.wakadivRoles.map(r => r.id);
+        const kadivIds = BONUS_RULES.kadivRoles.map(r => String(r.id).trim());
+        const wakadivIds = BONUS_RULES.wakadivRoles.map(r => String(r.id).trim());
 
         return requests.map(req => {
             const start = parseDateOnly(req.tanggal_mulai);
@@ -319,24 +318,33 @@ export default function SectionAdminPayroll() {
             const daysInPeriod = eachDayOfInterval({ start, end });
             const discordId = req.user_id_discord;
 
-            // 1. MATCH DATA USER
+            // 1. MATCH DATA USER & PARSE ROLES
             const userObj = users.find(u => u.discord_id === discordId);
             let userRolesArr: string[] = [];
             if (userObj?.roles) {
-                if (Array.isArray(userObj.roles)) userRolesArr = userObj.roles;
-                else if (typeof userObj.roles === 'string') {
-                    try { userRolesArr = JSON.parse(userObj.roles); } catch { userRolesArr = [userObj.roles]; }
+                if (Array.isArray(userObj.roles)) {
+                    userRolesArr = userObj.roles.map(r => String(r).trim());
+                } else if (typeof userObj.roles === 'string') {
+                    try { 
+                        const parsed = JSON.parse(userObj.roles);
+                        if (Array.isArray(parsed)) {
+                            userRolesArr = parsed.map(r => String(r).trim());
+                        } else {
+                            userRolesArr = [String(userObj.roles).trim()];
+                        }
+                    } catch { 
+                        userRolesArr = userObj.roles.split(',').map(r => r.trim()); 
+                    }
                 }
             }
 
-            // 2. AUTO DETECT KADIV / WAKADIV DARI TABEL USERS & ROLE ID
+            // 2. AUTO DETECT KADIV / WAKADIV DARI ROLE ID & TEKS
             const isKadivRole = kadivIds.some(id => userRolesArr.includes(id));
             const isWakadivRole = wakadivIds.some(id => userRolesArr.includes(id));
 
-            const isKadivText = (req.pangkat || "").toUpperCase().includes('KADIV') || (userObj?.jabatan || "").toUpperCase().includes('KADIV');
-            const isWakadivText = (req.pangkat || "").toUpperCase().includes('WAKADIV') || (userObj?.jabatan || "").toUpperCase().includes('WAKADIV');
+            const isKadivText = (req.pangkat || "").toUpperCase().includes('KADIV') || (userObj?.jabatan || "").toUpperCase().includes('KADIV') || (userObj?.pangkat || "").toUpperCase().includes('KADIV');
+            const isWakadivText = (req.pangkat || "").toUpperCase().includes('WAKADIV') || (userObj?.jabatan || "").toUpperCase().includes('WAKADIV') || (userObj?.pangkat || "").toUpperCase().includes('WAKADIV');
 
-            // ✅ Menggabungkan pengecekan is_kadiv / is_wakadiv langsung dari database users
             const isKadiv = Boolean(userObj?.is_kadiv) || isKadivRole || isKadivText;
             const isWakadiv = !isKadiv && (Boolean(userObj?.is_wakadiv) || isWakadivRole || isWakadivText);
 
@@ -476,8 +484,9 @@ export default function SectionAdminPayroll() {
 
             const baseGajiSubmit = baseGajiPokok + earnedBonus + bonusAbsensi;
 
-            const potonganAlpha = isPetinggi ? 0 : Math.round(alphaCount * (baseGajiPokok * 0.10));
-            const potonganCuti = isPetinggi ? 0 : Math.round(cutiCount * (baseGajiPokok * 0.05));
+            // 🛑 LOGIKA POTONGAN NON-AKUMULASI (Flat 1x jika alpha/cuti > 0)[cite: 5]
+            const potonganAlpha = isPetinggi ? 0 : (alphaCount > 0 ? Math.round(baseGajiPokok * 0.10) : 0);
+            const potonganCuti = isPetinggi ? 0 : (cutiCount > 0 ? Math.round(baseGajiPokok * 0.05) : 0);
             const totalPotongan = potonganAlpha + potonganCuti;
 
             const adjustment = manualAdjustments[req.id] || { amount: 0, reason: 'Penyesuaian Manual' };
@@ -982,7 +991,7 @@ export default function SectionAdminPayroll() {
 
                                             {req.bonusJabatan > 0 && (
                                                 <div className="flex justify-between text-emerald-400 font-medium">
-                                                    <span className="flex items-center gap-1"><Award size={12} /> {req.bonusJabatanLabel} (Auto)</span>
+                                                    <span className="flex items-center gap-1"><Award size={12} /> {req.bonusJabatanLabel} (Auto Role)</span>
                                                     <span className="font-mono">+ ${req.bonusJabatan.toLocaleString()}</span>
                                                 </div>
                                             )}
@@ -994,8 +1003,8 @@ export default function SectionAdminPayroll() {
                                                 </div>
                                             )}
 
-                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-red-400"><span>Potongan Alpha (10% x {req.alpha})</span><span className="font-mono">- ${req.potonganAlpha.toLocaleString()}</span></div>}
-                                            {req.potonganCuti > 0 && <div className="flex justify-between text-amber-400"><span>Potongan Cuti (5% x {req.cuti})</span><span className="font-mono">- ${req.potonganCuti.toLocaleString()}</span></div>}
+                                            {req.potonganAlpha > 0 && <div className="flex justify-between text-red-400"><span>Potongan Alpha (10% - Non-Akumulasi)</span><span className="font-mono">- ${req.potonganAlpha.toLocaleString()}</span></div>}
+                                            {req.potonganCuti > 0 && <div className="flex justify-between text-amber-400"><span>Potongan Cuti (5% - Non-Akumulasi)</span><span className="font-mono">- ${req.potonganCuti.toLocaleString()}</span></div>}
                                             {req.isPetinggi && (req.alpha > 0 || req.cuti > 0) && <div className="flex justify-between text-emerald-400"><span>Privilese Petinggi</span><span>Bebas Potongan</span></div>}
 
                                             {req.adjustment?.amount !== 0 && (
@@ -1261,13 +1270,13 @@ export default function SectionAdminPayroll() {
 
                             {currentSlipData.potonganAlpha > 0 && (
                                 <div className="flex justify-between items-center text-red-400">
-                                    <span>Potongan Alpha (10%)</span>
+                                    <span>Potongan Alpha (10% - Non-Akumulasi)</span>
                                     <span className="font-mono">- ${currentSlipData.potonganAlpha.toLocaleString()}</span>
                                 </div>
                             )}
                             {currentSlipData.potonganCuti > 0 && (
                                 <div className="flex justify-between items-center text-amber-400">
-                                    <span>Potongan Cuti (5%)</span>
+                                    <span>Potongan Cuti (5% - Non-Akumulasi)</span>
                                     <span className="font-mono">- ${currentSlipData.potonganCuti.toLocaleString()}</span>
                                 </div>
                             )}

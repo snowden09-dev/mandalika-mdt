@@ -23,7 +23,9 @@ interface UserData {
     total_jam_duty?: number;
     divisi?: string;
     roles?: string | string[];
-    is_pembekuan?: boolean; // 🟢 Ditambahkan field pembekuan
+    is_pembekuan?: boolean; // 泙 Ditambahkan field pembekuan
+    is_kadiv?: boolean;     // 🌟 Ditambahkan field KADIV
+    is_wakadiv?: boolean;   // 🌟 Ditambahkan field WAKADIV
     [key: string]: unknown;
 }
 
@@ -217,7 +219,9 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
     const isCasis = userData.pangkat?.toUpperCase() === 'CASIS';
     const isSatlantas = userData.divisi?.toUpperCase().includes('SATLANTAS');
     const isPetinggi = userData.roles ? String(userData.roles).includes(PETINGGI_ROLE_ID) : false;
-    const isPembekuan = Boolean(userData.is_pembekuan); // 🟢 Status Pembekuan
+    const isPembekuan = Boolean(userData.is_pembekuan); 
+    const isKadiv = Boolean(userData.is_kadiv);       // 🌟 Cek status Kadiv
+    const isWakadiv = Boolean(userData.is_wakadiv);   // 🌟 Cek status Wakadiv
     const cleanDivisi = userData.divisi && userData.divisi.toUpperCase() !== 'PETINGGI' && userData.divisi.toUpperCase() !== 'NON DIVISI' ? userData.divisi : null;
 
     const TARGET_TILANG = 15;
@@ -277,7 +281,7 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                             {userData.pangkat || 'NO RANK'}
                         </span>
 
-                        {/* 🟢 Status Pembekuan (Sejajar dengan Pangkat) */}
+                        {/* Status Pembekuan */}
                         {isPembekuan && (
                             <span className="bg-red-500/15 border border-red-500/30 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] md:text-xs font-semibold text-red-400 flex items-center gap-1.5 shadow-sm shadow-red-950/50">
                                 <ShieldAlert size={14} className="text-red-400 animate-pulse" />
@@ -297,6 +301,23 @@ export default function SectionHome({ nickname, realtimeData }: SectionHomeProps
                             </span>
                         )}
 
+                        {/* 🌟 Lencana KADIV */}
+                        {isKadiv && (
+                            <span className="bg-purple-500/15 border border-purple-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-purple-400 flex items-center gap-1.5 shadow-sm shadow-purple-900/20">
+                                <Star size={14} className="fill-purple-400" />
+                                KADIV
+                            </span>
+                        )}
+
+                        {/* 🌟 Lencana WAKADIV */}
+                        {isWakadiv && (
+                            <span className="bg-indigo-500/15 border border-indigo-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-bold text-indigo-400 flex items-center gap-1.5 shadow-sm shadow-indigo-900/20">
+                                <Star size={14} className="fill-indigo-400" />
+                                WAKADIV
+                            </span>
+                        )}
+
+                        {/* Petinggi Role */}
                         {isPetinggi && (
                             <span className="bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-amber-400 flex items-center gap-1.5">
                                 <Star size={14} className="fill-amber-400" />

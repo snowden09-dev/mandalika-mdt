@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield, Search, Edit, UserMinus,
     ShieldAlert, CheckCircle2, X, Crown, UserPlus, Users, PieChart, Lock, TrendingUp, Zap,
-    Clock, Calendar, AlertTriangle, Snowflake
+    Clock, Calendar, AlertTriangle, Snowflake, Star
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Image from 'next/image';
@@ -30,7 +30,9 @@ interface UserProfile {
     last_login?: string | null;
     is_highadmin: boolean;
     is_admin: boolean;
-    is_pembekuan?: boolean; // 🚀 Ditambahkan tipe untuk status pembekuan
+    is_pembekuan?: boolean; 
+    is_kadiv?: boolean;    // 🌟 Ditambahkan Tipe KADIV
+    is_wakadiv?: boolean;  // 🌟 Ditambahkan Tipe WAKADIV
     image?: string;
 }
 
@@ -82,7 +84,9 @@ export default function SectionAdminPersonnel() {
         total_jam_duty: 0,
         is_highadmin: false,
         is_admin: false,
-        is_pembekuan: false // 🚀 State form untuk pembekuan
+        is_pembekuan: false, 
+        is_kadiv: false,   // 🌟 State KADIV
+        is_wakadiv: false  // 🌟 State WAKADIV
     });
 
     const verifyAndFetch = useCallback(async () => {
@@ -203,7 +207,9 @@ export default function SectionAdminPersonnel() {
                 payload.total_jam_duty = Number(editForm.total_jam_duty || 0);
                 payload.is_highadmin = editForm.is_highadmin;
                 payload.is_admin = editForm.is_admin;
-                payload.is_pembekuan = editForm.is_pembekuan; // 🚀 Menyimpan data pembekuan
+                payload.is_pembekuan = editForm.is_pembekuan; 
+                payload.is_kadiv = editForm.is_kadiv;     // 🌟 Submit KADIV
+                payload.is_wakadiv = editForm.is_wakadiv; // 🌟 Submit WAKADIV
             }
 
             if (isAddMode) {
@@ -250,7 +256,9 @@ export default function SectionAdminPersonnel() {
             pangkat: user.pangkat || '', divisi: user.divisi || '',
             point_prp: user.point_prp || 0, total_jam_duty: Number(user.total_jam_duty || 0),
             is_highadmin: user.is_highadmin || false, is_admin: user.is_admin || false,
-            is_pembekuan: user.is_pembekuan || false // 🚀 Load state pembekuan
+            is_pembekuan: user.is_pembekuan || false, 
+            is_kadiv: user.is_kadiv || false,       // 🌟 Load KADIV
+            is_wakadiv: user.is_wakadiv || false    // 🌟 Load WAKADIV
         });
     };
 
@@ -266,11 +274,13 @@ export default function SectionAdminPersonnel() {
             total_jam_duty: 0,
             is_highadmin: false,
             is_admin: false,
-            is_pembekuan: false
+            is_pembekuan: false,
+            is_kadiv: false,
+            is_wakadiv: false
         });
         setEditForm({
             name: '', discord_id: '', pangkat: 'CASIS', divisi: 'SABHARA',
-            point_prp: 0, total_jam_duty: 0, is_highadmin: false, is_admin: false, is_pembekuan: false
+            point_prp: 0, total_jam_duty: 0, is_highadmin: false, is_admin: false, is_pembekuan: false, is_kadiv: false, is_wakadiv: false
         });
     };
 
@@ -389,6 +399,10 @@ export default function SectionAdminPersonnel() {
                                     {p.is_highadmin && <div className="bg-red-500/10 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Crown size={10} /> HIGH ADMIN</div>}
                                     {p.is_admin && !p.is_highadmin && <div className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Shield size={10} /> STAFF</div>}
                                     
+                                    {/* 🌟 Lencana KADIV & WAKADIV */}
+                                    {p.is_kadiv && <div className="bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Star size={10} /> KADIV</div>}
+                                    {p.is_wakadiv && <div className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm"><Star size={10} /> WAKADIV</div>}
+
                                     {/* ❄️ LOGO PEMBEKUAN AKTIF */}
                                     {p.is_pembekuan && (
                                         <div 
@@ -584,6 +598,7 @@ export default function SectionAdminPersonnel() {
                                                 </div>
                                             </div>
 
+                                            {/* 🌟 CHECKBOX: STAFF, ADMIN, PEMBEKUAN, KADIV, WAKADIV */}
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
                                                 <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-all">
                                                     <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} className="w-3.5 h-3.5 accent-red-600 shrink-0 cursor-pointer" />
@@ -596,6 +611,14 @@ export default function SectionAdminPersonnel() {
                                                 <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-cyan-700 transition-all">
                                                     <input type="checkbox" checked={editForm.is_pembekuan} onChange={e => setEditForm({ ...editForm, is_pembekuan: e.target.checked })} className="w-3.5 h-3.5 accent-cyan-600 shrink-0 cursor-pointer" />
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400">Pembekuan</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-purple-700 transition-all">
+                                                    <input type="checkbox" checked={editForm.is_kadiv} onChange={e => setEditForm({ ...editForm, is_kadiv: e.target.checked })} className="w-3.5 h-3.5 accent-purple-600 shrink-0 cursor-pointer" />
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-purple-400">KADIV</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-indigo-700 transition-all">
+                                                    <input type="checkbox" checked={editForm.is_wakadiv} onChange={e => setEditForm({ ...editForm, is_wakadiv: e.target.checked })} className="w-3.5 h-3.5 accent-indigo-600 shrink-0 cursor-pointer" />
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-400">WAKADIV</span>
                                                 </label>
                                             </div>
                                         </div>

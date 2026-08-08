@@ -1014,14 +1014,16 @@ export default function SectionAdminPayroll() {
                                         {/* ATUR ADJUSTMENT MANUAL PRESET & CUSTOM */}
                                         {activeTab === 'PENDING' && (
                                             <div className="border-t border-zinc-800/60 pt-3 space-y-3">
-                                                {/* TOMBOL PRESET BONUS KETERANGAN DETAIL & PENCEGAHAN KLIK REPEAT */}
+                                                {/* TOMBOL PRESET BONUS KETERANGAN DETAIL & PENCEGAHAN KLIK REPEAT ATAU AUTO */}
                                                 <div>
                                                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">
                                                         Pilih Preset Bonus Gaji HQ (1x Klik)
                                                     </span>
                                                     <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
                                                         {BONUS_RULES.divisiMingguan.map((b, i) => {
-                                                            const isSelected = (selectedPresetBonuses[req.id] || []).includes(b.shortLabel);
+                                                            const userSelected = (selectedPresetBonuses[req.id] || []).includes(b.shortLabel);
+                                                            const isAutoGiven = req.bonusAbsensiLabel === b.shortLabel || req.bonusJabatanLabel === b.shortLabel;
+                                                            const isSelected = userSelected || isAutoGiven;
                                                             return (
                                                                 <button
                                                                     key={i}
@@ -1045,7 +1047,7 @@ export default function SectionAdminPayroll() {
                                                                             ? "bg-emerald-500/10 text-emerald-400/60 border-emerald-500/20" 
                                                                             : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                                                     )}>
-                                                                        {isSelected ? "✓ Added" : `+${b.value}`}
+                                                                        {isSelected ? (isAutoGiven ? "✓ Auto" : "✓ Added") : `+${b.value}`}
                                                                     </span>
                                                                 </button>
                                                             );

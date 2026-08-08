@@ -19,7 +19,6 @@ import {
 import { id } from 'date-fns/locale';
 import { supabase } from "@/lib/supabase";
 
-// 🚀 SCHEMATIC INTERFACE TABEL users SUPABASE (PERSIS SESUAI SCHEMA)
 export interface UserData {
     idx?: number;
     id: string;
@@ -41,7 +40,6 @@ export interface UserData {
     [key: string]: unknown;
 }
 
-// 🚀 SCHEMATIC INTERFACE TABEL pengajuan_gaji SUPABASE
 interface PengajuanGaji {
     idx?: number;
     id: string;
@@ -65,7 +63,6 @@ interface UserReport {
 const cn = (...classes: Array<string | false | null | undefined>): string =>
     classes.filter(Boolean).join(' ');
 
-// 🚀 ENGINE MUTLAK WIB (UTC+7)
 const getWIBTime = () => {
     const d = new Date();
     const localTime = d.getTime();
@@ -75,7 +72,6 @@ const getWIBTime = () => {
     return new Date(utc + wibOffset);
 };
 
-// 💡 HELPER SAFELY PARSE DATE STRINGS FROM POSTGRES
 const safeParseDate = (dateStr: string): Date => {
     if (!dateStr) return new Date();
     try {
@@ -90,7 +86,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
     const [currentMonth, setCurrentMonth] = useState(getWIBTime());
     const [range, setRange] = useState<{ from: Date | null, to: Date | null }>({ from: null, to: null });
     
-    // State data user ter-sync dari tabel users
     const [dbUser, setDbUser] = useState<UserData | null>(realtimeData || null);
     
     const [history, setHistory] = useState<PengajuanGaji[]>([]);
@@ -110,7 +105,13 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
         setNotif({ show: true, title, message, type });
     };
 
-    // 💡 ENHANCED RESOLUTION UNTUK DISCORD ID / USER ID (MULTI-FALLBACK)
+    // Sinkronisasi data realtime agar nama/pangkat di HP langsung muncul instan tanpa delay
+    useEffect(() => {
+        if (realtimeData && Object.keys(realtimeData).length > 0) {
+            setDbUser(prev => ({ ...prev, ...realtimeData }));
+        }
+    }, [realtimeData]);
+
     const activeDiscordId = useMemo(() => {
         return (
             dbUser?.discord_id ||
@@ -125,7 +126,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
     const activeDivisi = dbUser?.divisi || realtimeData?.divisi || "NON DIVISI";
     const activeName = dbUser?.name || realtimeData?.name || nickname || "Unknown Officer";
 
-    // 💡 FUZZY MATCHING PANGKAT
     const getGajiByRank = (pangkatRaw?: string) => {
         if (!pangkatRaw) return 90000;
         const p = String(pangkatRaw).toUpperCase().trim();
@@ -156,58 +156,34 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
 
     const baseSalary = useMemo(() => getGajiByRank(activePangkat), [activePangkat]);
 
-    // 💡 FETCH USER DATA & HISTORY DENGAN IDENTIFIKASI RIGORUS
     const fetchUserDataAndHistory = useCallback(async () => {
         try {
             let targetId = activeDiscordId;
 
-            // Jika belum terdeteksi dari props/state, coba dari Session Auth Supabase
+            // MENGGUNAKAN getSession (Super Cepat) KARENA MEMBACA CACHE HP, BUKAN getUser YANG BERAT
             if (!targetId) {
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { session } } = await supabase.auth.getSession();
                 targetId = 
-                    user?.user_metadata?.provider_id || 
-                    user?.user_metadata?.sub || 
-                    user?.user_metadata?.discord_id ||
-                    user?.id ||
+                    session?.user?.user_metadata?.provider_id || 
+                    session?.user?.user_metadata?.sub || 
+                    session?.user?.user_metadata?.discord_id ||
+                    session?.user?.id ||
                     null;
             }
 
-            if (!targetId) {
-                console.warn("[SectionSalary] Discord ID / User ID belum ditemukan.");
-                return;
-            }
+            if (!targetId) return;
 
-            // 1. Fetch data profil user langsung dari tabel `users`
-            const { data: userData, error: userError } = await supabase
-                .from('users')
-                .select('*')
-                .or(`discord_id.eq.${targetId},id.eq.${targetId}`)
-                .maybeSingle();
+            // PARALLEL QUERY: Mengeksekusi 3 database request secara serentak agar performa melesat
+            const [userRes, historyRes, reportsRes] = await Promise.all([
+                supabase.from('users').select('*').or(`discord_id.eq.${targetId},id.eq.${targetId}`).maybeSingle(),
+                supabase.from('pengajuan_gaji').select('*').eq('user_id_discord', String(targetId)).order('created_at', { ascending: false }),
+                supabase.from('laporan_aktivitas').select('created_at').eq('user_id_discord', String(targetId)).eq('jenis_laporan', 'Penilangan').eq('status', 'APPROVED')
+            ]);
 
-            if (userData && !userError) {
-                setDbUser(userData as UserData);
-            }
+            if (userRes.data) setDbUser(userRes.data as UserData);
+            if (historyRes.data) setHistory(historyRes.data as PengajuanGaji[]);
+            if (reportsRes.data) setUserReports(reportsRes.data as UserReport[]);
 
-            const validId = userData?.discord_id || userData?.id || targetId;
-
-            // 2. Fetch history pengajuan_gaji
-            const { data: historyData } = await supabase
-                .from('pengajuan_gaji')
-                .select('*')
-                .eq('user_id_discord', String(validId))
-                .order('created_at', { ascending: false });
-
-            if (historyData) setHistory(historyData as PengajuanGaji[]);
-
-            // 3. Fetch laporan_aktivitas tilang untuk hitung bonus Satlantas
-            const { data: reportsData } = await supabase
-                .from('laporan_aktivitas')
-                .select('created_at')
-                .eq('user_id_discord', String(validId))
-                .eq('jenis_laporan', 'Penilangan')
-                .eq('status', 'APPROVED');
-
-            if (reportsData) setUserReports(reportsData as UserReport[]);
         } catch (e) {
             console.error("[SectionSalary] Error syncing data:", e);
         }
@@ -284,17 +260,15 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
 
         setIsVerifying(true);
         try {
-            // Re-check target Discord ID secara dinamis sebelum submit
             let targetId = activeDiscordId;
             if (!targetId) {
-                const { data: { user } } = await supabase.auth.getUser();
-                targetId = user?.user_metadata?.provider_id || user?.user_metadata?.sub || user?.id || null;
+                const { data: { session } } = await supabase.auth.getSession();
+                targetId = session?.user?.user_metadata?.provider_id || session?.user?.id || null;
             }
 
             if (!targetId) {
-                showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi ID Discord akun Anda. Coba refresh / re-login.", "ERROR");
-                setIsVerifying(false);
-                return;
+                showNotif("ID USER TIDAK DITEMUKAN", "Gagal mengidentifikasi ID akun Anda. Coba refresh / re-login.", "ERROR");
+                setIsVerifying(false); return;
             }
 
             const startDayObj = startOfDay(range.from);
@@ -312,21 +286,16 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
             }
 
             if (endDayObj > startOfDay(activePeriod.end)) {
-                showNotif("PERIODE BELUM TERCAPAI", "Anda belum bisa mengklaim gaji untuk minggu yang belum selesai. Klaim baru bisa dilakukan pada hari Minggu.", "ERROR");
+                showNotif("PERIODE BELUM TERCAPAI", "Anda belum bisa mengklaim gaji untuk minggu yang belum selesai.", "ERROR");
                 setIsVerifying(false); return;
             }
 
             const maxPastStart = subWeeks(activePeriod.start, 1);
             if (startDayObj < maxPastStart) {
-                showNotif("KLAIM KADALUWARSA", "Batas maksimal pengambilan gaji telat adalah 2 minggu ke belakang (x2).", "ERROR");
+                showNotif("KLAIM KADALUWARSA", "Batas maksimal pengambilan gaji telat adalah 2 minggu ke belakang.", "ERROR");
                 setIsVerifying(false); return;
             }
 
-            // ISO string khusus untuk filter query aktivitas
-            const startIso = format(range.from, 'yyyy-MM-dd') + "T00:00:00+07:00";
-            const endIso = format(range.to, 'yyyy-MM-dd') + "T23:59:59+07:00";
-
-            // Cek apakah tanggal ini pernah diajukan sebelumnya
             const { data: existing } = await supabase.from('pengajuan_gaji')
                 .select('tanggal_mulai, tanggal_selesai')
                 .eq('user_id_discord', String(targetId));
@@ -338,40 +307,49 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
             });
 
             if (isOverlap) {
-                showNotif("JANGAN OVER-CLAIM", "Tanggal ini sudah pernah diajukan (Termasuk yang telah PENDING/PAID/DITOLAK). Cek History Log.", "ERROR");
+                showNotif("JANGAN OVER-CLAIM", "Tanggal ini sudah pernah diajukan. Cek History Log.", "ERROR");
                 setIsVerifying(false); return;
             }
 
             // =================================================================
-            // 🚀 VALIDASI WAJIB DUTY: Tolak jika tidak ada aktivitas di periode ini
+            // 🚀 PERBAIKAN VALIDASI WAJIB DUTY
+            // Menggunakan format yyyy-MM-dd HH:mm:ss murni untuk mengatasi bug timezone offset.
             // =================================================================
-            const { count: dutyCount, error: dutyError } = await supabase
+            const startDateStr = format(range.from, 'yyyy-MM-dd 00:00:00');
+            const endDateStr = format(range.to, 'yyyy-MM-dd 23:59:59');
+
+            const { data: dutyData, error: dutyError } = await supabase
                 .from('laporan_aktivitas')
-                .select('*', { count: 'exact', head: true })
+                .select('id, jenis_laporan')
                 .eq('user_id_discord', String(targetId))
-                .gte('created_at', startIso)
-                .lte('created_at', endIso);
+                .gte('created_at', startDateStr)
+                .lte('created_at', endDateStr);
 
             if (dutyError) {
-                console.error("Supabase Duty Check Error:", dutyError);
                 showNotif("SISTEM ERROR", "Gagal memverifikasi data aktivitas duty Anda.", "ERROR");
                 setIsVerifying(false);
                 return;
             }
 
-            // Jika record laporan_aktivitas pada tanggal tersebut kosong (0)
-            if (!dutyCount || dutyCount === 0) {
-                showNotif("PENGAJUAN DITOLAK", "ga duty kok mau ambil gaji", "ERROR");
+            // 1. Blokir jika tabel riwayat periode itu benar-benar kosong
+            if (!dutyData || dutyData.length === 0) {
+                showNotif("PENGAJUAN DITOLAK", "SISTEM MENOLAK: Tidak ada data Absen/Duty selama periode tersebut.", "ERROR");
+                setIsVerifying(false);
+                return;
+            }
+
+            // 2. Blokir jika riwayat cuma berisi "Penilangan" (user menilang tapi belum absen/duty)
+            const isOnlyPenilangan = dutyData.every(log => log.jenis_laporan === 'Penilangan');
+            if (isOnlyPenilangan) {
+                showNotif("PENGAJUAN DITOLAK", "ANDA BELUM MELAKUKAN ABSEN/DUTY. Sistem hanya mendeteksi log Penilangan pada periode ini.", "ERROR");
                 setIsVerifying(false);
                 return;
             }
             // =================================================================
 
-            // 💡 TANGGAL MURNI (YYYY-MM-DD) MENCEGAH MUNDUR H-1 DI DATABASE/ADMIN PANEL
             const pureStartDate = format(range.from, 'yyyy-MM-dd');
             const pureEndDate = format(range.to, 'yyyy-MM-dd');
 
-            // 💡 PAYLOAD DISESUAIKAN DENGAN TABEL PENGAJUAN_GAJI & USERS
             const payload = {
                 user_id_discord: String(targetId),
                 nama_panggilan: activeName,
@@ -386,7 +364,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
             const { error: insertError } = await supabase.from('pengajuan_gaji').insert([payload]);
 
             if (insertError) {
-                console.error("Supabase Insert Error:", insertError);
                 showNotif("GAGAL PENGAJUAN", insertError.message || "Gagal menyimpan pengajuan ke database.", "ERROR");
                 setIsVerifying(false);
                 return;
@@ -396,7 +373,6 @@ export default function SectionSalary({ nickname, realtimeData }: { nickname?: s
             setRange({ from: null, to: null }); 
             fetchUserDataAndHistory();
         } catch (err: unknown) {
-            console.error("System Catch Error:", err);
             const errorMsg = err instanceof Error ? err.message : "Terjadi kesalahan sistem.";
             showNotif("SISTEM ERROR", errorMsg, "ERROR");
         } finally { 

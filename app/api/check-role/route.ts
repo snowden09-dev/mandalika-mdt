@@ -36,7 +36,7 @@ export async function POST(req: Request) {
         // Ambil data user saat ini dari database untuk referensi
         const { data: existingUser } = await supabaseAdmin
             .from('users')
-            .select('divisi, jabatan')
+            .select('divisi')
             .eq('discord_id', userId)
             .single();
 
@@ -88,18 +88,19 @@ export async function POST(req: Request) {
             SETUM: "1518414822318800987"
         };
 
-        let detectedJabatan = "ANGGOTA";
+        let isKadiv = false;
+        let isWakadiv = false;
         let detectedDivisi = "NON DIVISI";
 
         const matchedKadivs = KADIV_ROLES.filter(item => roles.includes(item.id));
         const matchedWakadivs = WAKADIV_ROLES.filter(item => roles.includes(item.id));
 
         if (matchedKadivs.length > 0) {
-            detectedJabatan = "KADIV";
+            isKadiv = true;
             const active = matchedKadivs.find(k => k.divisi === existingUser?.divisi) || matchedKadivs[0];
             detectedDivisi = active.divisi;
         } else if (matchedWakadivs.length > 0) {
-            detectedJabatan = "WAKADIV";
+            isWakadiv = true;
             const active = matchedWakadivs.find(w => w.divisi === existingUser?.divisi) || matchedWakadivs[0];
             detectedDivisi = active.divisi;
         } else {
@@ -111,26 +112,28 @@ export async function POST(req: Request) {
             }
         }
 
-        // 3. DETEKSI STATUS PEMBEKUAN SECARA EKSPLISIT
+        // 3. DETEKSI STATUS PEMBEKUAN
         const isPembekuan = roles.includes(ROLE_PEMBEKUAN_ID);
         const isPolice = roles.includes("1393366590942085220");
 
         if (isPolice) {
+            // Perbaikan: Menggunakan kolom boolean is_kadiv & is_wakadiv sesuai struktur database
             const { error: upsertError } = await supabaseAdmin.from('users').upsert({
-                id: userId,
                 discord_id: userId,
                 name: member.nick || member.user.username,
                 image: member.user.avatar ? `https://cdn.discordapp.com/avatars/${userId}/${member.user.avatar}.png` : null,
                 roles: roles,
                 divisi: detectedDivisi,
                 pangkat: detectedPangkat,
-                jabatan: detectedJabatan,
-                is_pembekuan: isPembekuan, // Memastikan nilai boolean ter-update ke database
+                is_kadiv: isKadiv,
+                is_wakadiv: isWakadiv,
+                is_pembekuan: isPembekuan,
                 last_login: new Date().toISOString(),
             }, { onConflict: 'discord_id' });
 
             if (upsertError) {
                 console.error("Supabase Upsert Error:", upsertError);
+                return NextResponse.json({ error: upsertError.message }, { status: 500 });
             }
         }
 
@@ -138,7 +141,8 @@ export async function POST(req: Request) {
             isPolice, 
             divisi: detectedDivisi, 
             pangkat: detectedPangkat, 
-            jabatan: detectedJabatan,
+            is_kadiv: isKadiv,
+            is_wakadiv: isWakadiv,
             is_pembekuan: isPembekuan, 
             discord_id: userId 
         });
